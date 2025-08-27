@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automação de Onboarding de Projetos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Animati" class="logo">
+        </div>
+
+        <form id="project-form">
+            <h2>Detalhes do Novo Projeto</h2>
+
+            <button type="button" id="deip-button" class="deip-button">Selecionar DEIP (.pdf)...</button>
+            <input type="file" id="deip_pdf" name="deip_pdf" accept=".pdf" required hidden>
+            <span id="deip-filename" class="filename-display"></span>
+
+            <!-- Dados do Cliente -->
+            <fieldset>
+                <legend>Dados do Cliente</legend>
+                <div class="form-grid">
+                    <label for="nome_cliente">Nome do Cliente:</label>
+                    <input type="text" id="nome_cliente" name="nome_cliente" required>
+                    
+                    <label for="codigo_contrato">Código do Contrato:</label>
+                    <input type="text" id="codigo_contrato" name="codigo_contrato" required>
+                    
+                    <label for="cnpj">CNPJ (só números):</label>
+                    <input type="text" id="cnpj" name="cnpj">
+                    
+                    <label for="cidade">Cidade:</label>
+                    <input type="text" id="cidade" name="cidade">
+                    
+                    <label for="estado">Estado (UF):</label>
+                    <input type="text" id="estado" name="estado">
+
+                    <label for="concorrente">Concorrente:</label>
+                    <input type="text" id="concorrente" name="concorrente" placeholder="Se aplicável">
+                </div>
+            </fieldset>
+
+            <!-- Configurações do Projeto -->
+            <fieldset>
+                <legend>Configurações do Projeto</legend>
+                <div class="form-grid">
+                    <label>Data de Início:</label>
+                    <div class="date-group">
+                        <select id="day" name="day"></select>
+                        <select id="month" name="month"></select>
+                        <select id="year" name="year"></select>
+                    </div>
+
+                    <label for="servidor">Servidor:</label>
+                    <select id="servidor" name="servidor">
+                        <option>Local</option>
+                        <option>Cloud Animati</option>
+                        <option>Cloud Terceiros</option>
+                    </select>
+
+                    <label for="produto">Produtos Contratados:</label>
+                    <select id="produto" name="produto">
+                        <option>netRIS</option>
+                        <option>AnimatiPACS</option>
+                        <option>netRIS e AnimatiPACS</option>
+                    </select>
+
+                    <label for="gp_selecionado">Gerente de Projeto (GP):</label>
+                    <select id="gp_selecionado" name="gp_selecionado">
+                        <option>Giovani de Sousa</option>
+                        <option>Willian dos Anjos</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            <!-- Detalhes do Escopo -->
+            <fieldset>
+                <legend>Detalhes do Escopo</legend>
+                <div class="radio-group">
+                    <label>Haverá Importação?</label>
+                    <div>
+                        <input type="radio" id="import_sim" name="importacao" value="s"> <label for="import_sim">Sim</label>
+                        <input type="radio" id="import_nao" name="importacao" value="n" checked> <label for="import_nao">Não</label>
+                    </div>
+                </div>
+                <div id="importacao-options" class="checkbox-group hidden">
+                    <input type="checkbox" id="import_cadastros" name="import_cadastros" value="1"><label for="import_cadastros">Cadastros</label>
+                    <input type="checkbox" id="import_prontuarios" name="import_prontuarios" value="1"><label for="import_prontuarios">Prontuários</label>
+                    <input type="checkbox" id="import_laudos" name="import_laudos" value="1"><label for="import_laudos">Laudos</label>
+                    <input type="checkbox" id="import_imagens" name="import_imagens" value="1"><label for="import_imagens">Imagens</label>
+                </div>
+
+                <div class="radio-group">
+                    <label>Haverá Integração?</label>
+                    <div>
+                        <input type="radio" id="integ_sim" name="integracao" value="s"> <label for="integ_sim">Sim</label>
+                        <input type="radio" id="integ_nao" name="integracao" value="n" checked> <label for="integ_nao">Não</label>
+                    </div>
+                </div>
+                <div id="integracao-options" class="hidden">
+                    <input type="text" id="integracao_nome" name="integracao_nome" placeholder="Qual a ferramenta de integração?">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="integ_worklist" name="integ_worklist" value="1"><label for="integ_worklist">Worklist</label>
+                        <input type="checkbox" id="integ_laudos" name="integ_laudos" value="1"><label for="integ_laudos">Retorno de Laudos</label>
+                        <input type="checkbox" id="integ_docs" name="integ_docs" value="1"><label for="integ_docs">Documentos</label>
+                        <input type="checkbox" id="integ_lab" name="integ_lab" value="1"><label for="integ_lab">Laboratório</label>
+                        <input type="checkbox" id="integ_outros" name="integ_outros" value="1"><label for="integ_outros">Outros</label>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Observações -->
+            <fieldset>
+                <legend>Observações</legend>
+                <textarea id="observacoes" name="observacoes" rows="4"></textarea>
+            </fieldset>
+
+            <button type="submit" id="start-button" class="submit-button">Iniciar Automação Completa</button>
+        </form>
+
+        <div id="status-label" class="status-label">Pronto para iniciar.</div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

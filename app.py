@@ -1,0 +1,691 @@
+# -*- coding: utf-8 -*-
+
+# --- IMPORTAÇÕES BÁSICAS E DO FLASK ---
+import os
+import json
+import time
+import traceback
+from datetime import date, datetime
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from werkzeug.utils import secure_filename
+
+# --- BIBLIOTECAS DE API (INSTALE COM 'pip install ...') ---
+import requests
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload
+
+# --- INICIALIZAÇÃO DO FLASK ---
+app = Flask(__name__)
+# Adiciona uma chave secreta, necessária para o gerenciamento de sessão do Flask
+app.config['SECRET_KEY'] = os.urandom(24)
+
+# --- CONFIGURAÇÕES GLOBAIS (COPIADAS DO SEU SCRIPT ORIGINAL) ---
+
+# --- GOOGLE ---
+ID_PASTA_PAI_NETRIS = "1I2dSlvfxmphkBdYIjsovCSxizE3Iu-pc"
+ID_PASTA_PAI_ANIMATIPACS = "1hBBRW5wYQ1_aw1PWiJ5oEbDURLYcfCbL"
+ID_PLANILHA_PROJETOS = "11GzE9NQXKNBgOWArcvX8ErmfzALIApbmh7m8PANUVLc"
+NOME_ABA_PLANILHA = "PAINEL"
+LINHA_CABECALHO = 12
+COLUNA_REFERENCIA_PARA_CONTAR_LINHAS = "Cliente"
+COLUNA_SEQUENCIAL_SECUNDARIA = "Num"
+ID_PLANILHA_PROJETOS_SECUNDARIA = "12_eu6174i93OUK3CnN_u9CVeH0ZtOaUANC34JHXgBjM"
+NOME_ABA_PLANILHA_SECUNDARIA = "Em andamento"
+COLUNA_REFERENCIA_SECUNDARIA = "Cliente"
+SCOPES_GOOGLE = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets', 'openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
+
+# --- ZOHO ---
+ZOHO_CLIENT_ID = "1000.RCJUGJ7L8JAKEFYN0S21ISWEVMB87W"
+ZOHO_CLIENT_SECRET = "206ea2f3276dae6e7b653305b5e4467379c17dbb66"
+ZOHO_PORTAL_ID = "868230290"
+# Para listagem/kanban
+STATUS_ABERTO_ID = "2376502000000020089"
+STATUS_EM_ANDAMENTO_ID = "2376502000000020092"
+STATUS_CANCELADO_ID = "2376502000000020110"
+STATUS_FINALIZADO_ID = "2376502000000020116"
+STATUS_OPERACAO_ASSISTIDA_ID = "2376502000000020119"
+STATUS_AGUARDANDO_CLIENTE_ID = "2376502000000020107"
+STATUS_PENDENCIA_ID = "2376502000000020104"
+TAG_AGUARDANDO_ONBOARDING_ID = "2376502000001291513"
+TAG_AGUARDANDO_INFRA_ID = "2376502000000958355"
+TAG_EM_HOMOLOGACAO_ID = "2376502000000983053"
+TAG_EM_VIRADA_ID = "2376502000001228741"
+TAG_PARADO_ID = "2376502000000983125"
+STATUS_CONCLUIDO_ID = "2376502000000674703"
+
+DONOS_PROJETO = {
+    "Giovani de Sousa": "2376502000000057291",
+    "Willian dos Anjos": "2376502000000057285"
+}
+GRUPOS_ZOHO = {
+    "PACS": "2376502000000057307",
+    "Hibrido": "2376502000000111007",
+    "RIS": "2376502000000117069"
+}
+MODELOS_ZOHO = {
+    "Implantação RIS (COM importação e SEM integração)": "2376502000004197548",
+    "Implantação RIS (SEM importação e COM integração)": "2376502000004197548",
+    "Implantação RIS (SEM importação e SEM integração)": "2376502000004197548",
+    "Implantação RIS (COM importação e COM integração)": "2376502000004181530",
+    "Implantação RIS + PACS (SEM importação ) - UNIFICADO FINAL": "2376502000004157044",
+    "Implantação PACS (COM importação e SEM integração) - UNIFICADO FINAL": "2376502000004131436",
+    "Implantação PACS (SEM importação e SEM integração) - UNIFICADO FINAL": "2376502000004114904",
+    "Implantação PACS (COM integração e SEM importação) - Unificado FINAL": "2376502000004114562",
+    "Implantação PACS ( IMPORTAÇÃO + INTEGRAÇÃO) - UNIFICADO FINAL": "2376502000004050339",
+    "Implantação RIS + PACS (COM importação) - UNIFICADO Final": "2376502000001362286"
+}
+
+TAREFAS_PARA_CONCLUIR = [t.strip() for t in ["Registrar Projeto Planilha de Andamento", "Criar pastas no Google Drive", "Registrar Projeto na plataforma de gestão de projetos.", "Criação da empresa e acesso ao Zoho Projects"]]
+TAREFAS_PARA_ATRIBUIR = [t.strip() for t in ["Alteração da senha de acesso do usuário suporte", "Solicitar definição do cronograma de homologação", "Gerar o ticket de virada do cliente", "Realizar a passagem do cliente para a OA", "Realizar o preenchimento do DPI", "Enviar DPI via e-mail para CS", "Realizar reunião de encerramento com o cliente", "Encaminhar todos os tickets abertos para a equipe de suporte", "Finalizar os grupos de whatsapp", "Finalizar projeto Artia", "Encaminhar mensagem com informações sobre o Plantão", "Criação dos Grupos de Whatsapp"]]
+TEMPO_RELATO = {"Registrar Projeto Planilha de Andamento": "00:05", "Criar pastas no Google Drive": "00:10", "Registrar Projeto na plataforma de gestão de projetos.": "00:05", "Criação da empresa e acesso ao Zoho Projects": "00:05"}
+
+# --- CAMINHOS RELATIVOS (ADAPTADO PARA FLASK) ---
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+TEMPLATE_DOCS_PATH = os.path.join(BASE_DIR, 'templates_doc')
+CREDENTIALS_PATH = os.path.join(BASE_DIR, 'credentials.json')
+ZOHO_TOKEN_PATH = os.path.join(BASE_DIR, 'zoho_refresh_token.txt')
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Configura a pasta de uploads após definição
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# ==============================================================================
+# --- SEÇÃO DE FUNÇÕES DE LÓGICA (COPIADAS E ADAPTADAS) ---
+# ==============================================================================
+# (As funções de lógica como criar_estrutura_no_drive, atualizar_planilha_google, etc.
+# permanecem as mesmas do arquivo anterior. Elas serão chamadas pela rota da API
+# depois que a autenticação for verificada.)
+
+def criar_estrutura_no_drive(drive_service, dados):
+    try:
+        produto_map = {"netRIS": "1", "AnimatiPACS": "2", "netRIS e AnimatiPACS": "3"}
+        produto_id = produto_map.get(dados['produto'], "2")
+        id_pasta_pai = ID_PASTA_PAI_NETRIS if produto_id in ['1', '3'] else ID_PASTA_PAI_ANIMATIPACS
+        nome_pasta_cliente = construir_titulo_projeto(dados)
+        print(f"INFO: Criando pasta no Drive: {nome_pasta_cliente}")
+        file_metadata = {'name': nome_pasta_cliente, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_pai]}
+        pasta_cliente = drive_service.files().create(body=file_metadata, fields='id, webViewLink').execute()
+        id_pasta_cliente, link_pasta_cliente = pasta_cliente.get('id'), pasta_cliente.get('webViewLink')
+        dados['link_google'] = link_pasta_cliente
+        subpastas = {'Implantação': '', 'Infraestrutura': '', 'Suporte': '', 'CS': ''}
+        if dados['importacao'] == 's':
+            subpastas['Importação'] = ''
+        for nome_subpasta in subpastas:
+            subpasta_metadata = {'name': nome_subpasta, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_cliente]}
+            subpasta = drive_service.files().create(body=subpasta_metadata, fields='id').execute()
+            subpastas[nome_subpasta] = subpasta.get('id')
+        print("INFO: Fazendo upload dos arquivos para o Google Drive...")
+        media_deip = MediaFileUpload(dados['caminho_deip'], mimetype='application/pdf')
+        deip_metadata = {'name': os.path.basename(dados['caminho_deip_original']), 'parents': [subpastas['Implantação']]}
+        drive_service.files().create(body=deip_metadata, media_body=media_deip, fields='id').execute()
+        nome_cliente = dados['nome_cliente']
+        templates_para_upload = {
+            "Protocolo de Implantação.docx": {'pasta': 'Implantação', 'nome_final': f"Protocolo de Implantação - {nome_cliente}.docx"},
+            "Documento DPI.docx": {'pasta': 'Implantação', 'nome_final': f"Documento DPI - {nome_cliente}.docx"},
+            "Definição_Cronograma_Homologação.docx": {'pasta': 'Implantação', 'nome_final': f"Definição_Cronograma_Homologação - {nome_cliente}.docx"},
+        }
+        if dados['importacao'] == 's':
+            templates_para_upload["Formulário de Importação.docx"] = {'pasta': 'Importação', 'nome_final': f"Formulário de Importação - {nome_cliente}.docx"}
+        for template_original, info in templates_para_upload.items():
+            caminho_template = os.path.join(TEMPLATE_DOCS_PATH, template_original)
+            if os.path.exists(caminho_template):
+                metadata = {'name': info['nome_final'], 'parents': [subpastas[info['pasta']]]}
+                media = MediaFileUpload(caminho_template)
+                drive_service.files().create(body=metadata, media_body=media, fields='id').execute()
+            else:
+                print(f"AVISO: Arquivo de template não encontrado: {caminho_template}")
+        return link_pasta_cliente
+    except (HttpError, FileNotFoundError) as error:
+        raise Exception(f"Erro no Google Drive: {error}")
+
+def indice_para_letra_coluna(n):
+    string = ""
+    while n >= 0:
+        string = chr(n % 26 + 65) + string
+        n = n // 26 - 1
+    return string
+
+def atualizar_planilha_principal(sheets_service, dados, url_pasta_drive):
+    try:
+        print("INFO: Atualizando planilha principal...")
+        range_cabecalho = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+        cabecalhos = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=range_cabecalho).execute().get('values', [[]])[0]
+        mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+        primeiro_nome_gp = dados['gp_selecionado'].split()[0]
+        letra_coluna_ref = indice_para_letra_coluna(mapa_colunas[COLUNA_REFERENCIA_PARA_CONTAR_LINHAS])
+        range_coluna_ref = f"'{NOME_ABA_PLANILHA}'!{letra_coluna_ref}:{letra_coluna_ref}"
+        proxima_linha_vazia = len(sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=range_coluna_ref).execute().get('values', [])) + 1
+        data_selecionada_formatada = dados['start_date'].replace('-', '/')
+        dados_para_inserir = { "Cliente": dados['codigo_contrato_numero'] + ' - ' + dados['nome_cliente'], "Cidade": dados['cidade'], "Estado": dados['estado'], "Link": f'=HYPERLINK("{url_pasta_drive}"; "DOC")', "GP": primeiro_nome_gp, "Produtos": dados['produto'], "Projetos": "Cliente Novo", "Status Principal": "Aguardando Onboarding", "Rec. DEIP": data_selecionada_formatada, "Integração": dados['integracao_nome'], "Importação": "Contratado" if dados['importacao'] == 's' else "Não Contratado" }
+        data_to_update = []
+        for nome_coluna, valor in dados_para_inserir.items():
+            if nome_coluna in mapa_colunas:
+                letra_coluna = indice_para_letra_coluna(mapa_colunas[nome_coluna])
+                range_celula = f"'{NOME_ABA_PLANILHA}'!{letra_coluna}{proxima_linha_vazia}"
+                data_to_update.append({'range': range_celula, 'values': [[valor]]})
+        body = {'valueInputOption': 'USER_ENTERED', 'data': data_to_update}
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=ID_PLANILHA_PROJETOS, body=body).execute()
+        return True
+    except HttpError as error:
+        raise Exception(f"Erro no Google Sheets: {error}")
+
+def atualizar_planilha_secundaria(sheets_service, dados):
+    try:
+        print("INFO: Atualizando planilha secundária...")
+        sheet_id, sheet_name = ID_PLANILHA_PROJETOS_SECUNDARIA, NOME_ABA_PLANILHA_SECUNDARIA
+        range_cabecalho = f"'{sheet_name}'!1:1"
+        cabecalhos = sheets_service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_cabecalho).execute().get('values', [[]])[0]
+        mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+        letra_coluna_ref = indice_para_letra_coluna(mapa_colunas[COLUNA_REFERENCIA_SECUNDARIA])
+        range_coluna_ref = f"'{sheet_name}'!{letra_coluna_ref}:{letra_coluna_ref}"
+        proxima_linha_vazia = len(sheets_service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_coluna_ref).execute().get('values', [])) + 1
+        novo_num_sequencial = proxima_linha_vazia - 1
+        sistema = 'NR/AP' if dados['produto'] == 'netRIS e AnimatiPACS' else ('NR' if dados['produto'] == 'netRIS' else 'AP')
+        mapeamento = {
+            COLUNA_SEQUENCIAL_SECUNDARIA: novo_num_sequencial, "Recebido": dados['start_date'].replace('-', '/'),
+            "Cód CS": dados['codigo_contrato'], "Cliente": dados['nome_cliente'],
+            "Cidade": f"{dados['cidade']} - {dados['estado']}", "Sistema": sistema,
+            "GP": dados['gp_selecionado'].split()[0], "Concorrente": dados['concorrente']
+        }
+        linha_final = [''] * len(cabecalhos)
+        for nome_coluna, valor in mapeamento.items():
+            if nome_coluna in mapa_colunas:
+                linha_final[mapa_colunas[nome_coluna]] = valor
+        body = {'values': [linha_final]}
+        range_para_escrever = f"'{sheet_name}'!A{proxima_linha_vazia}"
+        sheets_service.spreadsheets().values().append(spreadsheetId=sheet_id, range=range_para_escrever, valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body=body).execute()
+        return True
+    except HttpError as error:
+        raise Exception(f"Erro na Planilha Secundária: {error}")
+
+def obter_access_token_zoho():
+    """Mantida por compatibilidade: delega para obter_access_token sem recursão."""
+    return obter_access_token()
+
+def construir_titulo_projeto(dados):
+    sufixo_map = {"netRIS": "NR", "AnimatiPACS": "AP", "netRIS e AnimatiPACS": "NR/AP"}
+    sufixo = sufixo_map.get(dados['produto'], "")
+    return f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']} - {sufixo}"
+
+def construir_descricao(dados):
+    pacs_check = "[X]" if 'PACS' in dados['produto'] else "[ ]"; ris_check = "[X]" if 'RIS' in dados['produto'] else "[ ]"
+    servidor_local = "(X)" if dados['servidor'] == 'Local' else "( )"; servidor_cloud_animati = "(X)" if dados['servidor'] == 'Cloud Animati' else "( )"; servidor_cloud_terceiros = "(X)" if dados['servidor'] == 'Cloud Terceiros' else "( )"
+    integracao_sim = "(X)" if dados['integracao_status'] == 's' else "( )"; integracao_nao = "( )" if dados['integracao_status'] == 's' else "(X)"
+    importacao_sim = "(X)" if dados['importacao'] == 's' else "( )"; importacao_nao = "( )" if dados['importacao'] == 's' else "(X)"
+    detalhes_integracao = ""
+    if dados['integracao_status'] == 's':
+        worklist_check = "[X]" if dados['integ_worklist'] else "[ ]"; laudos_check = "[X]" if dados['integ_laudos'] else "[ ]"; docs_check = "[X]" if dados['integ_docs'] else "[ ]"; lab_check = "[X]" if dados['integ_lab'] else "[ ]"; outros_check = "[X]" if dados['integ_outros'] else "[ ]"
+        detalhes_integracao = f"<p><b>Se Sim, selecione as integrações:</b></p><ul><li>{worklist_check} Worklist</li><li>{laudos_check} Retorno de Laudos</li><li>{docs_check} Documentos</li><li>{lab_check} Laboratório</li><li>{outros_check} Outros</li></ul>"
+    detalhes_importacao = ""
+    if dados['importacao'] == 's':
+        cadastros_check = "[X]" if dados['import_cadastros'] else "[ ]"; prontuarios_check = "[X]" if dados['import_prontuarios'] else "[ ]"; laudos_check = "[X]" if dados['import_laudos'] else "[ ]"; imagens_check = "[X]" if dados['import_imagens'] else "[ ]"
+        detalhes_importacao = f"<p><b>Se Sim, selecione os itens para importação:</b></p><ul><li>{cadastros_check} Cadastros</li><li>{prontuarios_check} Prontuários</li><li>{laudos_check} Laudos</li><li>{imagens_check} Imagens</li></ul>"
+    obs_texto = ""
+    if dados['observacoes'] and dados['observacoes'].strip():
+        obs_formatado = dados['observacoes'].strip().replace('\n', '<br>')
+        obs_texto = f"<p><b>Observações Adicionais:</b></p><p>{obs_formatado}</p>"
+    descricao_html = f"<h2>Descrição do Projeto</h2><p><b>Ferramentas Contratadas:</b></p><ul><li>{pacs_check} AnimatiPACS</li><li>{ris_check} netRIS</li><li>[ ] netPACS</li></ul><p><b>Servidor:</b></p><ul><li>{servidor_local} Local</li><li>{servidor_cloud_animati} Cloud Animati</li><li>{servidor_cloud_terceiros} Cloud Terceiros</li></ul><p><b>Haverá integração?</b></p><ul><li>{integracao_sim} Sim</li><li>{integracao_nao} Não</li></ul>{detalhes_integracao}<p><b>Haverá importação?</b></p><ul><li>{importacao_sim} Sim</li><li>{importacao_nao} Não</li></ul>{detalhes_importacao}<p><b>Link da pasta do Google:</b></p><p>{dados.get('link_google', 'Link não gerado')}</p>{obs_texto}"
+    return " ".join(descricao_html.split())
+
+def escolher_template_zoho(dados):
+    produto, importacao, integracao = dados['produto'], dados['importacao'] == 's', dados['integracao_status'] == 's'
+    print(f"INFO: Selecionando modelo para: {produto}, Importação={importacao}, Integração={integracao}")
+    if produto == 'netRIS':
+        if importacao and integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e COM integração)")
+        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e SEM integração)")
+        return MODELOS_ZOHO.get("Implantação RIS (SEM importação e SEM integração)")
+    if produto == 'AnimatiPACS':
+        if importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS ( IMPORTAÇÃO + INTEGRAÇÃO) - UNIFICADO FINAL")
+        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação PACS (COM importação e SEM integração) - UNIFICADO FINAL")
+        if not importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS (COM integração e SEM importação) - Unificado FINAL")
+        return MODELOS_ZOHO.get("Implantação PACS (SEM importação e SEM integração) - UNIFICADO FINAL")
+    if produto == 'netRIS e AnimatiPACS':
+        if importacao: return MODELOS_ZOHO.get("Implantação RIS + PACS (COM importação) - UNIFICADO Final")
+        return MODELOS_ZOHO.get("Implantação RIS + PACS (SEM importação ) - UNIFICADO FINAL")
+    print("AVISO: Nenhum modelo Zoho para este cenário.")
+    return None
+
+def criar_projeto_no_zoho(access_token, dados, template_id):
+    print(f"INFO: Criando projeto Zoho para '{dados['nome_cliente']}'...")
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        start_date_obj = datetime.strptime(dados['start_date'], '%d-%m-%Y')
+        start_date_api_format = start_date_obj.strftime('%Y-%m-%d')
+    except ValueError:
+        start_date_api_format = date.today().strftime("%Y-%m-%d")
+    payload = {
+        "name": construir_titulo_projeto(dados), "description": construir_descricao(dados),
+        "start_date": start_date_api_format, "copy_from": str(template_id),
+        "project_type": "active", "project_group": {"id": GRUPOS_ZOHO.get("Hibrido" if "e" in dados['produto'] else ("RIS" if "RIS" in dados['produto'] else "PACS"))},
+        "owner": {"zpuid": DONOS_PROJETO[dados['gp_selecionado']]}, "is_rollup_project": True,
+        "tag_ids": ["2376502000001291513"]
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        projeto_criado = response.json()
+        id_do_projeto = projeto_criado.get('id')
+        if not id_do_projeto:
+            raise Exception(f"Resposta do Zoho OK, mas sem ID do projeto: {projeto_criado}")
+        print(f"INFO: Projeto Zoho '{projeto_criado.get('name')}' criado!")
+        return id_do_projeto
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Erro da API Zoho: {e.response.text}")
+
+def listar_tarefas_do_projeto(access_token, project_id):
+    print(f"INFO: Listando tarefas do projeto {project_id}...")
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    todas_as_tarefas, page_number = [], 1
+    while True:
+        params = {"page": page_number, "per_page": 100}
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            tarefas_da_pagina = response.json().get('tasks', [])
+            if not tarefas_da_pagina: break
+            todas_as_tarefas.extend(tarefas_da_pagina)
+            if len(tarefas_da_pagina) < 100: break
+            page_number += 1
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Erro ao listar tarefas: {e.response.text}")
+    print(f"INFO: Lista de tarefas obtida ({len(todas_as_tarefas)} total).")
+    return todas_as_tarefas
+
+def atribuir_dono_tarefa(access_token, project_id, task_id, gp_zpuid):
+    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"person_responsible": str(gp_zpuid)}
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Erro ao atribuir dono à tarefa {task_id}: {e.response.text}")
+        return False
+
+def concluir_tarefa(access_token, project_id, task_id):
+    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"custom_status": STATUS_CONCLUIDO_ID}
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Erro ao concluir tarefa {task_id}: {e.response.text}")
+        return False
+
+def registrar_tempo_na_tarefa(access_token, project_id, task_id, gp_zpuid, log_time):
+    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/logs/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {
+        "owner_zpuid": str(gp_zpuid), "hours": log_time,
+        "date": date.today().strftime("%m-%d-%Y"), "bill_status": "Billable",
+        "notes": "Relatado via automação."
+    }
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Erro ao registrar tempo para tarefa {task_id}: {e.response.text}")
+
+def processar_tarefas_iniciais(access_token, project_id, gp_zpuid):
+    lista_de_tarefas = listar_tarefas_do_projeto(access_token, project_id)
+    if not lista_de_tarefas: return
+    print(f"INFO: Processando {len(lista_de_tarefas)} tarefas encontradas...")
+    for tarefa in lista_de_tarefas:
+        try:
+            nome_original, task_id = tarefa['name'], tarefa.get('id')
+            if not task_id or ' - ' not in nome_original: continue
+            nome_limpo = nome_original.split(' - ', 1)[1].strip()
+            if nome_limpo in TAREFAS_PARA_CONCLUIR:
+                print(f"INFO: Concluindo tarefa: '{nome_limpo}'")
+                if atribuir_dono_tarefa(access_token, project_id, task_id, gp_zpuid):
+                    if concluir_tarefa(access_token, project_id, task_id):
+                        tempo = TEMPO_RELATO.get(nome_limpo)
+                        if tempo: registrar_tempo_na_tarefa(access_token, project_id, task_id, gp_zpuid, tempo)
+            elif nome_limpo in TAREFAS_PARA_ATRIBUIR:
+                print(f"INFO: Atribuindo tarefa: '{nome_limpo}'")
+                atribuir_dono_tarefa(access_token, project_id, task_id, gp_zpuid)
+        except (IndexError, KeyError) as e:
+            print(f"AVISO: Não foi possível processar a tarefa '{tarefa.get('name')}'. Erro: {e}")
+
+# ==============================================================================
+# --- SEÇÃO DE ROTAS FLASK (COM AUTENTICAÇÃO) ---
+# ==============================================================================
+
+# ====== Funções de listagem/kanban (adaptadas do app_geral.py) ======
+
+def obter_access_token():
+    """Obtém o access token do Zoho usando o refresh token salvo em arquivo."""
+    try:
+        if not os.path.exists(ZOHO_TOKEN_PATH):
+            print("ERRO: zoho_refresh_token.txt não encontrado.")
+            return None
+        with open(ZOHO_TOKEN_PATH, 'r') as f:
+            refresh_token = f.read().strip()
+        url = "https://accounts.zoho.com/oauth/v2/token"
+        params = {
+            "refresh_token": refresh_token,
+            "client_id": ZOHO_CLIENT_ID,
+            "client_secret": ZOHO_CLIENT_SECRET,
+            "grant_type": "refresh_token"
+        }
+        response = requests.post(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        # Se a Zoho devolver um novo refresh_token, atualiza o arquivo
+        if 'refresh_token' in data:
+            with open(ZOHO_TOKEN_PATH, 'w') as f:
+                f.write(data['refresh_token'])
+        return data.get("access_token")
+    except requests.exceptions.RequestException as e:
+        print(f"ERRO ao obter Access Token: {e.response.text if e.response else e}")
+        return None
+
+
+def listar_todos_projetos_ativos(access_token):
+    """Lista todos os projetos ativos do Zoho Projects"""
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    todos_os_projetos = []
+    page_number = 1
+    while True:
+        params = {"page": page_number, "per_page": 100}
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            projetos_da_pagina = response.json()
+            if isinstance(projetos_da_pagina, dict):
+                projetos_da_pagina = projetos_da_pagina.get("projects", [])
+            if not isinstance(projetos_da_pagina, list) or not projetos_da_pagina:
+                break
+            todos_os_projetos.extend(projetos_da_pagina)
+            if len(projetos_da_pagina) < 100:
+                break
+            page_number += 1
+        except requests.exceptions.RequestException as e:
+            print(f"ERRO ao listar projetos: {e.response.text if e.response else e}")
+            return []
+    # Filtra apenas projetos não completos e não cancelados
+    projetos_filtrados = []
+    for projeto in todos_os_projetos:
+        is_completed = projeto.get('is_completed')
+        status = projeto.get('status', {}).get('name', '').lower()
+        status_id = str(projeto.get('status', {}).get('id', ''))
+        if (is_completed not in [True, "true", "True"] and status not in ["completed", "completo"] and status_id != STATUS_CANCELADO_ID):
+            projetos_filtrados.append(projeto)
+    return projetos_filtrados
+
+
+def determinar_coluna_projeto(projeto):
+    status = projeto.get('status', {})
+    status_id = str(status.get('id', ''))
+    tags = projeto.get('tags', [])
+    tag_ids = [str(tag.get('id', '')) for tag in tags]
+    if status_id == STATUS_ABERTO_ID and TAG_AGUARDANDO_ONBOARDING_ID in tag_ids:
+        return "Aguardando Onboarding"
+    if status_id == STATUS_ABERTO_ID and TAG_AGUARDANDO_INFRA_ID in tag_ids:
+        return "Falta Liberar Servidor Infra"
+    if status_id == STATUS_EM_ANDAMENTO_ID and TAG_EM_HOMOLOGACAO_ID in tag_ids:
+        return "Em homologação"
+    if status_id == STATUS_EM_ANDAMENTO_ID and TAG_EM_VIRADA_ID in tag_ids:
+        return "Em Virada"
+    if status_id == STATUS_AGUARDANDO_CLIENTE_ID and TAG_PARADO_ID in tag_ids:
+        return "Parado"
+    if status_id == STATUS_PENDENCIA_ID and TAG_PARADO_ID in tag_ids:
+        return "Parado"
+    status_map = {
+        STATUS_EM_ANDAMENTO_ID: "Em andamento",
+        STATUS_FINALIZADO_ID: "Finalizado",
+        STATUS_OPERACAO_ASSISTIDA_ID: "Em operação assistida"
+    }
+    return status_map.get(status_id, "Status Desconhecido")
+
+
+def formatar_data_brasileira(data_str):
+    try:
+        if not data_str:
+            return "N/D"
+        formatos_entrada = [
+            '%Y-%m-%d','%m-%d-%Y','%d-%m-%Y','%Y-%m-%d %H:%M:%S','%m-%d-%Y %H:%M:%S'
+        ]
+        for formato in formatos_entrada:
+            try:
+                data_obj = datetime.strptime(data_str[:10], formato)
+                return data_obj.strftime('%d-%m-%Y')
+            except ValueError:
+                continue
+        return "N/D"
+    except Exception as e:
+        print(f"Erro na formatação de data: {e}")
+        return "N/D"
+
+
+def calcular_dias_na_fase(info_projeto, status_atual):
+    try:
+        data_inicio_str = info_projeto.get('data_inicio') or info_projeto.get('data_criacao', '')
+        if not data_inicio_str:
+            return "N/D"
+        formatos_data = [
+            '%Y-%m-%d','%m-%d-%Y','%d-%m-%Y','%Y-%m-%d %H:%M:%S','%m-%d-%Y %H:%M:%S'
+        ]
+        data_inicio = None
+        for formato in formatos_data:
+            try:
+                data_inicio = datetime.strptime(data_inicio_str[:10], formato).date()
+                break
+            except ValueError:
+                continue
+        if not data_inicio:
+            return "N/D"
+        dias_na_fase = (date.today() - data_inicio).days
+        if dias_na_fase < 0:
+            return "Futuro"
+        elif dias_na_fase == 0:
+            return "Hoje"
+        else:
+            return f"{dias_na_fase}d"
+    except Exception as e:
+        print(f"Erro no cálculo de dias: {e}")
+        return "N/D"
+
+
+# ====== Rotas de Kanban (adaptadas do app_geral.py) ======
+
+@app.route('/api/carregar_projetos', methods=['POST'])
+def carregar_projetos():
+    try:
+        data = request.json
+        gp_selecionado = data.get('gp')
+        if not gp_selecionado or gp_selecionado not in DONOS_PROJETO:
+            return jsonify({"erro": "GP inválido"}), 400
+        id_do_gp = DONOS_PROJETO[gp_selecionado]
+        access_token = obter_access_token()
+        if not access_token:
+            return jsonify({"erro": "Erro de autenticação"}), 401
+        lista_completa_projetos = listar_todos_projetos_ativos(access_token)
+        projetos_do_gp = [p for p in lista_completa_projetos if p.get('owner', {}).get('zpuid') == id_do_gp]
+        projetos_por_status = {}
+        for projeto in projetos_do_gp:
+            status_kanban = determinar_coluna_projeto(projeto)
+            if status_kanban not in projetos_por_status:
+                projetos_por_status[status_kanban] = []
+            cliente = (
+                projeto.get('client_company', {}).get('name')
+                or projeto.get('client', {}).get('name')
+                or projeto.get('client_name')
+                or "Cliente não informado"
+            )
+            info_projeto = {
+                'id': projeto.get('id'),
+                'nome': projeto.get('name'),
+                'cliente': cliente,
+                'gp': projeto.get('owner', {}).get('name', 'GP não informado'),
+                'data_inicio': projeto.get('start_date', ''),
+                'data_criacao': projeto.get('created_time', ''),
+                'data_inicio_formatada': formatar_data_brasileira(projeto.get('start_date', '')),
+                'dias_na_fase': calcular_dias_na_fase({
+                    'data_inicio': projeto.get('start_date', ''),
+                    'data_criacao': projeto.get('created_time', '')
+                }, status_kanban),
+                'status_atual': status_kanban
+            }
+            projetos_por_status[status_kanban].append(info_projeto)
+        for status, projetos in projetos_por_status.items():
+            projetos_por_status[status] = sorted(projetos, key=lambda p: p['nome'])
+        return jsonify({
+            "sucesso": True,
+            "projetos": projetos_por_status,
+            "total": len(projetos_do_gp)
+        })
+    except Exception as e:
+        print(f"Erro ao carregar projetos: {e}")
+        return jsonify({"erro": str(e)}), 500
+
+
+@app.route('/api/mover_projeto', methods=['POST'])
+def mover_projeto():
+    try:
+        data = request.json
+        projeto_id = data.get('projeto_id')
+        coluna_origem = data.get('coluna_origem')
+        coluna_destino = data.get('coluna_destino')
+        print(f"Movendo projeto {projeto_id} de {coluna_origem} para {coluna_destino}")
+        return jsonify({"sucesso": True, "mensagem": "Projeto movido com sucesso"})
+    except Exception as e:
+        print(f"Erro ao mover projeto: {e}")
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/')
+def index():
+    if 'credentials' not in session:
+        return render_template('index.html', logged_in=False, gps=list(DONOS_PROJETO.keys()), cores_colunas={
+        "Aguardando Onboarding": "#6c757d",
+        "Falta Liberar Servidor Infra": "#E67E22",
+        "Em andamento": "#2ECC71",
+        "Em homologação": "#1ABC9C",
+        "Em Virada": "#1ABC9C",
+        "Em operação assistida": "#3498DB",
+        "Finalizado": "#27AE60",
+        "Parado": "#DC143C",
+        "Status Desconhecido": "#95A5A6"
+    })
+    
+    creds_dict = session['credentials']
+    # O refresh_token pode não estar presente em todas as autenticações
+    if 'refresh_token' not in creds_dict:
+         return redirect(url_for('login')) # Força o re-login para obter o refresh_token
+         
+    return render_template('index.html', logged_in=True, user_email=session.get('user_email'), gps=list(DONOS_PROJETO.keys()), cores_colunas={
+        "Aguardando Onboarding": "#6c757d",
+        "Falta Liberar Servidor Infra": "#E67E22",
+        "Em andamento": "#2ECC71",
+        "Em homologação": "#1ABC9C",
+        "Em Virada": "#1ABC9C",
+        "Em operação assistida": "#3498DB",
+        "Finalizado": "#27AE60",
+        "Parado": "#DC143C",
+        "Status Desconhecido": "#95A5A6"
+    })
+
+@app.route('/login')
+def login():
+    flow = Flow.from_client_secrets_file(
+        CREDENTIALS_PATH,
+        scopes=SCOPES_GOOGLE,
+        redirect_uri=url_for('oauth2callback', _external=True)
+    )
+    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    session['state'] = state
+    return redirect(authorization_url)
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    state = session['state']
+    flow = Flow.from_client_secrets_file(
+        CREDENTIALS_PATH,
+        scopes=SCOPES_GOOGLE,
+        state=state,
+        redirect_uri=url_for('oauth2callback', _external=True)
+    )
+    authorization_response = request.url
+    flow.fetch_token(authorization_response=authorization_response)
+    credentials = flow.credentials
+    session['credentials'] = {
+        'token': credentials.token, 'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri, 'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret, 'scopes': credentials.scopes
+    }
+    user_info_service = build('oauth2', 'v2', credentials=credentials)
+    user_info = user_info_service.userinfo().get().execute()
+    session['user_email'] = user_info.get('email')
+    return redirect(url_for('index'))
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+@app.route('/api/criar-projeto', methods=['POST'])
+def api_criar_projeto():
+    if 'credentials' not in session:
+        return jsonify({"status": "error", "message": "Usuário não autenticado."}), 401
+    
+    creds = Credentials(**session['credentials'])
+    
+    temp_deip_path = None
+    try:
+        if 'deip_pdf' not in request.files:
+            return jsonify({"status": "error", "message": "Arquivo DEIP é obrigatório."}), 400
+        
+        deip_file = request.files['deip_pdf']
+        dados = request.form.to_dict()
+        
+        filename = secure_filename(deip_file.filename)
+        temp_deip_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        deip_file.save(temp_deip_path)
+        dados['caminho_deip'] = temp_deip_path
+        dados['codigo_contrato_numero'] = dados['codigo_contrato'].split('/')[0].strip()
+        
+        # --- Execução da Lógica Principal ---
+        drive_service = build('drive', 'v3', credentials=creds)
+        sheets_service = build('sheets', 'v4', credentials=creds)
+        
+        url_nova_pasta = criar_estrutura_no_drive(drive_service, dados)
+        atualizar_planilha_principal(sheets_service, dados, url_nova_pasta)
+        atualizar_planilha_secundaria(sheets_service, dados)
+        
+        template_id = escolher_template_zoho(dados)
+        if template_id:
+            zoho_access_token = obter_access_token_zoho()
+            id_do_novo_projeto = criar_projeto_no_zoho(zoho_access_token, dados, template_id)
+            print("INFO: Aguardando sincronização das tarefas (15s)...")
+            time.sleep(15)
+            gp_zpuid = DONOS_PROJETO[dados['gp_selecionado']]
+            processar_tarefas_iniciais(zoho_access_token, id_do_novo_projeto, gp_zpuid)
+        
+        return jsonify({"status": "success", "message": "Processo finalizado com sucesso!"})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if temp_deip_path and os.path.exists(temp_deip_path):
+            os.remove(temp_deip_path)
+
+# ==============================================================================
+# --- EXECUÇÃO DO SERVIDOR ---
+# ==============================================================================
+
+if __name__ == '__main__':
+    # Garante que o servidor rode em HTTP para o callback do OAuth funcionar localmente
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    app.run(debug=True, port=5000)
