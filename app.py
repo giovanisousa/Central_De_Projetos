@@ -108,17 +108,38 @@ def criar_estrutura_no_drive(drive_service, dados):
         id_pasta_pai = ID_PASTA_PAI_NETRIS if produto_id in ['1', '3'] else ID_PASTA_PAI_ANIMATIPACS
         nome_pasta_cliente = construir_titulo_projeto(dados)
         print(f"INFO: Criando pasta no Drive: {nome_pasta_cliente}")
-        file_metadata = {'name': nome_pasta_cliente, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_pai]}
-        pasta_cliente = drive_service.files().create(body=file_metadata, fields='id, webViewLink').execute()
-        id_pasta_cliente, link_pasta_cliente = pasta_cliente.get('id'), pasta_cliente.get('webViewLink')
+        # Evita duplicar pasta: procura por uma pasta existente com mesmo nome no pai
+        query = (
+            "name = '" + nome_pasta_cliente.replace("'", "\\'") + "' and "
+            "mimeType = 'application/vnd.google-apps.folder' and "
+            f"'{id_pasta_pai}' in parents and trashed = false"
+        )
+        existentes = drive_service.files().list(q=query, fields="files(id, webViewLink)", pageSize=1).execute().get('files', [])
+        if existentes:
+            print("AVISO: Pasta já existe. Reutilizando pasta existente.")
+            id_pasta_cliente, link_pasta_cliente = existentes[0]['id'], existentes[0]['webViewLink']
+        else:
+            file_metadata = {'name': nome_pasta_cliente, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_pai]}
+            pasta_cliente = drive_service.files().create(body=file_metadata, fields='id, webViewLink').execute()
+            id_pasta_cliente, link_pasta_cliente = pasta_cliente.get('id'), pasta_cliente.get('webViewLink')
         dados['link_google'] = link_pasta_cliente
         subpastas = {'Implantação': '', 'Infraestrutura': '', 'Suporte': '', 'CS': ''}
         if dados['importacao'] == 's':
             subpastas['Importação'] = ''
         for nome_subpasta in subpastas:
-            subpasta_metadata = {'name': nome_subpasta, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_cliente]}
-            subpasta = drive_service.files().create(body=subpasta_metadata, fields='id').execute()
-            subpastas[nome_subpasta] = subpasta.get('id')
+            # Reaproveita subpasta se já existir
+            q_sub = (
+                "name = '" + nome_subpasta.replace("'", "\\'") + "' and "
+                "mimeType = 'application/vnd.google-apps.folder' and "
+                f"'{id_pasta_cliente}' in parents and trashed = false"
+            )
+            existentes_sub = drive_service.files().list(q=q_sub, fields="files(id)", pageSize=1).execute().get('files', [])
+            if existentes_sub:
+                subpastas[nome_subpasta] = existentes_sub[0]['id']
+            else:
+                subpasta_metadata = {'name': nome_subpasta, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_cliente]}
+                subpasta = drive_service.files().create(body=subpasta_metadata, fields='id').execute()
+                subpastas[nome_subpasta] = subpasta.get('id')
         print("INFO: Fazendo upload dos arquivos para o Google Drive...")
         media_deip = MediaFileUpload(dados['caminho_deip'], mimetype='application/pdf')
         deip_metadata = {'name': os.path.basename(dados['caminho_deip_original']), 'parents': [subpastas['Implantação']]}
@@ -134,9 +155,13 @@ def criar_estrutura_no_drive(drive_service, dados):
         for template_original, info in templates_para_upload.items():
             caminho_template = os.path.join(TEMPLATE_DOCS_PATH, template_original)
             if os.path.exists(caminho_template):
-                metadata = {'name': info['nome_final'], 'parents': [subpastas[info['pasta']]]}
-                media = MediaFileUpload(caminho_template)
-                drive_service.files().create(body=metadata, media_body=media, fields='id').execute()
+                try:
+                    metadata = {'name': info['nome_final'], 'parents': [subpastas[info['pasta']]]}
+                    media = MediaFileUpload(caminho_template, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+                    created = drive_service.files().create(body=metadata, media_body=media, fields='id, name, parents').execute()
+                    print(f"INFO: Template upado: {template_original} -> {info['pasta']} ({created.get('id')})")
+                except HttpError as e:
+                    print(f"AVISO: Falha ao upar template '{template_original}': {e}")
             else:
                 print(f"AVISO: Arquivo de template não encontrado: {caminho_template}")
         return link_pasta_cliente
@@ -158,10 +183,35 @@ def atualizar_planilha_principal(sheets_service, dados, url_pasta_drive):
         mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
         primeiro_nome_gp = dados['gp_selecionado'].split()[0]
         letra_coluna_ref = indice_para_letra_coluna(mapa_colunas[COLUNA_REFERENCIA_PARA_CONTAR_LINHAS])
-        range_coluna_ref = f"'{NOME_ABA_PLANILHA}'!{letra_coluna_ref}:{letra_coluna_ref}"
-        proxima_linha_vazia = len(sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=range_coluna_ref).execute().get('values', [])) + 1
+        # Busca a próxima linha vazia APÓS o cabeçalho, na coluna de referência
+        range_coluna_ref = f"'{NOME_ABA_PLANILHA}'!{letra_coluna_ref}{LINHA_CABECALHO+1}:{letra_coluna_ref}"
+        valores_col_ref = sheets_service.spreadsheets().values().get(
+            spreadsheetId=ID_PLANILHA_PROJETOS,
+            range=range_coluna_ref
+        ).execute().get('values', [])
+        proxima_linha_vazia = (LINHA_CABECALHO + len(valores_col_ref) + 1)
+
+
+
         data_selecionada_formatada = dados['start_date'].replace('-', '/')
-        dados_para_inserir = { "Cliente": dados['codigo_contrato_numero'] + ' - ' + dados['nome_cliente'], "Cidade": dados['cidade'], "Estado": dados['estado'], "Link": f'=HYPERLINK("{url_pasta_drive}"; "DOC")', "GP": primeiro_nome_gp, "Produtos": dados['produto'], "Projetos": "Cliente Novo", "Status Principal": "Aguardando Onboarding", "Rec. DEIP": data_selecionada_formatada, "Integração": dados['integracao_nome'], "Importação": "Contratado" if dados['importacao'] == 's' else "Não Contratado" }
+        # Preenche "Integração":
+        if dados.get('integracao_status') == 's':
+            integracao_texto = dados.get('integracao_nome') or 'Possui'
+        else:
+            integracao_texto = 'Não possui'
+        dados_para_inserir = {
+            "Cliente": dados['codigo_contrato_numero'] + ' - ' + dados['nome_cliente'],
+            "Cidade": dados['cidade'],
+            "Estado": dados['estado'],
+            "Link": f'=HYPERLINK("{url_pasta_drive}"; "DOC")',
+            "GP": primeiro_nome_gp,
+            "Produtos": dados['produto'],
+            "Projetos": "Cliente Novo",
+            "Status Principal": "Aguardando Onboarding",
+            "Rec. DEIP": data_selecionada_formatada,
+            "Integração": integracao_texto,
+            "Importação": "Contratado" if dados['importacao'] == 's' else "Não Contratado"
+        }
         data_to_update = []
         for nome_coluna, valor in dados_para_inserir.items():
             if nome_coluna in mapa_colunas:
@@ -264,7 +314,7 @@ def criar_projeto_no_zoho(access_token, dados, template_id):
         "start_date": start_date_api_format, "copy_from": str(template_id),
         "project_type": "active", "project_group": {"id": GRUPOS_ZOHO.get("Hibrido" if "e" in dados['produto'] else ("RIS" if "RIS" in dados['produto'] else "PACS"))},
         "owner": {"zpuid": DONOS_PROJETO[dados['gp_selecionado']]}, "is_rollup_project": True,
-        "tag_ids": ["2376502000001291513"]
+        "tags": [{"id": 2376502000001291513}]
     }
     try:
         response = requests.post(url, headers=headers, json=payload)
@@ -274,6 +324,11 @@ def criar_projeto_no_zoho(access_token, dados, template_id):
         if not id_do_projeto:
             raise Exception(f"Resposta do Zoho OK, mas sem ID do projeto: {projeto_criado}")
         print(f"INFO: Projeto Zoho '{projeto_criado.get('name')}' criado!")
+        # Confirma tag após criação (fallback caso o parâmetro tag_ids não aplique)
+        try:
+            aplicar_tag_ao_projeto(access_token, id_do_projeto, 2376502000001291513)
+        except Exception as e:
+            print(f"AVISO: Falha ao confirmar tag no projeto: {e}")
         return id_do_projeto
     except requests.exceptions.RequestException as e:
         raise Exception(f"Erro da API Zoho: {e.response.text}")
@@ -322,6 +377,25 @@ def concluir_tarefa(access_token, project_id, task_id):
         print(f"AVISO: Erro ao concluir tarefa {task_id}: {e.response.text}")
         return False
 
+
+def aplicar_tag_ao_projeto(access_token, project_id, tag_id_num):
+    """Aplica a tag usando o formato esperado pela API v3: PATCH com campo 'tags' e operação 'add'."""
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        payload = {
+            "tags": {
+                "add": [
+                    {"id": int(tag_id_num)}
+                ]
+            }
+        }
+        r_patch = requests.patch(url, headers=headers, json=payload)
+        r_patch.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
+
 def registrar_tempo_na_tarefa(access_token, project_id, task_id, gp_zpuid, log_time):
     url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/logs/"
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -337,8 +411,17 @@ def registrar_tempo_na_tarefa(access_token, project_id, task_id, gp_zpuid, log_t
         print(f"AVISO: Erro ao registrar tempo para tarefa {task_id}: {e.response.text}")
 
 def processar_tarefas_iniciais(access_token, project_id, gp_zpuid):
-    lista_de_tarefas = listar_tarefas_do_projeto(access_token, project_id)
-    if not lista_de_tarefas: return
+    # Aguarda as tarefas ficarem disponíveis (retentativas)
+    tentativas, lista_de_tarefas = 0, []
+    while tentativas < 6:  # até ~30s
+        lista_de_tarefas = listar_tarefas_do_projeto(access_token, project_id)
+        if lista_de_tarefas:
+            break
+        time.sleep(5)
+        tentativas += 1
+    if not lista_de_tarefas:
+        print("AVISO: Nenhuma tarefa encontrada após aguardar. Pulando processamento de tarefas.")
+        return
     print(f"INFO: Processando {len(lista_de_tarefas)} tarefas encontradas...")
     for tarefa in lista_de_tarefas:
         try:
@@ -648,38 +731,89 @@ def api_criar_projeto():
         
         deip_file = request.files['deip_pdf']
         dados = request.form.to_dict()
+
+        # Normaliza campos do formulário esperados pela lógica
+        dados['integracao_status'] = dados.get('integracao', 'n')
+        checkbox_fields = [
+            'integ_worklist','integ_laudos','integ_docs','integ_lab','integ_outros',
+            'import_cadastros','import_prontuarios','import_laudos','import_imagens'
+        ]
+        for f in checkbox_fields:
+            dados[f] = (f in request.form)
         
         filename = secure_filename(deip_file.filename)
         temp_deip_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         deip_file.save(temp_deip_path)
+        # Guarda caminhos para uso no Drive
         dados['caminho_deip'] = temp_deip_path
+        dados['caminho_deip_original'] = deip_file.filename or filename
         dados['codigo_contrato_numero'] = dados['codigo_contrato'].split('/')[0].strip()
         
         # --- Execução da Lógica Principal ---
         drive_service = build('drive', 'v3', credentials=creds)
         sheets_service = build('sheets', 'v4', credentials=creds)
         
-        url_nova_pasta = criar_estrutura_no_drive(drive_service, dados)
-        atualizar_planilha_principal(sheets_service, dados, url_nova_pasta)
-        atualizar_planilha_secundaria(sheets_service, dados)
+        # Garante que o arquivo existe antes do upload
+        if not os.path.exists(dados['caminho_deip']):
+            raise Exception(f"Arquivo DEIP não encontrado no servidor: {dados['caminho_deip']}")
         
-        template_id = escolher_template_zoho(dados)
-        if template_id:
-            zoho_access_token = obter_access_token_zoho()
-            id_do_novo_projeto = criar_projeto_no_zoho(zoho_access_token, dados, template_id)
-            print("INFO: Aguardando sincronização das tarefas (15s)...")
-            time.sleep(15)
-            gp_zpuid = DONOS_PROJETO[dados['gp_selecionado']]
-            processar_tarefas_iniciais(zoho_access_token, id_do_novo_projeto, gp_zpuid)
+        # Evita duplicação: usa uma chave idempotente por contrato+cliente+produto
+        chave_idem = f"{dados['codigo_contrato_numero']}|{dados['nome_cliente']}|{dados['produto']}".lower()
+        if 'execucoes' not in session:
+            session['execucoes'] = {}
+        if session['execucoes'].get(chave_idem) == 'running':
+            return jsonify({"status":"error","message":"Uma execução já está em andamento para este cliente/contrato."}), 409
+        session['execucoes'][chave_idem] = 'running'
+        try:
+            url_nova_pasta = criar_estrutura_no_drive(drive_service, dados)
+            atualizar_planilha_principal(sheets_service, dados, url_nova_pasta)
+            atualizar_planilha_secundaria(sheets_service, dados)
+            
+            id_do_novo_projeto = None
+            template_id = escolher_template_zoho(dados)
+            if template_id:
+                zoho_access_token = obter_access_token_zoho()
+                id_do_novo_projeto = criar_projeto_no_zoho(zoho_access_token, dados, template_id)
+                print("INFO: Aguardando sincronização das tarefas (15s)...")
+                time.sleep(15)
+                gp_zpuid = DONOS_PROJETO[dados['gp_selecionado']]
+                processar_tarefas_iniciais(zoho_access_token, id_do_novo_projeto, gp_zpuid)
+        finally:
+            # Libera a chave idempotente
+            try:
+                if 'execucoes' in session:
+                    session['execucoes'].pop(chave_idem, None)
+            except Exception:
+                pass
         
-        return jsonify({"status": "success", "message": "Processo finalizado com sucesso!"})
+        # Monta resposta com dados do projeto para atualizar o Kanban sem recarregar tudo
+        novo_projeto = None
+        if id_do_novo_projeto:
+            try:
+                novo_projeto = {
+                    "id": str(id_do_novo_projeto),
+                    "nome": construir_titulo_projeto(dados),
+                    "cliente": f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']}",
+                    "gp": dados['gp_selecionado'],
+                    "data_inicio_formatada": dados.get('start_date', '').replace('-', '/'),
+                    "dias_na_fase": "0 dias",
+                    "status_atual": "Aguardando Onboarding"
+                }
+            except Exception:
+                pass
+        return jsonify({"status": "success", "message": "Processo finalizado com sucesso!", "novo_projeto": novo_projeto})
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
-        if temp_deip_path and os.path.exists(temp_deip_path):
-            os.remove(temp_deip_path)
+        # Em Windows, o arquivo pode estar lockado por bibliotecas do Google no momento do finally.
+        # Tenta remover com tolerância; se falhar por lock, ignora silenciosamente.
+        try:
+            if temp_deip_path and os.path.exists(temp_deip_path):
+                os.remove(temp_deip_path)
+        except PermissionError:
+            pass
 
 # ==============================================================================
 # --- EXECUÇÃO DO SERVIDOR ---
