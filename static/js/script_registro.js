@@ -8,7 +8,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeBtn = document.getElementById('closeProjectModal');
 
     if (modal && openBtn && closeBtn) {
-        openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
+        openBtn.addEventListener('click', () => {
+            if (window.LOGGED_IN !== true) {
+                window.location.href = '/login';
+                return;
+            }
+            modal.classList.remove('hidden');
+        });
         closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
     }
@@ -115,63 +121,102 @@ document.addEventListener('DOMContentLoaded', function() {
         yearSelect.value = today.getFullYear();
     }
 
-    // Evento de submit do formulário
-    projectForm.addEventListener('submit', function(event) {
-        event.preventDefault();
+    // Evento de submit do formulário (com guarda contra submissão dupla)
+    if (!projectForm.dataset.bound) {
+        projectForm.addEventListener('submit', function(event) {
+            event.preventDefault();
 
-        startButton.disabled = true;
-        startButton.textContent = 'Processando...';
-        statusLabel.textContent = 'Enviando dados para o servidor...';
-        statusLabel.style.color = 'var(--label-color)';
+            if (projectForm.dataset.submitting === '1') return; // já enviando
+            projectForm.dataset.submitting = '1';
 
-        const formData = new FormData(projectForm);
-        
-        // Adiciona a data formatada ao FormData
-        if (daySelect && monthSelect && yearSelect) {
-            const startDate = `${daySelect.value}-${monthSelect.value}-${yearSelect.value}`;
-            formData.append('start_date', startDate);
-        }
+            startButton.disabled = true;
+            startButton.textContent = 'Processando...';
+            statusLabel.textContent = 'Enviando dados para o servidor...';
+            statusLabel.style.color = 'var(--label-color)';
 
-        fetch('/api/criar-projeto', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => { throw new Error(err.message || 'Erro desconhecido no servidor') });
+            const formData = new FormData(projectForm);
+            
+            // Adiciona a data formatada ao FormData
+            if (daySelect && monthSelect && yearSelect) {
+                const startDate = `${daySelect.value}-${monthSelect.value}-${yearSelect.value}`;
+                formData.append('start_date', startDate);
             }
-            return response.json();
-        })
-        .then(data => {
-            if (data.status === 'success') {
-                statusLabel.textContent = data.message;
-                statusLabel.style.color = 'var(--success-color)';
-                projectForm.reset();
-                // Reseta o botão de DEIP
-                if (deipFilename) deipFilename.textContent = '';
-                if (deipButton) {
-                    deipButton.style.backgroundColor = 'var(--primary-color)';
-                    deipButton.textContent = 'Selecionar DEIP (.pdf)...';
+
+            fetch('/api/criar-projeto', {
+                method: 'POST',
+                body: formData
+            })
+            .then(async (response) => {
+                // Tenta sempre parsear como JSON; se vier HTML, lança erro amigável
+                let data;
+                try { data = await response.json(); }
+                catch { throw new Error('Resposta inválida do servidor'); }
+                if (!response.ok) throw new Error(data.message || 'Erro desconhecido no servidor');
+                return data;
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    statusLabel.textContent = data.message;
+                    statusLabel.style.color = 'var(--success-color)';
+                    // Fecha o modal se existir
+                    if (modal) modal.classList.add('hidden');
+
+                    // Se o backend retornar o projeto recém-criado, adiciona-o ao Kanban
+                    if (data.novo_projeto) {
+                        try {
+                            const coluna = data.novo_projeto.status_atual || 'Aguardando Onboarding';
+                            if (!projetosSalvos[coluna]) projetosSalvos[coluna] = [];
+                            projetosSalvos[coluna].unshift(data.novo_projeto);
+                            renderizarProjetos(projetosSalvos);
+                            // Aplicar destaque visual ao card recém-criado
+                            requestAnimationFrame(() => {
+                                const container = document.getElementById(`cards-${(coluna || '').toLowerCase().replace(/\s+/g,'-').normalize('NFD').replace(/[^\w-]/g,'')}`);
+                                const firstCard = container ? container.querySelector('.project-card') : null;
+                                if (firstCard) {
+                                    firstCard.classList.add('newly-added');
+                                    setTimeout(() => firstCard.classList.remove('newly-added'), 2000);
+                                }
+                            });
+                        } catch (e) { console.warn('Não foi possível injetar o novo projeto no Kanban:', e); }
+                    } else {
+                        // Fallback: se backend não retornou o projeto, recarrega os projetos do GP atual
+                        try {
+                            const gpSelect = document.getElementById('gpSelect');
+                            if (gpSelect && gpSelect.value) {
+                                carregarProjetos();
+                            }
+                        } catch (e) { console.warn('Falha no fallback para recarregar projetos:', e); }
+                    }
+
+                    projectForm.reset();
+                    // Reseta o botão de DEIP
+                    if (deipFilename) deipFilename.textContent = '';
+                    if (deipButton) {
+                        deipButton.style.backgroundColor = 'var(--primary-color)';
+                        deipButton.textContent = 'Selecionar DEIP (.pdf)...';
+                    }
+                    // Reseta data para hoje
+                    if (daySelect && monthSelect && yearSelect) {
+                        daySelect.value = today.getDate().toString().padStart(2, '0');
+                        monthSelect.value = (today.getMonth() + 1).toString().padStart(2, '0');
+                        yearSelect.value = today.getFullYear();
+                    }
+                } else {
+                    statusLabel.textContent = `Erro: ${data.message}`;
+                    statusLabel.style.color = 'var(--error-color)';
                 }
-                // Reseta data para hoje
-                if (daySelect && monthSelect && yearSelect) {
-                    daySelect.value = today.getDate().toString().padStart(2, '0');
-                    monthSelect.value = (today.getMonth() + 1).toString().padStart(2, '0');
-                    yearSelect.value = today.getFullYear();
-                }
-            } else {
-                statusLabel.textContent = `Erro: ${data.message}`;
+            })
+            .catch(error => {
+                console.error('Erro no fetch:', error);
+                statusLabel.textContent = `Erro crítico: ${error.message}`;
                 statusLabel.style.color = 'var(--error-color)';
-            }
-        })
-        .catch(error => {
-            console.error('Erro no fetch:', error);
-            statusLabel.textContent = `Erro crítico: ${error.message}`;
-            statusLabel.style.color = 'var(--error-color)';
-        })
-        .finally(() => {
-            startButton.disabled = false;
-            startButton.textContent = 'Iniciar Automação Completa';
+            })
+            .finally(() => {
+                projectForm.dataset.submitting = '';
+                startButton.disabled = false;
+                startButton.textContent = 'Iniciar Automação Completa';
+            });
         });
-    });
+        projectForm.dataset.bound = '1';
+    }
 });

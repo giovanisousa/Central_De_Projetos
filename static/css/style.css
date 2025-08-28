@@ -237,6 +237,44 @@ body.kanban-page {
     color: #34495e;
 }
 
+/* Botão de login Google estilizado (verde claro) */
+.auth-link.google-login {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #86efac; /* verde claro */
+    color: #064e3b; /* texto verde escuro para contraste */
+    border: 1px solid #6ee7b7; /* borda verde suave */
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: all 0.2s ease;
+}
+.auth-link.google-login:hover {
+    background: #34d399; /* um tom mais forte no hover */
+    color: #ffffff;
+    border-color: #10b981;
+}
+.auth-link.google-login .google-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* Chip do e-mail logado (pill verde claro) */
+.user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #dcfce7; /* verde bem claro */
+    color: #065f46; /* verde escuro */
+    border: 1px solid #bbf7d0; /* borda suave */
+    padding: 8px 12px;
+    border-radius: 9999px; /* pill */
+    font-weight: 600;
+}
+
 .kanban-page select,
 .kanban-page button {
     padding: 10px 20px;
@@ -381,6 +419,17 @@ body.kanban-page {
     cursor: grab;
     border-left: 4px solid #3498db;
     position: relative;
+}
+
+/* Destaque visual para novo projeto inserido */
+.kanban-page .project-card.newly-added {
+    animation: pulse-new 1.8s ease-out 1;
+}
+
+@keyframes pulse-new {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); transform: scale(0.98); }
+    40% { box-shadow: 0 0 0 12px rgba(34,197,94,0); transform: scale(1.02); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); transform: scale(1); }
 }
 
 .kanban-page .project-card:hover {

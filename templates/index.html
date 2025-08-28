@@ -29,6 +29,16 @@
                 <button type="button" id="openProjectModal">
                     Adicionar Novo Projeto
                 </button>
+
+                {% if logged_in %}
+                    <span class="user">{{ user_email }}</span>
+                    <a class="auth-link" href="{{ url_for('logout') }}">Sair</a>
+                {% else %}
+                    <a class="auth-link google-login" href="{{ url_for('login') }}">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="google-icon" />
+                        Entrar com Google
+                    </a>
+                {% endif %}
                 
                 <div class="status">
                     <span id="statusText">Pronto.</span>
@@ -64,7 +74,7 @@
                             <label for="nome_cliente">Nome do Cliente:</label>
                             <input type="text" id="nome_cliente" name="nome_cliente" required>
                             
-                            <label for="codigo_contrato">Código do Contrato:</label>
+                            <label for="codigo_contrato">Código do Contrato (código/ano):</label>
                             <input type="text" id="codigo_contrato" name="codigo_contrato" required>
                             
                             <label for="cnpj">CNPJ (só números):</label>
@@ -163,6 +173,10 @@
         </div>
     </div>
 
+    <script>
+        // Sinaliza autenticação para o JS
+        window.LOGGED_IN = {{ 'true' if logged_in else 'false' }};
+    </script>
     <script src="{{ url_for('static', filename='js/script_registro.js') }}"></script>
     <script>
         // Configuração das colunas
@@ -325,10 +339,6 @@
             card.innerHTML = `
                 <div class="project-name">📋 ${nomeExibido}</div>
                 <div class="project-info">
-                    <div class="project-detail">
-                        <span class="icon">🏢</span>
-                        <span>${projeto.cliente}</span>
-                    </div>
                     <div class="project-detail">
                         <span class="icon">👤</span>
                         <span>${projeto.gp}</span>
@@ -499,128 +509,7 @@
         });
 
         // === Lógica do Modal e do Formulário de Novo Projeto ===
-        document.addEventListener('DOMContentLoaded', function() {
-            const modal = document.getElementById('projectModal');
-            const openBtn = document.getElementById('openProjectModal');
-            const closeBtn = document.getElementById('closeProjectModal');
-
-            openBtn.addEventListener('click', () => modal.classList.remove('hidden'));
-            closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) modal.classList.add('hidden');
-            });
-
-            // Reaproveita a lógica existente do formulário
-            // Botão customizado para o DEIP
-            const projectForm = document.getElementById('project-form');
-            const statusLabel = document.getElementById('status-label');
-            const startButton = document.getElementById('start-button');
-            const deipButton = document.getElementById('deip-button');
-            const deipInput = document.getElementById('deip_pdf');
-            const deipFilename = document.getElementById('deip-filename');
-
-            deipButton.addEventListener('click', () => deipInput.click());
-            deipInput.addEventListener('change', () => {
-                if (deipInput.files.length > 0) {
-                    const filename = deipInput.files[0].name;
-                    deipFilename.textContent = `Arquivo selecionado: ${filename}`;
-                    deipButton.style.backgroundColor = 'var(--success-color)';
-                    deipButton.textContent = 'DEIP Selecionado';
-                } else {
-                    deipFilename.textContent = '';
-                    deipButton.style.backgroundColor = 'var(--primary-color)';
-                    deipButton.textContent = 'Selecionar DEIP (.pdf)...';
-                }
-            });
-
-            // Mostrar/esconder opções
-            const importacaoRadios = document.querySelectorAll('input[name="importacao"]');
-            const integracaoRadios = document.querySelectorAll('input[name="integracao"]');
-            const importacaoOptions = document.getElementById('importacao-options');
-            const integracaoOptions = document.getElementById('integracao-options');
-
-            importacaoRadios.forEach(r => r.addEventListener('change', (e) => {
-                importacaoOptions.classList.toggle('hidden', e.target.value !== 's');
-            }));
-            integracaoRadios.forEach(r => r.addEventListener('change', (e) => {
-                integracaoOptions.classList.toggle('hidden', e.target.value !== 's');
-            }));
-
-            // Data (dia/mes/ano)
-            const daySelect = document.getElementById('day');
-            const monthSelect = document.getElementById('month');
-            const yearSelect = document.getElementById('year');
-            const today = new Date();
-            for (let i = 1; i <= 31; i++) {
-                const o = document.createElement('option');
-                o.value = i.toString().padStart(2, '0');
-                o.textContent = o.value;
-                daySelect.appendChild(o);
-            }
-            for (let i = 1; i <= 12; i++) {
-                const o = document.createElement('option');
-                o.value = i.toString().padStart(2, '0');
-                o.textContent = o.value;
-                monthSelect.appendChild(o);
-            }
-            for (let i = today.getFullYear() - 2; i <= today.getFullYear() + 5; i++) {
-                const o = document.createElement('option');
-                o.value = i;
-                o.textContent = i;
-                yearSelect.appendChild(o);
-            }
-            daySelect.value = today.getDate().toString().padStart(2, '0');
-            monthSelect.value = (today.getMonth() + 1).toString().padStart(2, '0');
-            yearSelect.value = today.getFullYear();
-
-            // Submit
-            projectForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-                startButton.disabled = true;
-                startButton.textContent = 'Processando...';
-                statusLabel.textContent = 'Enviando dados para o servidor...';
-                statusLabel.style.color = 'var(--label-color)';
-
-                const formData = new FormData(projectForm);
-                const startDate = `${daySelect.value}-${monthSelect.value}-${yearSelect.value}`;
-                formData.append('start_date', startDate);
-
-                fetch('/api/criar-projeto', { method: 'POST', body: formData })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(err => { throw new Error(err.message || 'Erro desconhecido no servidor') });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.status === 'success') {
-                        statusLabel.textContent = data.message;
-                        statusLabel.style.color = 'var(--success-color)';
-                        projectForm.reset();
-                        deipFilename.textContent = '';
-                        deipButton.style.backgroundColor = 'var(--primary-color)';
-                        deipButton.textContent = 'Selecionar DEIP (.pdf)...';
-                        daySelect.value = today.getDate().toString().padStart(2, '0');
-                        monthSelect.value = (today.getMonth() + 1).toString().padStart(2, '0');
-                        yearSelect.value = today.getFullYear();
-                        // Fechar modal opcionalmente
-                        // modal.classList.add('hidden');
-                    } else {
-                        statusLabel.textContent = `Erro: ${data.message}`;
-                        statusLabel.style.color = 'var(--error-color)';
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro no fetch:', error);
-                    statusLabel.textContent = `Erro crítico: ${error.message}`;
-                    statusLabel.style.color = 'var(--error-color)';
-                })
-                .finally(() => {
-                    startButton.disabled = false;
-                    startButton.textContent = 'Iniciar Automação Completa';
-                });
-            });
-        });
+        // Removida para evitar duplicidade; toda a lógica está em static/js/script_registro.js
     </script>
 </body>
 </html>
