@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Projetos Kanban</title>
+    <title>Dashboard de Projetos</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="kanban-page">
     <div class="container">
         <div class="header">
-            <h1>📊 Dashboard de Projetos Kanban</h1>
+            <h1>📊 Dashboard de Projetos</h1>
             
             <div class="controls">
                 <div class="control-group">
@@ -53,6 +53,31 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal de Confirmação de Movimentação -->
+    <div id="confirmMoveModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirmar movimentação</h2>
+                <button type="button" class="modal-close" onclick="cancelarMovimentacao()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:10px;color:#34495e">Você está movendo o projeto:</p>
+                <div style="font-weight:700;margin-bottom:10px;color:#2c3e50" id="confirm-move-project">Projeto</div>
+                <div class="confirm-move-box">
+                    <div class="from">De: <strong id="confirm-move-origem">Origem</strong></div>
+                    <div class="arrow">→</div>
+                    <div class="to">Para: <strong id="confirm-move-destino">Destino</strong></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="cancelarMovimentacao()">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="confirmarMovimentacao()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <!-- Modal: Adicionar Novo Projeto -->
     <div id="projectModal" class="modal hidden">
@@ -230,6 +255,16 @@
 
         // Carrega os projetos via API
         async function carregarProjetos() {
+            // Exige login antes de carregar
+            if (window.LOGGED_IN !== true) {
+                if (window.mostrarToast) {
+                    window.mostrarToast('Por favor, faça login com o Google para carregar os projetos.', 'error');
+                } else {
+                    alert('Por favor, faça login com o Google para carregar os projetos.');
+                }
+                return;
+            }
+
             const gpSelect = document.getElementById('gpSelect');
             const loadButton = document.getElementById('loadButton');
             const statusText = document.getElementById('statusText');
@@ -401,6 +436,7 @@
             }
         }
 
+        let movimentoPendente = null;
         function handleDrop(e) {
             if (e.stopPropagation) {
                 e.stopPropagation();
@@ -418,13 +454,43 @@
                 return false;
             }
 
-            // Mover o card visualmente
-            moverCardVisualmente(elementoSendoArrastado, nomeColumnaOrig, nomeColunaDest);
+            // Solicitar confirmação antes de mover
+            movimentoPendente = {
+                card: elementoSendoArrastado,
+                origem: nomeColumnaOrig,
+                destino: nomeColunaDest,
+                nomeProjeto: (elementoSendoArrastado.querySelector('.project-name')?.textContent || 'Projeto').replace('📋 ', '').trim()
+            };
+            abrirModalConfirmacaoMovimento(movimentoPendente);
 
             // Remover highlight
             colunaDestino.classList.remove('drag-over');
 
             return false;
+        }
+
+        function abrirModalConfirmacaoMovimento(mov) {
+            const modal = document.getElementById('confirmMoveModal');
+            const nome = document.getElementById('confirm-move-project');
+            const origem = document.getElementById('confirm-move-origem');
+            const destino = document.getElementById('confirm-move-destino');
+            if (nome) nome.textContent = mov.nomeProjeto;
+            if (origem) origem.textContent = mov.origem;
+            if (destino) destino.textContent = mov.destino;
+            modal.classList.remove('hidden');
+        }
+        function fecharModalConfirmacaoMovimento() {
+            const modal = document.getElementById('confirmMoveModal');
+            modal.classList.add('hidden');
+            movimentoPendente = null;
+        }
+        function confirmarMovimentacao() {
+            if (!movimentoPendente) return;
+            moverCardVisualmente(movimentoPendente.card, movimentoPendente.origem, movimentoPendente.destino);
+            fecharModalConfirmacaoMovimento();
+        }
+        function cancelarMovimentacao() {
+            fecharModalConfirmacaoMovimento();
         }
 
         // Move o card visualmente entre colunas
@@ -464,8 +530,24 @@
         }
 
         // Envia a movimentação para o servidor (opcional)
+        function mostrarToast(mensagem, tipo = 'success') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${tipo}`;
+            const icon = tipo === 'success' ? '✅' : '⚠️';
+            toast.innerHTML = `<span class="icon">${icon}</span><span>${mensagem}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.transition = 'opacity 0.4s ease';
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
+        }
+
         async function enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino) {
             try {
+                console.log('[enviarMovimentoParaServidor] Enviando...', { projetoId, colunaOrigem, colunaDestino });
                 const response = await fetch('/api/mover_projeto', {
                     method: 'POST',
                     headers: {
@@ -477,13 +559,18 @@
                         coluna_destino: colunaDestino
                     })
                 });
-
-                const data = await response.json();
-                if (!data.sucesso) {
-                    console.warn('Aviso do servidor:', data.mensagem || 'Movimento não sincronizado');
+                const rawText = await response.text();
+                console.log('[enviarMovimentoParaServidor] HTTP', response.status, 'body:', rawText);
+                let data;
+                try { data = JSON.parse(rawText); } catch(e) { data = null; }
+                if (data && data.sucesso) {
+                    mostrarToast(data.mensagem || 'Movimentação concluída com sucesso!', 'success');
+                } else {
+                    mostrarToast((data && (data.mensagem || data.erro)) || 'Falha ao sincronizar movimento.', 'error');
                 }
             } catch (error) {
                 console.error('Erro ao sincronizar movimento:', error);
+                mostrarToast('Erro de comunicação com o servidor.', 'error');
             }
         }
 

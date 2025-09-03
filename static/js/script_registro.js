@@ -10,7 +10,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (modal && openBtn && closeBtn) {
         openBtn.addEventListener('click', () => {
             if (window.LOGGED_IN !== true) {
-                window.location.href = '/login';
+                // mensagem amigável para login
+                if (window.mostrarToast) {
+                    window.mostrarToast('Faça login com o Google para adicionar um novo projeto.', 'error');
+                } else {
+                    alert('Faça login com o Google para adicionar um novo projeto.');
+                }
+                // opcional: redirecionar
+                // window.location.href = '/login';
                 return;
             }
             modal.classList.remove('hidden');
