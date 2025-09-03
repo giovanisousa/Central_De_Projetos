@@ -188,6 +188,82 @@ body.kanban-page {
     display: block; /* remove layout flex da outra página */
 }
 
+/* ===== Modal (Kanban) ===== */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.65); /* overlay claro */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal.hidden { display: none; }
+.modal .modal-content {
+    width: 95%;
+    max-width: 520px;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+    overflow: hidden;
+    animation: modal-pop 0.2s ease-out;
+}
+.modal .modal-header {
+    padding: 16px 20px;
+    background: #f8fafc; /* cabeçalho claro */
+    color: #111827; /* texto escuro */
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.modal .modal-header h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.modal .modal-close {
+    background: transparent;
+    border: none;
+    color: #111827;
+    font-size: 22px;
+    cursor: pointer;
+}
+.modal .modal-body { padding: 16px 20px; }
+.modal .modal-footer { padding: 16px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+
+.btn-primary {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+}
+.btn-primary:hover { filter: brightness(1.05); }
+
+.btn-secondary {
+    background: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.confirm-move-box {
+    display: flex; align-items: center; gap: 12px;
+    background: #eef6ff; /* azul muito claro para destacar do branco */
+    border: 2px solid #bfdbfe; /* borda azul clara */
+    padding: 12px; border-radius: 12px;
+}
+.confirm-move-box .arrow { font-size: 20px; color: #1d4ed8; }
+.confirm-move-box .from, .confirm-move-box .to { color: #1f2937; font-weight: 600; }
+
+@keyframes modal-pop {
+    from { transform: translateY(10px); opacity: 0.8; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
 .kanban-page .container {
     max-width: 100%;
     margin: 0 auto;
@@ -338,6 +414,42 @@ body.kanban-page {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* ===== Toasts ===== */
+.toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.toast {
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #ffffff; /* fundo branco para melhor leitura */
+    color: #111827; /* texto escuro */
+    border: 2px solid #e5e7eb; /* borda neutra padrão */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: toast-slide-in 0.25s ease-out;
+}
+.toast.success { border-color: #22c55e; }
+.toast.error { border-color: #ef4444; }
+.toast .icon { font-size: 18px; }
+.toast.success .icon { color: #16a34a; }
+.toast.error .icon { color: #dc2626; }
+
+@keyframes toast-slide-in {
+    from { transform: translateY(-8px); opacity: 0.7; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .kanban-page .kanban-board {
@@ -595,12 +707,12 @@ body.kanban-page {
 }
 
 /* ======================== */
-/* Modal para Novo Projeto  */
+/* Estilos Gerais para Modais */
 /* ======================== */
 .kanban-page .modal {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -611,15 +723,13 @@ body.kanban-page {
 .kanban-page .modal.hidden { display: none; }
 
 .kanban-page .modal-content {
-    background: var(--surface-color);
-    color: var(--text-color);
-    width: min(1000px, 95vw); /* mais largo e responsivo */
-    max-height: 90vh; /* evita ultrapassar a tela */
+    background: #ffffff;
+    color: #111827;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     display: flex;
     flex-direction: column;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-    overflow: hidden;
+    overflow: hidden; /* Garante que o conteúdo não transborde as bordas arredondadas */
 }
 
 .kanban-page .modal-header {
@@ -627,26 +737,80 @@ body.kanban-page {
     align-items: center;
     justify-content: space-between;
     padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--border-color);
-    background: #1f1f1f;
+    border-bottom: 1px solid #e5e7eb;
 }
 
-.kanban-page .modal-header h2 { margin: 0; }
+.kanban-page .modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
 
 .kanban-page .modal-close {
     background: transparent;
     border: none;
-    color: var(--text-color);
     font-size: 1.5rem;
     cursor: pointer;
+    color: #6b7280; /* Cinza para contraste */
 }
 
 .kanban-page .modal-body {
     padding: 1.25rem;
-    overflow: auto;      /* rolagem quando necessário */
 }
 
-/* Formulário dentro do modal: ajusta grid para caber melhor */
-.kanban-page .modal-body .form-grid {
-    grid-template-columns: 220px 1fr; /* labels mais largas */
+/* ===================================== */
+/* Modal Específico: Adicionar Projeto   */
+/* ===================================== */
+#projectModal .modal-content {
+    width: 600px; /* Largura fixa */
+    max-width: 95vw;
+    background: #3a3a3a; /* Fundo cinza escuro */
+    color: #ffffff; /* Texto branco */
+}
+
+#projectModal .modal-header {
+    background: #2c2c2c; /* Cabeçalho um pouco mais escuro */
+    border-bottom: 1px solid #4a4a4a;
+}
+
+#projectModal .modal-header h2 {
+    color: #ffffff;
+}
+
+#projectModal .modal-close {
+    color: #e0e0e0;
+}
+
+#projectModal .modal-body {
+    overflow-y: auto; /* Adiciona rolagem APENAS se o conteúdo exceder a altura */
+    overflow-x: hidden; /* Previne rolagem horizontal */
+    max-height: 80vh; /* Limita a altura máxima para evitar que o modal seja muito alto */
+}
+
+/* Campos de formulário dentro do modal de projeto */
+#projectModal input[type="text"],
+#projectModal select,
+#projectModal textarea {
+    background-color: #ffffff; /* Fundo branco */
+    color: #000000; /* Texto preto */
+    border: 1px solid #cccccc;
+    padding: 0.6rem;
+    border-radius: 5px;
+}
+
+#projectModal .form-grid {
+    grid-template-columns: 1fr 2fr; /* Layout de grid mais flexível */
+}
+
+#projectModal legend {
+    color: #3b82f6; /* Cor primária para legendas */
+}
+
+
+/* ===================================== */
+/* Modal Específico: Confirmação         */
+/* ===================================== */
+#confirmMoveModal .modal-content {
+    width: 480px; /* Um tamanho menor para confirmação */
+    max-width: 90vw;
 }

@@ -5,6 +5,7 @@ import os
 import json
 import time
 import traceback
+import urllib.parse
 from datetime import date, datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -40,8 +41,8 @@ COLUNA_REFERENCIA_SECUNDARIA = "Cliente"
 SCOPES_GOOGLE = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets', 'openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
 
 # --- ZOHO ---
-ZOHO_CLIENT_ID = "1000.RCJUGJ7L8JAKEFYN0S21ISWEVMB87W"
-ZOHO_CLIENT_SECRET = "206ea2f3276dae6e7b653305b5e4467379c17dbb66"
+ZOHO_CLIENT_ID = "1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DR"
+ZOHO_CLIENT_SECRET = "70226965d09b04444346222d9b4846c86a5d31d2fe"
 ZOHO_PORTAL_ID = "868230290"
 # Para listagem/kanban
 STATUS_ABERTO_ID = "2376502000000020089"
@@ -57,6 +58,8 @@ TAG_EM_HOMOLOGACAO_ID = "2376502000000983053"
 TAG_EM_VIRADA_ID = "2376502000001228741"
 TAG_PARADO_ID = "2376502000000983125"
 STATUS_CONCLUIDO_ID = "2376502000000674703"
+# Tags que não devem ser aplicadas em nível de projeto geral
+BANNED_PROJECT_TAG_IDS = {"2376502000004311812"}  # Impeditivo (fase)
 
 DONOS_PROJETO = {
     "Giovani de Sousa": "2376502000000057291",
@@ -79,6 +82,35 @@ MODELOS_ZOHO = {
     "Implantação PACS ( IMPORTAÇÃO + INTEGRAÇÃO) - UNIFICADO FINAL": "2376502000004050339",
     "Implantação RIS + PACS (COM importação) - UNIFICADO Final": "2376502000001362286"
 }
+
+# --- USUÁRIOS PARA MENÇÕES NO ZOHO (token 'zp[@zpuser#USERNUM#Nome]zp') ---
+ZOHO_MENTION_USERS = {
+    # Preencha aqui os usuários que serão mencionados com frequência
+    "William Floriano": {"usernum": "870213453", "name": "William Floriano"},
+    # Exemplo para adicionar outro usuário:
+    # "Outro Nome": {"usernum": "XXXXXXXXX", "name": "Outro Nome"},
+}
+
+
+def zoho_mention_token(usernum: str, name: str) -> str:
+    """Gera o token de menção aceito pelo Zoho Projects."""
+    return f"zp[@zpuser#{usernum}#{name}]zp"
+
+
+def zoho_mention_by_name(name: str) -> str:
+    """Retorna o token de menção para o nome informado, se mapeado; caso contrário, retorna o próprio nome."""
+    info = ZOHO_MENTION_USERS.get(name)
+    if not info:
+        return name
+    return zoho_mention_token(info.get("usernum", ""), info.get("name", name))
+
+
+def zoho_mentions(names):
+    """Gera uma string com múltiplas menções a partir de uma lista de nomes."""
+    try:
+        return " ".join(zoho_mention_by_name(n) for n in (names or []) if n)
+    except Exception:
+        return ""
 
 TAREFAS_PARA_CONCLUIR = [t.strip() for t in ["Registrar Projeto Planilha de Andamento", "Criar pastas no Google Drive", "Registrar Projeto na plataforma de gestão de projetos.", "Criação da empresa e acesso ao Zoho Projects"]]
 TAREFAS_PARA_ATRIBUIR = [t.strip() for t in ["Alteração da senha de acesso do usuário suporte", "Solicitar definição do cronograma de homologação", "Gerar o ticket de virada do cliente", "Realizar a passagem do cliente para a OA", "Realizar o preenchimento do DPI", "Enviar DPI via e-mail para CS", "Realizar reunião de encerramento com o cliente", "Encaminhar todos os tickets abertos para a equipe de suporte", "Finalizar os grupos de whatsapp", "Finalizar projeto Artia", "Encaminhar mensagem com informações sobre o Plantão", "Criação dos Grupos de Whatsapp"]]
@@ -396,6 +428,126 @@ def aplicar_tag_ao_projeto(access_token, project_id, tag_id_num):
     except requests.exceptions.RequestException as e:
         raise Exception(e.response.text if e.response else str(e))
 
+def remover_tag_do_projeto(access_token, project_id, tag_id_num):
+    """Remove uma tag do projeto (API v3: PATCH com 'tags.remove')."""
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        payload = {"tags": {"remove": [{"id": int(tag_id_num)}]}}
+        r_patch = requests.patch(url, headers=headers, json=payload)
+        r_patch.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
+
+
+def obter_detalhes_projeto(access_token, project_id):
+    """Obtém detalhes do projeto (nome, owner, etc.) via API v3."""
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    try:
+        print(f"[obter_detalhes_projeto] URL={url}")
+        r = requests.get(url, headers=headers)
+        print(f"[obter_detalhes_projeto] status={r.status_code} body={r.text[:500]}")
+        r.raise_for_status()
+        data = r.json()
+        # Alguns responses retornam o projeto direto como objeto; outros usam wrapper 'projects'
+        if isinstance(data, dict) and data.get('id'):
+            return data
+        projects = (data or {}).get('projects', []) if isinstance(data, dict) else []
+        if projects:
+            return projects[0]
+        return {}
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
+
+
+def comentar_na_tarefa(access_token, project_id, task_id, conteudo):
+    """Cria um comentário em uma tarefa (REST API)."""
+    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/comments/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"content": conteudo}
+    try:
+        r = requests.post(url, headers=headers, data=payload)
+        r.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Falha ao comentar na tarefa {task_id}: {e.response.text if e.response else e}")
+        return False
+
+
+def atualizar_status_principal_planilha_por_cliente(sheets_service, valor_cliente, novo_status):
+    """Atualiza a célula 'Status Principal' na linha que corresponde ao valor da coluna 'Cliente'.
+    Torna a busca mais robusta (ignora acentos, caixa e variações de hífen/espaços) e tenta um fallback por nome.
+    """
+    range_cabecalho = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+    cabecalhos = sheets_service.spreadsheets().values().get(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=range_cabecalho
+    ).execute().get('values', [[]])[0]
+    mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+    if 'Cliente' not in mapa_colunas or 'Status Principal' not in mapa_colunas:
+        raise Exception("Colunas necessárias não encontradas na planilha")
+
+    def _norm(s):
+        import unicodedata
+        if not isinstance(s, str):
+            s = '' if s is None else str(s)
+        # remove acentos
+        s = unicodedata.normalize('NFD', s)
+        s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+        # normaliza caixa, espaços e hífens
+        s = s.strip().lower().replace('–', '-').replace('—', '-')
+        s = ' '.join(s.split())
+        return s
+
+    letra_cliente = indice_para_letra_coluna(mapa_colunas['Cliente'])
+    letra_status = indice_para_letra_coluna(mapa_colunas['Status Principal'])
+    range_coluna_cliente = f"'{NOME_ABA_PLANILHA}'!{letra_cliente}{LINHA_CABECALHO+1}:{letra_cliente}"
+    valores = sheets_service.spreadsheets().values().get(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=range_coluna_cliente
+    ).execute().get('values', [])
+
+    alvo_norm = _norm(valor_cliente)
+    print(f"[atualizar_planilha] Procurando cliente: '{valor_cliente}' (norm='{alvo_norm}')")
+    linha_encontrada = None
+
+    # 1) Tentativa de match exato (normalizado)
+    for idx, row in enumerate(valores):
+        cel = (row[0] if row else '')
+        if _norm(cel) == alvo_norm:
+            linha_encontrada = LINHA_CABECALHO + 1 + idx
+            print(f"[atualizar_planilha] Match exato na linha {linha_encontrada}: '{cel}'")
+            break
+
+    # 2) Fallback: tenta casar pelo nome do cliente (parte após o primeiro " - ")
+    if not linha_encontrada:
+        try:
+            partes = valor_cliente.split(' - ', 1)
+            nome_parte = _norm(partes[1] if len(partes) > 1 else valor_cliente)
+        except Exception:
+            nome_parte = alvo_norm
+        for idx, row in enumerate(valores):
+            cel = (row[0] if row else '')
+            if nome_parte and nome_parte in _norm(cel):
+                linha_encontrada = LINHA_CABECALHO + 1 + idx
+                print(f"[atualizar_planilha] Match parcial na linha {linha_encontrada}: '{cel}'")
+                break
+
+    if not linha_encontrada:
+        raise Exception("Linha do cliente não encontrada na planilha")
+
+    range_status_cell = f"'{NOME_ABA_PLANILHA}'!{letra_status}{linha_encontrada}"
+    print(f"[atualizar_planilha] Atualizando célula {range_status_cell} para '{novo_status}'")
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS,
+        range=range_status_cell,
+        valueInputOption='USER_ENTERED',
+        body={"values": [[novo_status]]}
+    ).execute()
+    print("[atualizar_planilha] Atualização concluída")
+    return True
+
+
 def registrar_tempo_na_tarefa(access_token, project_id, task_id, gp_zpuid, log_time):
     url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/logs/"
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -634,18 +786,7 @@ def carregar_projetos():
         return jsonify({"erro": str(e)}), 500
 
 
-@app.route('/api/mover_projeto', methods=['POST'])
-def mover_projeto():
-    try:
-        data = request.json
-        projeto_id = data.get('projeto_id')
-        coluna_origem = data.get('coluna_origem')
-        coluna_destino = data.get('coluna_destino')
-        print(f"Movendo projeto {projeto_id} de {coluna_origem} para {coluna_destino}")
-        return jsonify({"sucesso": True, "mensagem": "Projeto movido com sucesso"})
-    except Exception as e:
-        print(f"Erro ao mover projeto: {e}")
-        return jsonify({"erro": str(e)}), 500
+
 
 @app.route('/')
 def index():
@@ -814,6 +955,380 @@ def api_criar_projeto():
                 os.remove(temp_deip_path)
         except PermissionError:
             pass
+
+# ==============================================================================
+# --- INTEGRAÇÃO ZOHO: TOKEN, TAGS E COMENTÁRIOS ---
+# ==============================================================================
+
+ZP_API_BASE = 'https://projectsapi.zoho.com/api/v3'  # API v3 base (US por padrão)
+ZP_API_BASE_DYNAMIC = None  # será definido após obter o token
+
+def _zp_base():
+    """Retorna a base da API (dinâmica, se definida a partir do token)."""
+    return ZP_API_BASE_DYNAMIC or ZP_API_BASE
+
+def _map_projects_base(api_domain: str) -> str:
+    """Mapeia api_domain do token (www.zohoapis.*) para projectsapi.zoho.* correspondente."""
+    try:
+        host = urllib.parse.urlparse(api_domain).netloc if api_domain else ''
+    except Exception:
+        host = ''
+    if 'zohoapis.eu' in host:
+        return 'https://projectsapi.zoho.eu/api/v3'
+    if 'zohoapis.in' in host:
+        return 'https://projectsapi.zoho.in/api/v3'
+    if 'zohoapis.com.au' in host:
+        return 'https://projectsapi.zoho.com.au/api/v3'
+    if 'zohoapis.com.cn' in host:
+        return 'https://projectsapi.zoho.com.cn/api/v3'
+    # padrão US
+    return 'https://projectsapi.zoho.com/api/v3'
+
+
+def obter_access_token_zoho():
+    """Obtém access_token a partir do refresh_token salvo em arquivo."""
+    try:
+        with open(ZOHO_TOKEN_PATH, 'r', encoding='utf-8') as f:
+            refresh_token = f.read().strip()
+    except FileNotFoundError:
+        raise Exception('Arquivo de refresh token do Zoho não encontrado.')
+
+    token_url = 'https://accounts.zoho.com/oauth/v2/token'
+    data_form = {
+        'refresh_token': refresh_token,
+        'client_id': ZOHO_CLIENT_ID,
+        'client_secret': ZOHO_CLIENT_SECRET,
+        'grant_type': 'refresh_token'
+    }
+    r = requests.post(token_url, data=data_form, timeout=30)
+    if r.status_code != 200:
+        raise Exception(f'Falha ao obter access_token Zoho: HTTP {r.status_code} - {r.text}')
+    data = r.json()
+    access_token = data.get('access_token')
+    if not access_token:
+        raise Exception('Resposta do Zoho sem access_token.')
+
+    # Ajusta base da API conforme o data center do token
+    global ZP_API_BASE_DYNAMIC
+    ZP_API_BASE_DYNAMIC = _map_projects_base(data.get('api_domain'))
+
+    return access_token
+
+
+def _zp_headers(access_token: str):
+    return {
+        'Authorization': f'Zoho-oauthtoken {access_token}',
+        'Content-Type': 'application/json'
+    }
+
+
+def get_portal_project_tags(access_token: str):
+    """Lista as tags disponíveis para o módulo 'projects' no portal (id e nome)."""
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/tags"
+    params = {"module": "projects"}
+    print(f"[get_portal_project_tags] URL={url} params={params}")
+    r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[get_portal_project_tags] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    data = r.json() if r.text else {}
+    tags = data.get('tags') if isinstance(data, dict) else None
+    return tags or []
+
+
+def get_project_tags(access_token: str, project_id: str):
+    """Retorna tags 'usadas no projeto' (pode incluir tags de tarefas). Mantida para usos gerais."""
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tags"
+    print(f"[get_project_tags] URL={url}")
+    r = requests.get(url, headers=_zp_headers(access_token), timeout=30)
+    print(f"[get_project_tags] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    data = r.json() if r.text else {}
+    return (data.get('tags') or []) if isinstance(data, dict) else []
+
+
+def get_project_tags_strict(access_token: str, project_id: str):
+    """Retorna apenas as tags atribuídas diretamente ao projeto (não agregadas das tarefas).
+    Usa GET /projects/{id}?fields=tags e normaliza a resposta.
+    """
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    params = {"fields": "tags"}
+    print(f"[get_project_tags_strict] URL={url} params={params}")
+    r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[get_project_tags_strict] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    data = r.json() if r.text else {}
+    # Normaliza leitura de tags no objeto do projeto
+    tags_atuais = []
+    if isinstance(data, dict):
+        if isinstance(data.get('tags'), list):
+            tags_atuais = data['tags']
+        elif isinstance(data.get('tags'), dict):
+            tags_atuais = data['tags'].get('data', []) or []
+    return tags_atuais
+
+
+def add_project_tag(access_token: str, project_id: str, tag_id: str):
+    """Adiciona uma tag preservando as tags atuais (PATCH com lista final de IDs).
+    Estratégia: lê as tags atuais, inclui a nova e faz um único PATCH com todas.
+    """
+    # Lê somente as tags atribuídas diretamente ao projeto
+    current_tags = get_project_tags_strict(access_token, project_id)
+    current_ids = [str(t.get('id')) for t in (current_tags or []) if t.get('id') is not None]
+
+    target_id = str(tag_id)
+    if target_id not in current_ids:
+        final_ids = current_ids + [target_id]
+    else:
+        final_ids = current_ids
+
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    payload = { "tags": [ { "id": tid } for tid in final_ids ] }
+    print(f"[add_project_tag] PATCH URL={url} payload={payload}")
+    resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[add_project_tag] status={resp.status_code} body={resp.text[:10000]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao adicionar tag ao projeto: HTTP {resp.status_code} - {resp.text}')
+
+    
+
+
+def remove_project_tag(access_token: str, project_id: str, tag_id: str):
+    """Remove com segurança uma tag do projeto definindo o conjunto final de tags.
+    Estratégia: lê as tags atuais e faz PATCH com a lista sem a tag alvo.
+    """
+    # Lê somente as tags atribuídas diretamente ao projeto
+    current_tags = get_project_tags_strict(access_token, project_id)
+    current_ids = [str(t.get('id')) for t in (current_tags or []) if t.get('id') is not None]
+
+    target_id = str(tag_id)
+    final_ids = [tid for tid in current_ids if tid != target_id]
+
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    payload = { "tags": [ { "id": tid } for tid in final_ids ] }
+    print(f"[remove_project_tag] PATCH URL={url} payload={payload}")
+    resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[remove_project_tag] status={resp.status_code} body={resp.text[:1000]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao remover tag do projeto: HTTP {resp.status_code} - {resp.text}')
+
+
+def ensure_project_tags(access_token: str, project_id: str, required_tag_ids, attempts: int = 2, delay_sec: float = 2.0):
+    """Garante que as tags 'required_tag_ids' permaneçam no projeto, mesmo após workflows.
+    Faz até 'attempts' tentativas adicionais com pequena espera, sempre enviando o conjunto final de tags.
+    """
+    required = {str(tid) for tid in (required_tag_ids or [])}
+    for i in range(max(1, attempts)):
+        try:
+            # sempre parte apenas das tags diretas do projeto
+            current_tags = get_project_tags_strict(access_token, project_id)
+            current_ids = {str(t.get('id')) for t in (current_tags or []) if t.get('id') is not None}
+            final_ids = list(current_ids.union(required))
+            url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+            payload = {"tags": [{"id": tid} for tid in final_ids]}
+            print(f"[ensure_project_tags] try={i+1} PATCH URL={url} payload={payload}")
+            resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+            print(f"[ensure_project_tags] status={resp.status_code} body={resp.text[:500]}")
+        except Exception as e:
+            print(f"[ensure_project_tags] erro tentativa {i+1}: {e}")
+        # pequena espera para permitir workflows do Zoho executarem
+        try:
+            time.sleep(delay_sec)
+        except Exception:
+            pass
+
+
+def find_task_by_name(access_token: str, project_id: str, task_name: str):
+    """Busca a tarefa pelo nome; tenta primeiro a listagem paginada do projeto (igualdade),
+    depois um fallback por "contém" e, por fim, a busca global.
+    """
+    def _normalize(s: str) -> str:
+        return (s or '').strip().lower()
+
+    target_norm = _normalize(task_name)
+
+    # 1) Listagem paginada do projeto (igualdade exata)
+    base_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks"
+    page = 1
+    per_page = 200
+    max_pages = 10
+    while page <= max_pages:
+        params = { 'page': page, 'per_page': per_page }
+        print(f"[find_task_by_name] LIST URL={base_url} params={params}")
+        resp = requests.get(base_url, headers=_zp_headers(access_token), params=params, timeout=30)
+        if resp.status_code != 200:
+            print(f"[find_task_by_name] list status={resp.status_code} body={resp.text[:300]}")
+            break
+        data = resp.json() or {}
+        items = data.get('tasks') or data.get('data') or []
+        if not isinstance(items, list):
+            items = []
+        # Passo 1.1: igualdade
+        for it in items:
+            name = it.get('name') or it.get('title') or it.get('task_name') or ''
+            if _normalize(name) == target_norm:
+                tid = it.get('id') or it.get('task_id') or it.get('entity_id')
+                if tid is not None:
+                    print(f"[find_task_by_name] FOUND VIA LIST (exact): {tid}")
+                    return str(tid)
+        # Passo 1.2: contém (mais permissivo)
+        for it in items:
+            name = it.get('name') or it.get('title') or it.get('task_name') or ''
+            name_norm = _normalize(name)
+            if target_norm in name_norm or name_norm in target_norm:
+                tid = it.get('id') or it.get('task_id') or it.get('entity_id')
+                if tid is not None:
+                    print(f"[find_task_by_name] FOUND VIA LIST (contains): {tid} - name='{name}'")
+                    return str(tid)
+        if len(items) < per_page:
+            break
+        page += 1
+
+    # 2) Fallback: busca global no portal
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/search"
+    params = {
+        'search_term': task_name,
+        'module': 'tasks',
+        'per_page': 50
+    }
+    resp = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    if resp.status_code != 200:
+        raise Exception(f'Falha ao buscar tarefas: HTTP {resp.status_code} - {resp.text}')
+    data = resp.json() or {}
+    results = data.get('results') or []
+    for r in results:
+        proj = (r.get('project') or {})
+        name = r.get('title') or r.get('name') or ''
+        name_norm = _normalize(name)
+        if str(proj.get('id')) == str(project_id) and (name_norm == target_norm or target_norm in name_norm or name_norm in target_norm):
+            ent = r.get('entity_id')
+            if ent is not None:
+                print(f"[find_task_by_name] FOUND VIA GLOBAL (fallback): {ent} - name='{name}'")
+                return str(ent)
+    return None
+
+
+def add_comment_to_task(access_token: str, project_id: str, task_id: str, content: str):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/comments"
+    payload = { "comment": content }
+    print(f"[add_comment_to_task] URL={url} payload_size={len(content)}")
+    resp = requests.post(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[add_comment_to_task] status={resp.status_code} body={resp.text[:300]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao adicionar comentário na tarefa: HTTP {resp.status_code} - {resp.text}')
+
+
+def list_task_comments(access_token: str, project_id: str, task_id: str, page: int = 1, per_page: int = 200):
+    """Lista comentários de uma tarefa para inspecionar como menções aparecem no JSON."""
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/comments"
+    params = {"page": page, "per_page": per_page}
+    print(f"[list_task_comments] URL={url} params={params}")
+    resp = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[list_task_comments] status={resp.status_code} body_sample={resp.text[:500]}")
+    if resp.status_code != 200:
+        raise Exception(f"Falha ao listar comentários: HTTP {resp.status_code} - {resp.text}")
+    return resp.json() or {}
+
+
+
+# ==============================================================================
+# --- ROTA: MOVER PROJETO (ATUALIZA ZOHO QUANDO APLICÁVEL) ---
+# ==============================================================================
+@app.route('/api/mover_projeto', methods=['POST'])
+def api_mover_projeto():
+    try:
+        if 'credentials' not in session:
+            return jsonify({"sucesso": False, "erro": "Usuário não autenticado."}), 401
+
+        payload = request.get_json(force=True) or {}
+        projeto_id = str(payload.get('projeto_id') or '').strip()
+        coluna_origem = (payload.get('coluna_origem') or '').strip()
+        coluna_destino = (payload.get('coluna_destino') or '').strip()
+
+        print(f"[/api/mover_projeto] payload recebido: {payload}")
+        print(f"[/api/mover_projeto] projeto_id={projeto_id}, origem='{coluna_origem}', destino='{coluna_destino}'")
+
+        if not projeto_id or not coluna_destino:
+            print("[/api/mover_projeto] Parâmetros inválidos")
+            return jsonify({"sucesso": False, "erro": "Parâmetros inválidos."}), 400
+
+        msg_operacoes = []
+
+        # Regras específicas: ao mover de "Aguardando Onboarding" para "Falta Liberar Servidor Infra"
+        if coluna_origem == 'Aguardando Onboarding' and coluna_destino == 'Falta Liberar Servidor Infra':
+            print("[/api/mover_projeto] Regra ONBOARDING -> INFRA acionada")
+            access_token = obter_access_token_zoho()
+            print(f"[/api/mover_projeto] Access token Zoho obtido? {'SIM' if access_token else 'NAO'}")
+
+            # 1) Atualizar planilha principal
+            try:
+                creds = Credentials(**session['credentials'])
+                sheets_service = build('sheets', 'v4', credentials=creds)
+                detalhes_zoho = obter_detalhes_projeto(access_token, projeto_id)
+                print(f"[/api/mover_projeto] detalhes_zoho keys: {list(detalhes_zoho.keys()) if isinstance(detalhes_zoho, dict) else type(detalhes_zoho)}")
+                nome_projeto_zoho = detalhes_zoho.get('name', '')
+                print(f"[/api/mover_projeto] nome_projeto_zoho='{nome_projeto_zoho}'")
+                # Extrai o valor do cliente do nome do projeto
+                valor_cliente = nome_projeto_zoho.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+                print(f"[/api/mover_projeto] valor_cliente extraído='{valor_cliente}'")
+                # Escreve exatamente como desejado na planilha principal
+                atualizar_status_principal_planilha_por_cliente(sheets_service, valor_cliente, 'Falta Liberar Servidor Infra')
+                msg_operacoes.append('Planilha principal atualizada')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO atualização planilha: {e}")
+                msg_operacoes.append(f'Falha ao atualizar planilha: {e}')
+
+            # 2) Tags do projeto: +AGUARDANDO_INFRA, -AGUARDANDO_ONBOARDING
+            try:
+                print("[/api/mover_projeto] Adicionando tag AGUARDANDO_INFRA...")
+                add_project_tag(access_token, projeto_id, TAG_AGUARDANDO_INFRA_ID)
+                msg_operacoes.append('Tag AGUARDANDO_INFRA adicionada')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO ao adicionar tag AGUARDANDO_INFRA: {e}")
+                msg_operacoes.append(f'Falha ao adicionar tag AGUARDANDO_INFRA: {e}')
+
+            try:
+                print("[/api/mover_projeto] Removendo tag AGUARDANDO_ONBOARDING...")
+                remove_project_tag(access_token, projeto_id, TAG_AGUARDANDO_ONBOARDING_ID)
+                msg_operacoes.append('Tag AGUARDANDO_ONBOARDING removida')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO ao remover tag AGUARDANDO_ONBOARDING: {e}")
+                msg_operacoes.append(f'Falha ao remover tag AGUARDANDO_ONBOARDING: {e}')
+
+            # Reforça a presença das tags desejadas após possíveis workflows
+            try:
+                ensure_project_tags(access_token, projeto_id, [TAG_AGUARDANDO_INFRA_ID], attempts=2, delay_sec=2.0)
+                msg_operacoes.append('Tags reforçadas após workflow')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO ao reforçar tags: {e}")
+                msg_operacoes.append(f'Falha ao reforçar tags: {e}')
+
+            # 3) Comentário na tarefa "02.01.01 - Validação do DEIP"
+            # Use helpers de menção para citar 1 ou mais usuários
+            mentions_text = zoho_mentions(["William Floriano"])  # adicione outros nomes aqui conforme necessário
+            comentario = (
+                f"Bom dia {mentions_text}, tudo bem? Realizada reunião de onboarding com o cliente. "
+                "Sendo assim, podemos dar inicio as atividades de infra. Vamos iniciar os grupos. "
+                "Os detalhes do projeto se encontram na descrição do mesmo. Att"
+            )
+            try:
+                print("[/api/mover_projeto] Buscando tarefa '02.01.01 - Validação do DEIP'...")
+                task_id = find_task_by_name(access_token, projeto_id, "02.01.01 - Validação do DEIP")
+                print(f"[/api/mover_projeto] task_id encontrado: {task_id}")
+                if task_id:
+                    add_comment_to_task(access_token, projeto_id, task_id, comentario)
+                    msg_operacoes.append('Comentário adicionado na tarefa alvo')
+                else:
+                    msg_operacoes.append('Tarefa alvo não encontrada para comentar')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO ao comentar na tarefa: {e}")
+                msg_operacoes.append(f'Falha ao comentar na tarefa: {e}')
+
+        return jsonify({"sucesso": True, "mensagem": "; ".join(msg_operacoes) or 'Movimentação registrada.'})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
+
 
 # ==============================================================================
 # --- EXECUÇÃO DO SERVIDOR ---

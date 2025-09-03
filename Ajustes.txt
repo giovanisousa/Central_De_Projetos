@@ -1,0 +1,70 @@
+* Largura do modal Criação de novo projeto
+* Mudar o fundo dos campos da criação de novo projeto - cinza, campos brancos
+* Verificar se esta comentando na tarefa
+* Verificar quando fica alterando o check do produto, se ele salva corretamente.
+
+
+$REFRESH = "1000.1c4d853ca584614d036e42a9208d35be.166690cc51f8db6b10c91996b0ac5159"
+# Supondo que $CLIENT_ID e $CLIENT_SECRET já estão definidos
+$CLIENT_ID = "1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DR"
+$CLIENT_SECRET = "70226965d09b04444346222d9b4846c86a5d31d2fe"
+
+$resp = Invoke-RestMethod -Method Post -Uri "https://accounts.zoho.com/oauth/v2/token" -Body @{
+  refresh_token = $REFRESH
+  client_id     = $CLIENT_ID
+  client_secret = $CLIENT_SECRET
+  grant_type    = "refresh_token"
+}
+
+# ---- INSPECIONE A RESPOSTA AQUI ----
+Write-Output "Resposta da API de Token:"
+Write-Output ($resp | ConvertTo-Json)
+# ------------------------------------
+
+# O script só deve continuar se um access_token foi recebido
+if ($resp.access_token) {
+    $headers = @{ Authorization = "Zoho-oauthtoken $($resp.access_token)" }
+    $BASE = "https://projectsapi.zoho.com"
+    $PORTAL = "868230290"
+
+    # Testes
+    Write-Output "Testando API de Portals..."
+    Invoke-RestMethod -Method Get -Headers $headers -Uri "$BASE/api/v3/portals"
+
+    Write-Output "Testando API de Projects..."
+    Invoke-RestMethod -Method Get -Headers $headers -Uri "$BASE/api/v3/portal/$PORTAL/projects"
+} else {
+    Write-Error "Falha ao obter o access_token. Verifique a resposta da API acima."
+}
+
+
+
+
+$GRANT_TOKEN = "1000.bed0d964a1b4fd5ec4d281ff352d02d8.55d208fcbb10ef4b0ff0d2876f55ee97" # Cole o novo código aqui
+
+$response = Invoke-RestMethod -Method Post -Uri "https://accounts.zoho.com/oauth/v2/token" -Body @{
+    code = $GRANT_TOKEN
+    client_id = "1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DR"
+    client_secret = "70226965d09b04444346222d9b4846c86a5d31d2fe"
+    grant_type = "authorization_code"
+    access_type = "offline"
+    redirect_uri = "https://localhost" # Ou a URI que você configurou
+}
+
+# A resposta deve conter seu novo refresh_token
+Write-Output ($response | ConvertTo-Json)
+
+
+
+https://accounts.zoho.com/oauth/v2/auth?scope=ZohoProjects.portals.READ,ZohoProjects.projects.ALL,ZohoProjects.tasks.ALL,ZohoProjects.tags.ALL,ZohoProjects.timesheets.ALL,ZohoSearch.securesearch.READ&client_id=1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DRW&response_type=code&access_type=offline&redirect_uri=https://localhost
+
+
+
+
+{'tags': [{'add': [{'id': '2376502000000958355'}]}]}
+
+"tags" : [ { "add" : [ { "id" : "4000000062001" } ]
+
+
+ { "tags": [ { "remove": [ { "id": str(tag_id) } ] } ] }
+ { "tags": [ { "add": [ { "id": str(tag_id) } ] } ] }
