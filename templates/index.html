@@ -208,17 +208,51 @@
         const COLUNAS = [
             { nome: "Aguardando Onboarding", class: "aguardando-onboarding" },
             { nome: "Falta Liberar Servidor Infra", class: "falta-liberar-servidor" },
-            { nome: "Em andamento", class: "em-andamento" },
-            { nome: "Em homologação", class: "em-homologacao" },
+            { nome: "Em Andamento", class: "em-andamento" },
+            { nome: "Em Homologação", class: "em-homologacao" },
             { nome: "Em Virada", class: "em-virada" },
-            { nome: "Em operação assistida", class: "em-operacao" },
+            { nome: "Em Operação Assistida", class: "em-operacao" },
+            { nome: "Aguardando Encerramento", class: "aguardando-encerramento" },
+            { nome: "Projeto Parado", class: "parado" },
             { nome: "Finalizado", class: "finalizado" },
-            { nome: "Parado", class: "parado" },
+            { nome: "Cancelado", class: "cancelado" },
             { nome: "Status Desconhecido", class: "status-desconhecido" }
         ];
 
         let projetosSalvos = {};
         let elementoSendoArrastado = null;
+        // Variáveis para auto-scroll horizontal durante arrasto
+        let isDraggingCard = false;
+        let lastMouseX = 0;
+        let autoScrollFrame = null;
+
+        function autoScrollLoop() {
+            if (!isDraggingCard) return;
+            const container = document.querySelector('.kanban-board');
+            const scroller = container || document.documentElement;
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+            const edgeThreshold = 60; // px próximos à borda para começar a rolar
+            const maxStep = 35; // velocidade máxima por frame
+
+            let step = 0;
+            if (lastMouseX > viewportWidth - edgeThreshold) {
+                // Próximo da borda direita
+                step = Math.min(maxStep, edgeThreshold - (viewportWidth - lastMouseX));
+            } else if (lastMouseX < edgeThreshold) {
+                // Próximo da borda esquerda
+                step = -Math.min(maxStep, edgeThreshold - lastMouseX);
+            }
+
+            if (step !== 0) {
+                // Tenta rolar o contêiner das colunas; se não houver, rola a janela
+                if (container && container.scrollWidth > container.clientWidth) {
+                    container.scrollLeft += step;
+                } else {
+                    window.scrollBy({ left: step, behavior: 'auto' });
+                }
+            }
+            autoScrollFrame = requestAnimationFrame(autoScrollLoop);
+        }
 
         // Inicializa as colunas do Kanban
         function inicializarKanban() {
@@ -403,6 +437,10 @@
             e.target.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/html', e.target.outerHTML);
+            // Inicia auto-scroll horizontal durante o arrasto
+            isDraggingCard = true;
+            try { if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame); } catch(_) {}
+            autoScrollLoop();
         }
 
         function handleDragEnd(e) {
@@ -412,6 +450,8 @@
                 col.classList.remove('drag-over');
             });
             elementoSendoArrastado = null;
+            // Finaliza auto-scroll
+            isDraggingCard = false;
         }
 
         function handleDragOver(e) {
@@ -419,6 +459,8 @@
                 e.preventDefault();
             }
             e.dataTransfer.dropEffect = 'move';
+            // Atualiza posição do mouse para auto-scroll
+            lastMouseX = e.clientX;
             return false;
         }
 
@@ -451,6 +493,17 @@
             const nomeColumnaOrig = elementoSendoArrastado.dataset.colunaOrigem;
 
             if (nomeColunaDest === nomeColumnaOrig) {
+                return false;
+            }
+
+            // Bloqueia movimentação para Status Desconhecido como destino
+            if (nomeColunaDest === 'Status Desconhecido') {
+                if (window.mostrarToast) {
+                    window.mostrarToast('Não é permitido mover para a coluna Status Desconhecido.', 'error');
+                } else {
+                    alert('Não é permitido mover para a coluna Status Desconhecido.');
+                }
+                colunaDestino.classList.remove('drag-over');
                 return false;
             }
 
@@ -513,6 +566,20 @@
                 return;
             }
 
+            // Não permite mover PARA Status Desconhecido
+            if (colunaDestino === 'Status Desconhecido') {
+                if (window.mostrarToast) {
+                    window.mostrarToast('Não é permitido mover para a coluna Status Desconhecido.', 'error');
+                } else {
+                    alert('Não é permitido mover para a coluna Status Desconhecido.');
+                }
+                // Recoloca o card na origem
+                if (!projetosSalvos[colunaOrigem]) projetosSalvos[colunaOrigem] = [];
+                projetosSalvos[colunaOrigem].push(projetoEncontrado);
+                renderizarProjetos(projetosSalvos);
+                return;
+            }
+
             // Adicionar à nova coluna
             if (!projetosSalvos[colunaDestino]) {
                 projetosSalvos[colunaDestino] = [];
@@ -523,7 +590,7 @@
             // Atualizar a interface
             renderizarProjetos(projetosSalvos);
 
-            // Opcional: Enviar para o servidor
+            // Enviar para o servidor
             enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino);
 
             console.log(`✅ Projeto movido de "${colunaOrigem}" para "${colunaDestino}"`);
@@ -583,6 +650,11 @@
                 if (e.key === 'Enter') {
                     carregarProjetos();
                 }
+            });
+
+            // Rastrear mouse globalmente para auto-scroll enquanto arrasta
+            window.addEventListener('dragover', function(e) {
+                lastMouseX = e.clientX;
             });
         });
 

@@ -1,0 +1,72 @@
+{
+  "Aguardando Onboarding": {
+    "sheetStatus": "Aguardando Onboarding",
+    "zohoStatusId": "2376502000000020089",
+    "zohoTagsToAdd": ["2376502000001291513"],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  },
+  "Falta Liberar Servidor Infra": {
+    "sheetStatus": "Falta Liberar Servidor Infra",
+    "zohoStatusId": "2376502000000020089",
+    "zohoTagsToAdd": ["2376502000000958355"],
+    "zohoTagsToRemove": [],
+    "triggersAction": "adicionar_comentario_servidor"
+  },
+  "Em Andamento": {
+    "sheetStatus": "Em Andamento",
+    "zohoStatusId": "2376502000000020092",
+    "zohoTagsToAdd": [],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  },
+  "Em Homologação": {
+    "sheetStatus": "Em Homologação",
+    "zohoStatusId": "2376502000000020092",
+    "zohoTagsToAdd": ["2376502000000983053"],
+    "zohoTagsToRemove": [],
+    "triggersAction": "preencher_dpi_homologacao"
+  },
+  "Em Virada": {
+    "sheetStatus": "Em Virada",
+    "zohoStatusId": "2376502000000020092",
+    "zohoTagsToAdd": ["2376502000001228741"],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  },
+  "Em Operação Assistida": {
+    "sheetStatus": "Em Operação Assistida",
+    "zohoStatusId": "2376502000000020119",
+    "zohoTagsToAdd": [],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  },
+  "Aguardando Encerramento": {
+    "sheetStatus": "Aguardando Encerramento",
+    "zohoStatusId": "2376502000000020119",
+    "zohoTagsToAdd": ["2376502000005304184"],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  },
+  "Finalizado": {
+    "sheetStatus": "Finalizado",
+    "zohoStatusId": "2376502000000020116",
+    "zohoTagsToAdd": [],
+    "zohoTagsToRemove": [],
+    "triggersAction": "preencher_dpi_encerramento"
+  },
+  "Projeto Parado": {
+    "sheetStatus": "Projeto Parado",
+    "zohoStatusId": "2376502000000020104",
+    "zohoTagsToAdd": ["2376502000000983125"],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  },
+  "Cancelado": {
+    "sheetStatus": "Cancelado",
+    "zohoStatusId": "2376502000000020110",
+    "zohoTagsToAdd": [],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  }
+}
