@@ -351,8 +351,9 @@ body.kanban-page {
     font-weight: 600;
 }
 
+/* Estilos de controles do topo (não afetam botões dos cards ou modais) */
 .kanban-page select,
-.kanban-page button {
+.kanban-page .controls button {
     padding: 10px 20px;
     border: 2px solid #3498db;
     border-radius: 8px;
@@ -373,7 +374,7 @@ body.kanban-page {
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
-.kanban-page button {
+.kanban-page .controls button {
     background: linear-gradient(135deg, #3498db, #2980b9);
     color: white;
     border: none;
@@ -381,13 +382,13 @@ body.kanban-page {
     min-width: 140px;
 }
 
-.kanban-page button:hover:not(:disabled) {
+.kanban-page .controls button:hover:not(:disabled) {
     background: linear-gradient(135deg, #2980b9, #3498db);
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
 }
 
-.kanban-page button:disabled {
+.kanban-page .controls button:disabled {
     background: #bdc3c7;
     cursor: not-allowed;
     transform: none;
@@ -531,6 +532,10 @@ body.kanban-page {
     cursor: grab;
     border-left: 4px solid #3498db;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 150px; /* Ajuste para layout flexível */
 }
 
 /* Destaque visual para novo projeto inserido */
@@ -566,10 +571,38 @@ body.kanban-page {
     color: #2c3e50;
     margin-bottom: 8px;
     line-height: 1.3;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    /* Força uma única linha com reticências para não empurrar o restante do conteúdo */
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
+    /* Reserva espaço para o indicador de impedimento no canto direito, evitando sobreposição */
+    padding-right: 36px;
+    position: relative;
+}
+
+/* Tooltip estilizado para o título do projeto */
+.kanban-page .project-name[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    max-width: 280px;
+    background: rgba(17, 24, 39, 0.95); /* quase preto */
+    color: #fff;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+    white-space: normal; /* permite quebra dentro do tooltip */
+    z-index: 5;
+}
+.kanban-page .project-name[data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity .15s ease, transform .15s ease;
 }
 
 .kanban-page .project-info {
@@ -594,11 +627,12 @@ body.kanban-page {
 
 .kanban-page .project-footer {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start; /* Alterado para alinhar à esquerda */
     align-items: center;
     margin-top: 12px;
     padding-top: 10px;
     border-top: 1px solid #ecf0f1;
+    gap: 8px; /* Espaço entre os contadores */
 }
 
 .kanban-page .project-date {
@@ -606,14 +640,120 @@ body.kanban-page {
     color: #95a5a6;
 }
 
+/* Estilo antigo .project-days foi substituído pelos novos contadores */
 .kanban-page .project-days {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-    color: white;
-    padding: 4px 10px;
-    border-radius: 15px;
-    font-size: 12px;
-    font-weight: 600;
+   display: none; /* Oculta o contador antigo para evitar duplicidade */
 }
+
+/* ===================================== */
+/* === NOVOS ESTILOS PARA O CARD === */
+/* ===================================== */
+
+/* Indicador de Impedimento (Canto Superior Direito) */
+.kanban-page .impediment-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 22px;
+    height: 22px;
+    background-color: var(--error-color);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    z-index: 2;
+}
+
+/* Botão de Adicionar Comentário (Canto Inferior Direito) */
+.kanban-page .add-comment-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    /* Cinza do Aguardando Onboarding */
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 300;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    z-index: 2;
+}
+
+.kanban-page .add-comment-btn:hover {
+    background-color: #5a6268; /* hover um tom abaixo */
+    transform: scale(1.1);
+}
+
+/* Variação de cor do botão "+" conforme a coluna do card */
+.kanban-page .aguardando-onboarding .project-card .add-comment-btn { background-color: #6c757d; }
+.kanban-page .aguardando-onboarding .project-card .add-comment-btn:hover { background-color: #5a6268; }
+
+.kanban-page .falta-liberar-servidor .project-card .add-comment-btn { background-color: #E67E22; }
+.kanban-page .falta-liberar-servidor .project-card .add-comment-btn:hover { background-color: #d68910; }
+
+.kanban-page .em-andamento .project-card .add-comment-btn { background-color: #2ECC71; }
+.kanban-page .em-andamento .project-card .add-comment-btn:hover { background-color: #27ae60; }
+
+.kanban-page .em-homologacao .project-card .add-comment-btn { background-color: #1ABC9C; }
+.kanban-page .em-homologacao .project-card .add-comment-btn:hover { background-color: #16a085; }
+
+.kanban-page .em-virada .project-card .add-comment-btn { background-color: #1ABC9C; }
+.kanban-page .em-virada .project-card .add-comment-btn:hover { background-color: #16a085; }
+
+.kanban-page .em-operacao .project-card .add-comment-btn { background-color: #3498DB; }
+.kanban-page .em-operacao .project-card .add-comment-btn:hover { background-color: #2980b9; }
+
+.kanban-page .finalizado .project-card .add-comment-btn { background-color: #27AE60; }
+.kanban-page .finalizado .project-card .add-comment-btn:hover { background-color: #229954; }
+
+.kanban-page .parado .project-card .add-comment-btn { background-color: #DC143C; }
+.kanban-page .parado .project-card .add-comment-btn:hover { background-color: #b91c3c; }
+
+.kanban-page .status-desconhecido .project-card .add-comment-btn { background-color: #95A5A6; }
+.kanban-page .status-desconhecido .project-card .add-comment-btn:hover { background-color: #7f8c8d; }
+
+.kanban-page .cancelado .project-card .add-comment-btn { background-color: #b5b5b5; color: #111827; }
+.kanban-page .cancelado .project-card .add-comment-btn:hover { background-color: #9aa0a6; }
+
+.kanban-page .aguardando-encerramento .project-card .add-comment-btn { background-color: #8B5CF6; }
+.kanban-page .aguardando-encerramento .project-card .add-comment-btn:hover { background-color: #7C3AED; }
+
+/* Contadores de Dias (Canto Inferior Esquerdo) */
+.kanban-page .day-counter {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Cor para dias na etapa */
+.kanban-page .day-counter.stage-days {
+    background-color: #5DADE2;
+}
+
+/* Cor para dias totais do projeto */
+.kanban-page .day-counter.total-days {
+    background-color: #526D82;
+}
+
 
 /* Cores das colunas */
 .kanban-page .column-header.aguardando-onboarding { background: linear-gradient(135deg, #6c757d, #5a6268); }

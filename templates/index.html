@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de Projetos</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Ícones para contadores do card -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body class="kanban-page">
     <div class="container">
@@ -389,7 +391,7 @@
             });
         }
 
-        // Cria um card de projeto
+        // Cria um card de projeto (VERSÃO ATUALIZADA)
         function criarCardProjeto(projeto, coluna) {
             const card = document.createElement('div');
             card.className = 'project-card';
@@ -405,27 +407,57 @@
                 projeto.nome.substring(0, 50) + '...' : 
                 projeto.nome;
 
+            // --- ESTRUTURA DO CARD ATUALIZADA ---
+
+            // 1. Indicador de impedimento (condicional)
+            const impedimentoHtml = projeto.tem_impedimento
+                ? `<div class="impediment-indicator" title="Projeto com impedimento">!</div>`
+                : '';
+
+            // 2. Botão de adicionar comentário
+            const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;
+
+            // 3. HTML principal do card
             card.innerHTML = `
-                <div class="project-name">📋 ${nomeExibido}</div>
-                <div class="project-info">
-                    <div class="project-detail">
-                        <span class="icon">👤</span>
-                        <span>${projeto.gp}</span>
+                ${impedimentoHtml}
+                <div>
+                    <div class="project-name" data-tooltip="${projeto.nome}">${nomeExibido}</div>
+                    <div class="project-info">
+                        <div class="project-detail">
+                            <span class="icon">👤</span>
+                            <span>${projeto.gp || 'N/A'}</span>
+                        </div>
+                        <div class="project-detail" title="Data de início do projeto">
+                            <span class="icon">📅</span>
+                            <span>${(projeto.data_inicio_formatada || projeto.data_inicio || projeto.start_date || '').toString()}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="project-footer">
-                    <div class="project-date">📅 ${projeto.data_inicio_formatada}</div>
-                    <div class="project-days">⏱️ ${projeto.dias_na_fase}</div>
+                    <div class="day-counter stage-days" title="Dias na etapa atual">
+                        <i class="fa-solid fa-hourglass-half"></i>
+                        <span>${projeto.dias_na_fase || 0}d</span>
+                    </div>
+                    <div class="day-counter total-days" title="Total de dias do projeto">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        <span>${projeto.dias_total || 0}d</span>
+                    </div>
                 </div>
+                ${addCommentBtnHtml}
             `;
 
             // Eventos de drag and drop
             card.addEventListener('dragstart', handleDragStart);
             card.addEventListener('dragend', handleDragEnd);
 
-            // Tooltip com nome completo
-            if (projeto.nome.length > 50) {
-                card.title = projeto.nome;
+            // Adicionar evento ao botão de comentário (exemplo)
+            const commentBtn = card.querySelector('.add-comment-btn');
+            if (commentBtn) {
+                commentBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Impede que o drag comece ao clicar no botão
+                    alert(`Adicionar comentário ao projeto: ${projeto.nome}`);
+                    // Aqui você pode abrir um modal para adicionar o comentário
+                });
             }
 
             return card;
