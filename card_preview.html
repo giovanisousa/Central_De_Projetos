@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Preview</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --primary-color: #3B82F6;
+            --primary-hover-color: #2563EB;
+            --error-color: #EF4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .kanban-preview-scope .project-card {
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #3498db;
+            position: relative;
+            width: 320px;
+            height: 160px; /* Fixed height for better layout */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .kanban-preview-scope .project-name {
+            font-weight: 700;
+            font-size: 15px;
+            color: #2c3e50;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            padding-right: 30px;
+        }
+
+        .kanban-preview-scope .project-info {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .kanban-preview-scope .project-detail {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+
+        .kanban-preview-scope .project-detail .icon {
+            font-size: 14px;
+            width: 16px;
+            text-align: center;
+        }
+
+        .kanban-preview-scope .project-footer {
+            display: flex;
+            align-items: center;
+            padding-top: 10px;
+            border-top: 1px solid #ecf0f1;
+            gap: 8px;
+        }
+
+        /* --- NEW STYLES --- */
+
+        .kanban-preview-scope .impediment-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 22px;
+            height: 22px;
+            background-color: var(--error-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            border: 2px solid white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        }
+
+        .kanban-preview-scope .add-comment-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            line-height: 1;
+            font-weight: 300;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .kanban-preview-scope .add-comment-btn:hover {
+            background-color: var(--primary-hover-color);
+            transform: scale(1.1);
+        }
+
+        .kanban-preview-scope .day-counter {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .kanban-preview-scope .day-counter.stage-days {
+            background-color: #5DADE2;
+        }
+
+        .kanban-preview-scope .day-counter.total-days {
+            background-color: #526D82;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="kanban-preview-scope">
+        <div class="project-card">
+            <!-- NEW: Impediment Indicator -->
+            <div class="impediment-indicator">!</div>
+
+            <div>
+                <div class="project-name">Implantação do Novo Sistema de Faturamento Eletrônico</div>
+                <div class="project-info">
+                    <div class="project-detail">
+                        <span class="icon"><i class="fa-solid fa-building"></i></span>
+                        <span>Cliente Exemplo S.A.</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="project-footer">
+                <!-- NEW: Day Counters -->
+                <div class="day-counter stage-days" title="Dias na etapa atual">
+                    <i class="fa-solid fa-hourglass-half"></i>
+                    <span>5d</span>
+                </div>
+                <div class="day-counter total-days" title="Total de dias do projeto">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>42d</span>
+                </div>
+            </div>
+
+            <!-- NEW: Add Comment Button -->
+            <button class="add-comment-btn" title="Adicionar comentário">+</button>
+        </div>
+    </div>
+
+</body>
+</html>
