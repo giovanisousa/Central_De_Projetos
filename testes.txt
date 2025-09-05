@@ -1,0 +1,2 @@
+* pedir para o Willian criar status Aguardando Encerramento planilha
+* Ajustar modal Novo Projeto.

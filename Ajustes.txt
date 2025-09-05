@@ -1,7 +1,4 @@
-* Largura do modal Criação de novo projeto
-* Mudar o fundo dos campos da criação de novo projeto - cinza, campos brancos
-* Verificar se esta comentando na tarefa
-* Verificar quando fica alterando o check do produto, se ele salva corretamente.
+* Ajustar modal novo projeto
 
 
 $REFRESH = "1000.1c4d853ca584614d036e42a9208d35be.166690cc51f8db6b10c91996b0ac5159"

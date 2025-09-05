@@ -57,6 +57,7 @@ TAG_AGUARDANDO_INFRA_ID = "2376502000000958355"
 TAG_EM_HOMOLOGACAO_ID = "2376502000000983053"
 TAG_EM_VIRADA_ID = "2376502000001228741"
 TAG_PARADO_ID = "2376502000000983125"
+TAG_AGUARDANDO_ENCERRAMENTO_ID = "2376502000005304184"
 STATUS_CONCLUIDO_ID = "2376502000000674703"
 # Tags que não devem ser aplicadas em nível de projeto geral
 BANNED_PROJECT_TAG_IDS = {"2376502000004311812"}  # Impeditivo (fase)
@@ -670,17 +671,20 @@ def determinar_coluna_projeto(projeto):
     if status_id == STATUS_ABERTO_ID and TAG_AGUARDANDO_INFRA_ID in tag_ids:
         return "Falta Liberar Servidor Infra"
     if status_id == STATUS_EM_ANDAMENTO_ID and TAG_EM_HOMOLOGACAO_ID in tag_ids:
-        return "Em homologação"
+        return "Em Homologação"
     if status_id == STATUS_EM_ANDAMENTO_ID and TAG_EM_VIRADA_ID in tag_ids:
         return "Em Virada"
+    # Aguardando Encerramento: status Operação Assistida + tag específica
+    if status_id == STATUS_OPERACAO_ASSISTIDA_ID and TAG_AGUARDANDO_ENCERRAMENTO_ID in tag_ids:
+        return "Aguardando Encerramento"
     if status_id == STATUS_AGUARDANDO_CLIENTE_ID and TAG_PARADO_ID in tag_ids:
-        return "Parado"
+        return "Projeto Parado"
     if status_id == STATUS_PENDENCIA_ID and TAG_PARADO_ID in tag_ids:
-        return "Parado"
+        return "Projeto Parado"
     status_map = {
-        STATUS_EM_ANDAMENTO_ID: "Em andamento",
+        STATUS_EM_ANDAMENTO_ID: "Em Andamento",
         STATUS_FINALIZADO_ID: "Finalizado",
-        STATUS_OPERACAO_ASSISTIDA_ID: "Em operação assistida"
+        STATUS_OPERACAO_ASSISTIDA_ID: "Em Operação Assistida"
     }
     return status_map.get(status_id, "Status Desconhecido")
 
@@ -749,6 +753,20 @@ def carregar_projetos():
         lista_completa_projetos = listar_todos_projetos_ativos(access_token)
         projetos_do_gp = [p for p in lista_completa_projetos if p.get('owner', {}).get('zpuid') == id_do_gp]
         projetos_por_status = {}
+        colunas_validas = {
+            "Aguardando Onboarding",
+            "Falta Liberar Servidor Infra",
+            "Em Andamento",
+            "Em Homologação",
+            "Em Virada",
+            "Em Operação Assistida",
+            "Aguardando Encerramento",
+            "Projeto Parado",
+            "Finalizado",
+            "Cancelado",
+            "Status Desconhecido"
+        }
+        projetos_nao_mapeados = []
         for projeto in projetos_do_gp:
             status_kanban = determinar_coluna_projeto(projeto)
             if status_kanban not in projetos_por_status:
@@ -774,6 +792,24 @@ def carregar_projetos():
                 'status_atual': status_kanban
             }
             projetos_por_status[status_kanban].append(info_projeto)
+            # Coleta para auditoria se cair em coluna desconhecida
+            if status_kanban not in colunas_validas:
+                status_id = str(projeto.get('status', {}).get('id', ''))
+                status_nome = str(projeto.get('status', {}).get('name', ''))
+                tag_ids = [str(t.get('id', '')) for t in (projeto.get('tags') or [])]
+                projetos_nao_mapeados.append({
+                    'id': projeto.get('id'),
+                    'nome': projeto.get('name'),
+                    'status_id': status_id,
+                    'status_nome': status_nome,
+                    'tags': tag_ids,
+                    'status_kanban': status_kanban,
+                })
+        if projetos_nao_mapeados:
+            print("==== AUDITORIA: Projetos fora do mapeamento ====")
+            for p in projetos_nao_mapeados:
+                print(f"ID={p['id']} | Nome={p['nome']} | Status={p['status_nome']} ({p['status_id']}) | Tags={p['tags']} | Mapeado como='{p['status_kanban']}'")
+            print("================================================")
         for status, projetos in projetos_por_status.items():
             projetos_por_status[status] = sorted(projetos, key=lambda p: p['nome'])
         return jsonify({
@@ -794,12 +830,14 @@ def index():
         return render_template('index.html', logged_in=False, gps=list(DONOS_PROJETO.keys()), cores_colunas={
         "Aguardando Onboarding": "#6c757d",
         "Falta Liberar Servidor Infra": "#E67E22",
-        "Em andamento": "#2ECC71",
-        "Em homologação": "#1ABC9C",
+        "Em Andamento": "#2ECC71",
+        "Em Homologação": "#1ABC9C",
         "Em Virada": "#1ABC9C",
-        "Em operação assistida": "#3498DB",
+        "Em Operação Assistida": "#3498DB",
+        "Aguardando Encerramento": "#8B5CF6",
         "Finalizado": "#27AE60",
-        "Parado": "#DC143C",
+        "Projeto Parado": "#DC143C",
+        "Cancelado": "#b5b5b5",
         "Status Desconhecido": "#95A5A6"
     })
     
@@ -811,12 +849,14 @@ def index():
     return render_template('index.html', logged_in=True, user_email=session.get('user_email'), gps=list(DONOS_PROJETO.keys()), cores_colunas={
         "Aguardando Onboarding": "#6c757d",
         "Falta Liberar Servidor Infra": "#E67E22",
-        "Em andamento": "#2ECC71",
-        "Em homologação": "#1ABC9C",
+        "Em Andamento": "#2ECC71",
+        "Em Homologação": "#1ABC9C",
         "Em Virada": "#1ABC9C",
-        "Em operação assistida": "#3498DB",
+        "Em Operação Assistida": "#3498DB",
+        "Aguardando Encerramento": "#8B5CF6",
         "Finalizado": "#27AE60",
-        "Parado": "#DC143C",
+        "Projeto Parado": "#DC143C",
+        "Cancelado": "#b5b5b5",
         "Status Desconhecido": "#95A5A6"
     })
 
@@ -1136,6 +1176,36 @@ def ensure_project_tags(access_token: str, project_id: str, required_tag_ids, at
         except Exception:
             pass
 
+def set_project_tags_exact(access_token: str, project_id: str, final_tag_ids):
+    """Define exatamente o conjunto de tags do projeto conforme 'final_tag_ids'.
+    Qualquer tag não listada será removida. Tags banidas são ignoradas.
+    """
+    desired = []
+    for tid in (final_tag_ids or []):
+        s = str(tid)
+        if s and s not in BANNED_PROJECT_TAG_IDS:
+            desired.append(s)
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    payload = {"tags": [{"id": tid} for tid in desired]}
+    print(f"[set_project_tags_exact] PATCH URL={url} payload={payload}")
+    resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[set_project_tags_exact] status={resp.status_code} body={resp.text[:500]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao definir tags do projeto: HTTP {resp.status_code} - {resp.text}')
+
+def obter_detalhes_projeto(access_token: str, project_id: str):
+    """Retorna detalhes do projeto do Zoho (inclui name, status e tags se possível)."""
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    params = {"fields": "id,name,status,tags"}
+    print(f"[obter_detalhes_projeto] URL={url} params={params}")
+    r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[obter_detalhes_projeto] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    try:
+        return r.json() if r.text else {}
+    except Exception:
+        return {}
+
 
 def find_task_by_name(access_token: str, project_id: str, task_name: str):
     """Busca a tarefa pelo nome; tenta primeiro a listagem paginada do projeto (igualdade),
@@ -1253,75 +1323,146 @@ def api_mover_projeto():
 
         msg_operacoes = []
 
-        # Regras específicas: ao mover de "Aguardando Onboarding" para "Falta Liberar Servidor Infra"
-        if coluna_origem == 'Aguardando Onboarding' and coluna_destino == 'Falta Liberar Servidor Infra':
-            print("[/api/mover_projeto] Regra ONBOARDING -> INFRA acionada")
-            access_token = obter_access_token_zoho()
-            print(f"[/api/mover_projeto] Access token Zoho obtido? {'SIM' if access_token else 'NAO'}")
+        # Aplica regras gerais via mapeamento JSON conforme a coluna de destino
+        try:
+            mapping_path = os.path.join(BASE_DIR, 'mapeamento_colunas.json')
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                colmap = json.load(f)
+        except Exception as e:
+            print(f"[/api/mover_projeto] Falha ao ler mapeamento_colunas.json: {e}")
+            colmap = {}
 
-            # 1) Atualizar planilha principal
+        info_dest = colmap.get(coluna_destino) or {}
+        if not info_dest:
+            msg_operacoes.append('Coluna destino sem mapeamento; nenhuma atualização aplicada.')
+        else:
+            # 1) Tokens/serviços
+            access_token = None
+            try:
+                access_token = obter_access_token_zoho()
+                print(f"[/api/mover_projeto] Access token Zoho obtido? {'SIM' if access_token else 'NAO'}")
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO ao obter token Zoho: {e}")
+
+            # Google Sheets service
+            sheets_service = None
             try:
                 creds = Credentials(**session['credentials'])
                 sheets_service = build('sheets', 'v4', credentials=creds)
-                detalhes_zoho = obter_detalhes_projeto(access_token, projeto_id)
-                print(f"[/api/mover_projeto] detalhes_zoho keys: {list(detalhes_zoho.keys()) if isinstance(detalhes_zoho, dict) else type(detalhes_zoho)}")
-                nome_projeto_zoho = detalhes_zoho.get('name', '')
-                print(f"[/api/mover_projeto] nome_projeto_zoho='{nome_projeto_zoho}'")
-                # Extrai o valor do cliente do nome do projeto
-                valor_cliente = nome_projeto_zoho.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
-                print(f"[/api/mover_projeto] valor_cliente extraído='{valor_cliente}'")
-                # Escreve exatamente como desejado na planilha principal
-                atualizar_status_principal_planilha_por_cliente(sheets_service, valor_cliente, 'Falta Liberar Servidor Infra')
-                msg_operacoes.append('Planilha principal atualizada')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO ao iniciar Google Sheets service: {e}")
+
+            # 2) Descobrir valor do cliente ("codigo - nome") a partir do nome do projeto no Zoho
+            valor_cliente = None
+            if access_token:
+                try:
+                    detalhes_zoho = obter_detalhes_projeto(access_token, projeto_id)
+                    nome_projeto_zoho = (detalhes_zoho or {}).get('name', '')
+                    print(f"[/api/mover_projeto] nome_projeto_zoho='{nome_projeto_zoho}'")
+                    valor_cliente = nome_projeto_zoho.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+                    print(f"[/api/mover_projeto] valor_cliente extraído='{valor_cliente}'")
+                except Exception as e:
+                    print(f"[/api/mover_projeto] ERRO ao obter detalhes do projeto no Zoho: {e}")
+
+            # 3) Atualizar planilha: Status Principal por valor exato da coluna "Cliente"
+            try:
+                novo_status_sheet = info_dest.get('sheetStatus')
+                if sheets_service and valor_cliente and novo_status_sheet:
+                    # Lê cabeçalho
+                    range_cab = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+                    cabecalhos = sheets_service.spreadsheets().values().get(
+                        spreadsheetId=ID_PLANILHA_PROJETOS,
+                        range=range_cab
+                    ).execute().get('values', [[]])[0]
+                    mapa_colunas = {c: i for i, c in enumerate(cabecalhos)}
+                    if 'Cliente' in mapa_colunas and 'Status Principal' in mapa_colunas:
+                        col_cliente_idx = mapa_colunas['Cliente']
+                        col_status_idx = mapa_colunas['Status Principal']
+                        letra_col_cliente = indice_para_letra_coluna(col_cliente_idx)
+                        letra_col_status = indice_para_letra_coluna(col_status_idx)
+                        # Lê valores da coluna Cliente a partir da primeira linha de dados
+                        start_row = LINHA_CABECALHO + 1
+                        range_clientes = f"'{NOME_ABA_PLANILHA}'!{letra_col_cliente}{start_row}:{letra_col_cliente}"
+                        valores_clientes = sheets_service.spreadsheets().values().get(
+                            spreadsheetId=ID_PLANILHA_PROJETOS,
+                            range=range_clientes
+                        ).execute().get('values', [])
+                        # Encontra linha do cliente
+                        linha_encontrada = None
+                        for idx, row in enumerate(valores_clientes):
+                            cell = (row[0] if row else '').strip()
+                            if cell == valor_cliente:
+                                linha_encontrada = start_row + idx
+                                break
+                        if linha_encontrada:
+                            range_status_cell = f"'{NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}"
+                            body = { 'range': range_status_cell, 'values': [[novo_status_sheet]] }
+                            sheets_service.spreadsheets().values().update(
+                                spreadsheetId=ID_PLANILHA_PROJETOS,
+                                range=range_status_cell,
+                                valueInputOption='USER_ENTERED',
+                                body={'values': [[novo_status_sheet]]}
+                            ).execute()
+                            msg_operacoes.append('Planilha principal: Status Principal atualizado')
+                        else:
+                            msg_operacoes.append('Cliente não encontrado na planilha principal')
+                else:
+                    msg_operacoes.append('Planilha não atualizada (serviço/cliente/status indisponível)')
             except Exception as e:
                 print(f"[/api/mover_projeto] ERRO atualização planilha: {e}")
                 msg_operacoes.append(f'Falha ao atualizar planilha: {e}')
 
-            # 2) Tags do projeto: +AGUARDANDO_INFRA, -AGUARDANDO_ONBOARDING
+            # 4) Atualizar status do projeto no Zoho (se mapeado)
             try:
-                print("[/api/mover_projeto] Adicionando tag AGUARDANDO_INFRA...")
-                add_project_tag(access_token, projeto_id, TAG_AGUARDANDO_INFRA_ID)
-                msg_operacoes.append('Tag AGUARDANDO_INFRA adicionada')
+                zoho_status_id = (info_dest.get('zohoStatusId') or '').strip() if isinstance(info_dest.get('zohoStatusId'), str) else info_dest.get('zohoStatusId')
+                if access_token and zoho_status_id:
+                    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
+                    payload = {"status": {"id": zoho_status_id}}
+                    print(f"[/api/mover_projeto] Atualizando status do projeto: {payload}")
+                    r = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+                    print(f"[/api/mover_projeto] status PATCH projeto={r.status_code} body={r.text[:500]}")
+                    if r.status_code in (200, 201):
+                        msg_operacoes.append('Status do projeto atualizado no Zoho')
+                    else:
+                        msg_operacoes.append(f'Falha ao atualizar status no Zoho: HTTP {r.status_code}')
             except Exception as e:
-                print(f"[/api/mover_projeto] ERRO ao adicionar tag AGUARDANDO_INFRA: {e}")
-                msg_operacoes.append(f'Falha ao adicionar tag AGUARDANDO_INFRA: {e}')
+                print(f"[/api/mover_projeto] ERRO ao atualizar status do projeto: {e}")
+                msg_operacoes.append(f'Erro ao atualizar status no Zoho: {e}')
 
-            try:
-                print("[/api/mover_projeto] Removendo tag AGUARDANDO_ONBOARDING...")
-                remove_project_tag(access_token, projeto_id, TAG_AGUARDANDO_ONBOARDING_ID)
-                msg_operacoes.append('Tag AGUARDANDO_ONBOARDING removida')
-            except Exception as e:
-                print(f"[/api/mover_projeto] ERRO ao remover tag AGUARDANDO_ONBOARDING: {e}")
-                msg_operacoes.append(f'Falha ao remover tag AGUARDANDO_ONBOARDING: {e}')
+            # 5) Tags (definir exatamente conforme mapeamento)
+            if access_token:
+                try:
+                    final_tags = [str(t) for t in (info_dest.get('zohoTagsToAdd') or [])]
+                    # Se o mapeamento desejar explicitamente remover tags, elas simplesmente não entram no conjunto final
+                    set_project_tags_exact(access_token, projeto_id, final_tags)
+                    msg_operacoes.append('Tags definidas exatamente conforme mapeamento')
+                except Exception as e:
+                    print(f"[/api/mover_projeto] ERRO ao definir tags exatas: {e}")
+                    msg_operacoes.append(f'Falha ao definir tags: {e}')
 
-            # Reforça a presença das tags desejadas após possíveis workflows
-            try:
-                ensure_project_tags(access_token, projeto_id, [TAG_AGUARDANDO_INFRA_ID], attempts=2, delay_sec=2.0)
-                msg_operacoes.append('Tags reforçadas após workflow')
-            except Exception as e:
-                print(f"[/api/mover_projeto] ERRO ao reforçar tags: {e}")
-                msg_operacoes.append(f'Falha ao reforçar tags: {e}')
-
-            # 3) Comentário na tarefa "02.01.01 - Validação do DEIP"
-            # Use helpers de menção para citar 1 ou mais usuários
-            mentions_text = zoho_mentions(["William Floriano"])  # adicione outros nomes aqui conforme necessário
-            comentario = (
-                f"Bom dia {mentions_text}, tudo bem? Realizada reunião de onboarding com o cliente. "
-                "Sendo assim, podemos dar inicio as atividades de infra. Vamos iniciar os grupos. "
-                "Os detalhes do projeto se encontram na descrição do mesmo. Att"
-            )
-            try:
-                print("[/api/mover_projeto] Buscando tarefa '02.01.01 - Validação do DEIP'...")
-                task_id = find_task_by_name(access_token, projeto_id, "02.01.01 - Validação do DEIP")
-                print(f"[/api/mover_projeto] task_id encontrado: {task_id}")
-                if task_id:
-                    add_comment_to_task(access_token, projeto_id, task_id, comentario)
-                    msg_operacoes.append('Comentário adicionado na tarefa alvo')
-                else:
-                    msg_operacoes.append('Tarefa alvo não encontrada para comentar')
-            except Exception as e:
-                print(f"[/api/mover_projeto] ERRO ao comentar na tarefa: {e}")
-                msg_operacoes.append(f'Falha ao comentar na tarefa: {e}')
+            # 6) Ações adicionais por gatilho
+            trigger = info_dest.get('triggersAction')
+            if trigger and access_token:
+                try:
+                    if trigger == 'adicionar_comentario_servidor':
+                        mentions_text = zoho_mentions(["William Floriano"])  # ajuste os nomes se necessário
+                        comentario = (
+                            f"Bom dia {mentions_text}, tudo bem? Realizada reunião de onboarding com o cliente. "
+                            "Sendo assim, podemos dar inicio as atividades de infra. Vamos iniciar os grupos. "
+                            "Os detalhes do projeto se encontram na descrição do mesmo. Att"
+                        )
+                        print("[/api/mover_projeto] Buscando tarefa '02.01.01 - Validação do DEIP'...")
+                        task_id = find_task_by_name(access_token, projeto_id, "02.01.01 - Validação do DEIP")
+                        print(f"[/api/mover_projeto] task_id encontrado: {task_id}")
+                        if task_id:
+                            add_comment_to_task(access_token, projeto_id, task_id, comentario)
+                            msg_operacoes.append('Comentário adicionado na tarefa alvo')
+                        else:
+                            msg_operacoes.append('Tarefa alvo não encontrada para comentar')
+                    # Outros gatilhos podem ser adicionados aqui (ex.: preencher_dpi_homologacao, etc.)
+                except Exception as e:
+                    print(f"[/api/mover_projeto] ERRO em ação de gatilho ({trigger}): {e}")
+                    msg_operacoes.append(f'Falha ao executar ação: {e}')
 
         return jsonify({"sucesso": True, "mensagem": "; ".join(msg_operacoes) or 'Movimentação registrada.'})
 

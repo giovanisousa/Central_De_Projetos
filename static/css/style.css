@@ -625,6 +625,13 @@ body.kanban-page {
 .kanban-page .column-header.finalizado { background: linear-gradient(135deg, #27AE60, #229954); }
 .kanban-page .column-header.parado { background: linear-gradient(135deg, #DC143C, #b91c3c); }
 .kanban-page .column-header.status-desconhecido { background: linear-gradient(135deg, #95A5A6, #7f8c8d); }
+/* Cancelado: cinza claro com texto preto */
+.kanban-page .column-header.cancelado {
+    background: #b5b5b5; /* cinza claro */
+    color: #111827; /* texto preto/escuro */
+    text-shadow: none;
+}
+.kanban-page .cancelado .project-card { border-left-color: #929498; }
 
 /* Bordas dos cards baseadas na coluna */
 .kanban-page .aguardando-onboarding .project-card { border-left-color: #6c757d; }
@@ -636,6 +643,9 @@ body.kanban-page {
 .kanban-page .finalizado .project-card { border-left-color: #27AE60; }
 .kanban-page .parado .project-card { border-left-color: #DC143C; }
 .kanban-page .status-desconhecido .project-card { border-left-color: #95A5A6; }
+/* Aguardando Encerramento (roxo/lilás) */
+.kanban-page .column-header.aguardando-encerramento { background: linear-gradient(135deg, #8B5CF6, #7C3AED); }
+.kanban-page .aguardando-encerramento .project-card { border-left-color: #8B5CF6; }
 
 /* Responsividade */
 @media (max-width: 768px) {
