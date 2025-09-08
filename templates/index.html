@@ -399,6 +399,52 @@
                                 });
                         } catch(_) {}
 
+                        // Busca indicador de impeditivos
+                        try {
+                            fetch(`/api/impeditivos/${encodeURIComponent(projeto.id)}`)
+                                .then(r => r.json())
+                                .then(data => {
+                                    const ind = cardElement.querySelector('.impediment-indicator');
+                                    const countEl = cardElement.querySelector('.imp-count');
+                                    if (!ind || !countEl) return;
+                                    const count = (data && typeof data.count === 'number') ? data.count : 0;
+                                    countEl.textContent = `(${count})`;
+                                    ind.classList.remove('neutral');
+                                    if (count > 0) {
+                                        ind.classList.add('active');
+                                        ind.title = `Itens impeditivos de virada: ${count} aberto(s)`;
+                                    } else {
+                                        ind.classList.add('inactive');
+                                        ind.title = 'Sem itens impeditivos de virada em aberto';
+                                    }
+
+                                    // Clique no indicador abre a tasklist no Zoho (se disponível)
+                                    try {
+                                        const webUrl = data && data.web_url ? data.web_url : null;
+                                        if (webUrl) {
+                                            // Evita interferência do drag-and-drop
+                                            ind.addEventListener('pointerdown', (e) => e.stopPropagation());
+                                            ind.addEventListener('mousedown', (e) => e.stopPropagation());
+                                            ind.addEventListener('click', (ev) => {
+                                                ev.preventDefault();
+                                                ev.stopPropagation();
+                                                // Segurança básica ao abrir nova guia
+                                                const w = window.open(webUrl, '_blank', 'noopener,noreferrer');
+                                                if (w) { w.opener = null; }
+                                            });
+                                        }
+                                    } catch(_) {}
+                                })
+                                .catch(() => {
+                                    const ind = cardElement.querySelector('.impediment-indicator');
+                                    const countEl = cardElement.querySelector('.imp-count');
+                                    if (ind && countEl) {
+                                        countEl.textContent = '(?)';
+                                        ind.classList.add('neutral');
+                                    }
+                                });
+                        } catch(_) {}
+
                         // Animação escalonada
                         setTimeout(() => {
                             cardElement.style.opacity = '1';
@@ -427,10 +473,11 @@
 
             // --- ESTRUTURA DO CARD ATUALIZADA ---
 
-            // 1. Indicador de impedimento (condicional)
-            const impedimentoHtml = projeto.tem_impedimento
-                ? `<div class="impediment-indicator" title="Projeto com impedimento">!</div>`
-                : '';
+            // 1. Indicador de impedimento (placeholder inicial)
+            const impedimentoHtml = `
+                <button type="button" class="impediment-indicator neutral" title="Itens impeditivos de virada">
+                    ! <span class="imp-count">...</span>
+                </button>`;
 
             // 2. Botão de adicionar comentário
             const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;

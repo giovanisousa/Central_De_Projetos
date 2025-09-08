@@ -167,6 +167,41 @@ input[type="radio"], input[type="checkbox"] {
     min-height: 24px;
 }
 
+/* Indicador de impeditivos no card */
+.project-card .impediment-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 800;
+    font-family: monospace;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: transparent;
+    z-index: 2; /* acima do conteúdo do card para cliques */
+}
+.project-card .impediment-indicator .imp-count { font-weight: 700; }
+.project-card .impediment-indicator.neutral {
+    background: #e5e7eb; /* cinza claro */
+    color: #6b7280; /* cinza médio */
+    border-color: #d1d5db;
+}
+.project-card .impediment-indicator.inactive {
+    background: #f3f4f6; /* cinza bem claro */
+    color: #9ca3af; /* cinza */
+    border-color: #e5e7eb;
+}
+.project-card .impediment-indicator.active {
+    background: #fee2e2; /* vermelho claro */
+    color: #b91c1c; /* vermelho escuro */
+    border-color: #fecaca;
+}
+
 /* ======================== */
 /* Kanban Dashboard (scoped) */
 /* ======================== */
@@ -654,20 +689,27 @@ body.kanban-page {
     position: absolute;
     top: 10px;
     right: 10px;
-    width: 22px;
-    height: 22px;
-    background-color: var(--error-color);
-    color: white;
-    border-radius: 50%;
-    display: flex;
+    background: transparent;
+    color: #b91c1c; /* cor padrão (ativo) */
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    width: auto;
+    height: auto;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 14px;
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    gap: 4px;
+    font-weight: 800;
+    font-family: monospace;
+    font-size: 12px;
+    box-shadow: none;
     z-index: 2;
+    cursor: pointer;
 }
+.kanban-page .impediment-indicator.neutral { color: #6b7280; }
+.kanban-page .impediment-indicator.inactive { color: #9ca3af; }
+.kanban-page .impediment-indicator.active { color: #b91c1c; }
 
 /* Botão de Adicionar Comentário (Canto Inferior Direito) */
 .kanban-page .add-comment-btn {
