@@ -1,2 +1,3 @@
 * pedir para o Willian criar status Aguardando Encerramento planilha
 * Ajustar modal Novo Projeto.
+* Configurar os prazos por colunas para apresentar em atraso ou não
