@@ -381,6 +381,24 @@
                         const cardElement = criarCardProjeto(projeto, coluna.nome);
                         cardsContainer.appendChild(cardElement);
                         
+                        // Busca dias_na_fase de forma assíncrona
+                        try {
+                            fetch(`/api/dias-na-fase/${encodeURIComponent(projeto.id)}?coluna=${encodeURIComponent(typeof coluna === 'string' ? coluna : (coluna && coluna.nome ? coluna.nome : ''))}`)
+                                .then(r => r.json())
+                                .then(data => {
+                                    const span = cardElement.querySelector('.dias-na-fase');
+                                    if (span && data && data.dias_na_fase) {
+                                        span.textContent = data.dias_na_fase;
+                                    } else if (span) {
+                                        span.textContent = 'N/D';
+                                    }
+                                })
+                                .catch(() => {
+                                    const span = cardElement.querySelector('.dias-na-fase');
+                                    if (span) span.textContent = 'N/D';
+                                });
+                        } catch(_) {}
+
                         // Animação escalonada
                         setTimeout(() => {
                             cardElement.style.opacity = '1';
@@ -436,11 +454,11 @@
                 <div class="project-footer">
                     <div class="day-counter stage-days" title="Dias na etapa atual">
                         <i class="fa-solid fa-hourglass-half"></i>
-                        <span>${projeto.dias_na_fase || 0}d</span>
+                        <span class="dias-na-fase" data-projeto-id="${projeto.id}">${projeto.dias_na_fase ? projeto.dias_na_fase : '...'}</span>
                     </div>
                     <div class="day-counter total-days" title="Total de dias do projeto">
                         <i class="fa-solid fa-calendar-days"></i>
-                        <span>${projeto.dias_total || 0}d</span>
+                        <span>${projeto.dias_total || ''}</span>
                     </div>
                 </div>
                 ${addCommentBtnHtml}

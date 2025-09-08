@@ -398,9 +398,27 @@ def atribuir_dono_tarefa(access_token, project_id, task_id, gp_zpuid):
         print(f"AVISO: Erro ao atribuir dono à tarefa {task_id}: {e.response.text}")
         return False
 
+# ===== Helpers de domínio e cabeçalhos Zoho =====
+def _zoho_domain():
+    return os.environ.get('ZOHO_DOMAIN', 'com').strip()
+
+def _zp_base():
+    return f"https://projectsapi.zoho.{_zoho_domain()}/api/v3"
+
+def _zp_rest_base():
+    return f"https://projectsapi.zoho.{_zoho_domain()}/restapi"
+
+def _zp_headers(access_token):
+    # Forma canônica aceita pela API Zoho
+    return {
+        "Authorization": f"Zoho-oauthtoken {access_token}",
+        "Accept": "application/json"
+    }
+
+
 def concluir_tarefa(access_token, project_id, task_id):
-    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{_zp_rest_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/"
+    headers = _zp_headers(access_token)
     payload = {"custom_status": STATUS_CONCLUIDO_ID}
     try:
         response = requests.post(url, headers=headers, data=payload)
@@ -413,8 +431,8 @@ def concluir_tarefa(access_token, project_id, task_id):
 
 def aplicar_tag_ao_projeto(access_token, project_id, tag_id_num):
     """Aplica a tag usando o formato esperado pela API v3: PATCH com campo 'tags' e operação 'add'."""
-    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
     try:
         payload = {
             "tags": {
@@ -431,8 +449,8 @@ def aplicar_tag_ao_projeto(access_token, project_id, tag_id_num):
 
 def remover_tag_do_projeto(access_token, project_id, tag_id_num):
     """Remove uma tag do projeto (API v3: PATCH com 'tags.remove')."""
-    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
     try:
         payload = {"tags": {"remove": [{"id": int(tag_id_num)}]}}
         r_patch = requests.patch(url, headers=headers, json=payload)
@@ -600,30 +618,70 @@ def processar_tarefas_iniciais(access_token, project_id, gp_zpuid):
 # ====== Funções de listagem/kanban (adaptadas do app_geral.py) ======
 
 def obter_access_token():
-    """Obtém o access token do Zoho usando o refresh token salvo em arquivo."""
+    """Obtém e mantém em cache o access token do Zoho usando o refresh token salvo em arquivo.
+    Evita múltiplas chamadas simultâneas ao endpoint de token.
+    """
     try:
+        # Cache simples em variável global
+        global _ZOHO_ACCESS_TOKEN_CACHE
+        try:
+            cache = _ZOHO_ACCESS_TOKEN_CACHE
+        except NameError:
+            _ZOHO_ACCESS_TOKEN_CACHE = {"token": None, "exp": 0}
+            cache = _ZOHO_ACCESS_TOKEN_CACHE
+        now = int(time.time())
+        if cache.get("token") and now < int(cache.get("exp", 0)):
+            return cache["token"]
+
         if not os.path.exists(ZOHO_TOKEN_PATH):
             print("ERRO: zoho_refresh_token.txt não encontrado.")
             return None
         with open(ZOHO_TOKEN_PATH, 'r') as f:
             refresh_token = f.read().strip()
-        url = "https://accounts.zoho.com/oauth/v2/token"
-        params = {
+        if not refresh_token:
+            print("ERRO: refresh_token vazio em zoho_refresh_token.txt")
+            return None
+
+        url = f"https://accounts.zoho.{_zoho_domain()}/oauth/v2/token"
+        payload = {
             "refresh_token": refresh_token,
             "client_id": ZOHO_CLIENT_ID,
             "client_secret": ZOHO_CLIENT_SECRET,
             "grant_type": "refresh_token"
         }
-        response = requests.post(url, params=params)
-        response.raise_for_status()
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        response = requests.post(url, data=payload, headers=headers, timeout=20)
+        try:
+            response.raise_for_status()
+        except requests.exceptions.RequestException:
+            body = None
+            try:
+                body = response.json()
+            except Exception:
+                body = response.text
+            print(f"ERRO ao obter Access Token: status={response.status_code} body={body}")
+            return None
+
         data = response.json()
+        token = data.get("access_token")
+        expires_in = int(data.get("expires_in", 3600))
+        if not token:
+            print(f"ERRO: resposta sem access_token: {data}")
+            return None
+        # Atualiza cache (com margem de segurança de 60s)
+        cache["token"] = token
+        cache["exp"] = now + max(60, expires_in - 60)
+
         # Se a Zoho devolver um novo refresh_token, atualiza o arquivo
-        if 'refresh_token' in data:
-            with open(ZOHO_TOKEN_PATH, 'w') as f:
-                f.write(data['refresh_token'])
-        return data.get("access_token")
-    except requests.exceptions.RequestException as e:
-        print(f"ERRO ao obter Access Token: {e.response.text if e.response else e}")
+        if 'refresh_token' in data and data['refresh_token']:
+            try:
+                with open(ZOHO_TOKEN_PATH, 'w') as f:
+                    f.write(data['refresh_token'])
+            except Exception as e:
+                print(f"AVISO: não foi possível atualizar zoho_refresh_token.txt: {e}")
+        return token
+    except Exception as e:
+        print(f"ERRO inesperado ao obter Access Token: {e}")
         return None
 
 
@@ -708,8 +766,394 @@ def formatar_data_brasileira(data_str):
         return "N/D"
 
 
-def calcular_dias_na_fase(info_projeto, status_atual):
+def obter_data_ultima_mudanca_status_ou_tag(project_id, access_token):
+    """Busca nos edits do projeto a última alteração de Status ou Tag e retorna a data (date) dessa alteração.
+    Retorna None se não encontrar ou em erro.
+    """
     try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
+        headers = _zp_headers(access_token)
+        params = {"index": 1, "range": 50}
+        resp = requests.get(url, headers=headers, params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Normaliza lista de itens de edição/atividades
+        items = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                if isinstance(data.get(key), list):
+                    items = data[key]
+                    break
+            if not items and isinstance(data.get("project"), dict):
+                proj = data["project"]
+                for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                    if isinstance(proj.get(key), list):
+                        items = proj[key]
+                        break
+
+        def parse_date_str(s):
+            if not s:
+                return None
+            s = str(s)
+            # Trata sufixo 'Z' (UTC)
+            if s.endswith('Z'):
+                # tenta com milissegundos e sem
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        dt = datetime.strptime(s, fmt)
+                        return dt.date()
+                    except Exception:
+                        pass
+            fmts = [
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S.%f%z",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d",
+                "%d-%m-%Y",
+            ]
+            for fmt in fmts:
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    return dt.date()
+                except Exception:
+                    continue
+            # fallback: tenta apenas a porção de data ISO
+            try:
+                dt = datetime.strptime(s[:10], "%Y-%m-%d")
+                return dt.date()
+            except Exception:
+                return None
+
+        last_date = None
+        for item in items or []:
+            try:
+                item_text = json.dumps(item, ensure_ascii=False).lower()
+            except Exception:
+                item_text = str(item).lower()
+            # Considera alterações que mencionem status ou tag(s)
+            if ("status" in item_text) or ("tag" in item_text) or ("tags" in item_text):
+                # Preferir action_time no nível do item
+                ts = None
+                if isinstance(item, dict):
+                    ts = item.get('action_time') or item.get('time')
+                # Procura campos de data comuns
+                if ts is None:
+                    for key in [
+                        "updated_time", "modified_time", "modified_at", "time", "date", "created_time", "log_time", "timestamp"
+                    ]:
+                        if isinstance(item, dict) and key in item:
+                            ts = item[key]
+                            break
+                # Busca também dentro de sub-objetos comuns
+                if ts is None and isinstance(item, dict):
+                    for sub in ["details", "edit", "activity"]:
+                        if isinstance(item.get(sub), dict):
+                            for key in [
+                                "updated_time", "modified_time", "modified_at", "time", "date", "created_time", "log_time", "timestamp"
+                            ]:
+                                if key in item[sub]:
+                                    ts = item[sub][key]
+                                    break
+                        if ts:
+                            break
+                d = parse_date_str(ts) if ts else None
+                if d and (last_date is None or d > last_date):
+                    last_date = d
+        return last_date
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar edits do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao processar edits do projeto {project_id}: {e}")
+        return None
+
+
+def map_status_to_coluna(status_nome: str) -> str:
+    if not status_nome:
+        return None
+    s = str(status_nome).strip().lower()
+    mapa = {
+        'em andamento': 'Em Andamento',
+        'finalizado': 'Finalizado',
+        'operação assistida': 'Em Operação Assistida',
+        'em operação assistida': 'Em Operação Assistida',
+        'cancelado': 'Cancelado',
+        # Alguns ambientes usam 'ativo' como aberto; mapeamos para Em Andamento por aproximação
+        'ativo': 'Em Andamento',
+    }
+    return mapa.get(s)
+
+
+def map_etiquetas_to_coluna_por_ids(tags_str: str) -> str:
+    """Recebe a string textual do new_value das etiquetas (ex: "[Implantação, Em andamento]") e
+    mapeia para coluna usando APENAS os IDs de tag definidos em mapeamento_colunas.json.
+    Regras:
+    - Apenas etiquetas cujo nome conseguimos mapear para um ID conhecido serão consideradas.
+    - Se nenhuma etiqueta do evento corresponder a um ID presente no mapeamento, retorna None.
+    """
+    if not tags_str:
+        return None
+
+    # Mapa de nome de etiqueta -> ID (pelas constantes configuradas no app)
+    nome_tag_para_id = {
+        'aguardando onboarding': TAG_AGUARDANDO_ONBOARDING_ID,
+        'aguardando infra': TAG_AGUARDANDO_INFRA_ID,
+        'falta liberar servidor infra': TAG_AGUARDANDO_INFRA_ID,
+        'em homologação': TAG_EM_HOMOLOGACAO_ID,
+        'homologação': TAG_EM_HOMOLOGACAO_ID,
+        'em virada': TAG_EM_VIRADA_ID,
+        'virada': TAG_EM_VIRADA_ID,
+        'parado': TAG_PARADO_ID,
+        'projeto parado': TAG_PARADO_ID,
+        'aguardando encerramento': TAG_AGUARDANDO_ENCERRAMENTO_ID,
+    }
+
+    # Carrega mapeamento: coluna -> lista de tag IDs
+    mapeamento = get_mapeamento_colunas()
+    colunas_por_tag_id = {}
+    for coluna, cfg in (mapeamento or {}).items():
+        for tag_id in cfg.get('zohoTagsToAdd', []) or []:
+            colunas_por_tag_id[str(tag_id)] = coluna
+
+    # Extrai nomes de etiquetas do texto do new_value
+    try:
+        s = str(tags_str).strip()
+        if s.startswith('[') and s.endswith(']'):
+            s = s[1:-1]
+        nomes = [p.strip().lower() for p in s.split(',') if p.strip()]
+    except Exception:
+        nomes = [str(tags_str).strip().lower()]
+
+    # Converte nomes para IDs; filtra apenas IDs que apareçam no mapeamento
+    for nome in nomes:
+        tag_id = nome_tag_para_id.get(nome)
+        if not tag_id:
+            continue
+        coluna = colunas_por_tag_id.get(str(tag_id))
+        if coluna:
+            return coluna
+    return None
+
+
+def obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, coluna_alvo: str):
+    """Encontra a última action_time onde houve mudança de Etiquetas (field_name == 'Etiquetas')
+    e o new_value mapeia para a coluna alvo informada.
+    """
+    try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
+        headers = _zp_headers(access_token)
+        params = {"index": 1, "range": 50}
+        resp = requests.get(url, headers=headers, params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Normaliza lista de itens
+        items = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                if isinstance(data.get(key), list):
+                    items = data[key]
+                    break
+            if not items and isinstance(data.get("project"), dict):
+                proj = data["project"]
+                for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                    if isinstance(proj.get(key), list):
+                        items = proj[key]
+                        break
+
+        def parse_action_time(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except Exception:
+                    pass
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+
+        coluna_alvo_norm = (coluna_alvo or '').strip()
+        best_date = None
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            edits = item.get('edits') or []
+            if not isinstance(edits, list):
+                continue
+            # Verifica alterações de Etiquetas
+            for ed in edits:
+                if not isinstance(ed, dict):
+                    continue
+                field_name = str(ed.get('field_name', '')).strip().lower()
+                if field_name != 'etiquetas':
+                    continue
+                coluna_resultante = map_etiquetas_to_coluna_por_ids(ed.get('new_value'))
+                if not coluna_resultante:
+                    continue
+                if coluna_resultante != coluna_alvo_norm:
+                    continue
+                d = parse_action_time(item.get('action_time') or item.get('time'))
+                if d and (best_date is None or d > best_date):
+                    best_date = d
+        return best_date
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar edits/etiquetas do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao processar edits/etiquetas do projeto {project_id}: {e}")
+        return None
+
+
+# ====== Mapeamento de colunas (carregado de mapeamento_colunas.json) ======
+_MAPPINGS_CACHE = None
+
+
+def get_mapeamento_colunas():
+    global _MAPPINGS_CACHE
+    if _MAPPINGS_CACHE is not None:
+        return _MAPPINGS_CACHE
+    try:
+        path = os.path.join(os.path.dirname(__file__), 'mapeamento_colunas.json')
+        with open(path, 'r', encoding='utf-8') as f:
+            _MAPPINGS_CACHE = json.load(f)
+    except Exception as e:
+        print(f"ERRO ao carregar mapeamento_colunas.json: {e}")
+        _MAPPINGS_CACHE = {}
+    return _MAPPINGS_CACHE
+
+
+def obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, coluna_alvo: str):
+    """Encontra a última action_time onde houve mudança de Status (field_name == 'Status')
+    e o new_value corresponde ao status da coluna alvo conforme mapeamento_colunas.json.
+    """
+    try:
+        mapeamento = get_mapeamento_colunas()
+        cfg = mapeamento.get(coluna_alvo or '') or {}
+        status_id_alvo = str(cfg.get('zohoStatusId') or '')
+        if not status_id_alvo:
+            return None
+
+        # Mapa de nomes de status -> IDs conforme configuração conhecida
+        nome_status_para_id = {
+            'aberto': STATUS_ABERTO_ID,
+            'ativo': STATUS_ABERTO_ID,
+            'em andamento': STATUS_EM_ANDAMENTO_ID,
+            'finalizado': STATUS_FINALIZADO_ID,
+            'operação assistida': STATUS_OPERACAO_ASSISTIDA_ID,
+            'em operação assistida': STATUS_OPERACAO_ASSISTIDA_ID,
+            'cancelado': STATUS_CANCELADO_ID,
+        }
+
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
+        headers = _zp_headers(access_token)
+        params = {"index": 1, "range": 50}
+        resp = requests.get(url, headers=headers, params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Normaliza lista de itens
+        items = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                if isinstance(data.get(key), list):
+                    items = data[key]
+                    break
+            if not items and isinstance(data.get("project"), dict):
+                proj = data["project"]
+                for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                    if isinstance(proj.get(key), list):
+                        items = proj[key]
+                        break
+
+        # Função local para data
+        def parse_action_time(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except Exception:
+                    pass
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+
+        best_date = None
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            edits = item.get('edits') or []
+            if not isinstance(edits, list):
+                continue
+            for ed in edits:
+                if not isinstance(ed, dict):
+                    continue
+                field_name = str(ed.get('field_name', '')).strip().lower()
+                if field_name != 'status':
+                    continue
+                new_val = str(ed.get('new_value', '')).strip().lower()
+                status_id_do_evento = nome_status_para_id.get(new_val)
+                if not status_id_do_evento:
+                    continue
+                if str(status_id_do_evento) != status_id_alvo:
+                    continue
+                d = parse_action_time(item.get('action_time') or item.get('time'))
+                if d and (best_date is None or d > best_date):
+                    best_date = d
+        return best_date
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar edits/status do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao processar edits/status do projeto {project_id}: {e}")
+        return None
+
+
+def calcular_dias_na_fase(info_projeto, status_atual, project_id=None, access_token=None):
+    """Calcula dias na fase com base na última mudança de status/tag.
+    Se não for possível obter a data pelos edits, faz fallback para data de início/criação.
+    """
+    try:
+        # Tenta pelo histórico de edits do Zoho, se os parâmetros estiverem disponíveis
+        if project_id and access_token:
+            ultima_data = obter_data_ultima_mudanca_status_ou_tag(project_id, access_token)
+            if ultima_data:
+                dias = (date.today() - ultima_data).days
+                # Log de verificação para o projeto específico solicitado
+                if str(project_id) == "2376502000000213310":
+                    print(f"DEBUG dias_na_fase: projeto={project_id} ultima_data={ultima_data} dias={dias}")
+                if dias < 0:
+                    return "Futuro"
+                elif dias == 0:
+                    return "Hoje"
+                else:
+                    return f"{dias}d"
+
+        # Fallback: usa data de início ou criação do projeto
         data_inicio_str = info_projeto.get('data_inicio') or info_projeto.get('data_criacao', '')
         if not data_inicio_str:
             return "N/D"
@@ -737,7 +1181,43 @@ def calcular_dias_na_fase(info_projeto, status_atual):
         return "N/D"
 
 
+# Utilitário: total de dias do projeto (data de início -> hoje)
+
+def calcular_dias_total_projeto(data_inicio_str: str, data_criacao_str: str) -> str:
+    try:
+        def parse_date(s):
+            if not s:
+                return None
+            s = str(s).strip()
+            # Tenta formatos comuns (YYYY-MM-DD e ISO)
+            for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    return datetime.strptime(s[:19], fmt).date() if 'T' in s or ' ' in s else datetime.strptime(s, fmt).date()
+                except Exception:
+                    continue
+            # Fallback: pega só a parte da data
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        d_inicio = parse_date(data_inicio_str)
+        if not d_inicio:
+            d_inicio = parse_date(data_criacao_str)
+        if not d_inicio:
+            return "N/D"
+        dias = (date.today() - d_inicio).days
+        if dias < 0:
+            dias = 0
+        return f"{dias}d"
+    except Exception:
+        return "N/D"
+
 # ====== Rotas de Kanban (adaptadas do app_geral.py) ======
+
+# Cache simples em memória para dias_na_fase para reduzir chamadas pesadas
+_DIAS_FASE_CACHE = {}
+# Estrutura: { project_id: { 'valor': 'Xd|Hoje|Futuro|N/D', 'ts': epoch_seconds } }
+_CACHE_TTL_SECONDS = 600
 
 @app.route('/api/carregar_projetos', methods=['POST'])
 def carregar_projetos():
@@ -784,11 +1264,11 @@ def carregar_projetos():
                 'gp': projeto.get('owner', {}).get('name', 'GP não informado'),
                 'data_inicio': projeto.get('start_date', ''),
                 'data_criacao': projeto.get('created_time', ''),
-                'data_inicio_formatada': formatar_data_brasileira(projeto.get('start_date', '')),
-                'dias_na_fase': calcular_dias_na_fase({
-                    'data_inicio': projeto.get('start_date', ''),
-                    'data_criacao': projeto.get('created_time', '')
-                }, status_kanban),
+                'data_inicio_formatada': projeto.get('start_date', ''),
+                # Inicialmente vazio; cliente busca por projeto via endpoint dedicado e cache
+                'dias_na_fase': '',
+                # Total de dias do projeto: sempre calculado localmente pela data de início ou criação
+                'dias_total': calcular_dias_total_projeto(projeto.get('start_date', ''), projeto.get('created_time', '')),
                 'status_atual': status_kanban
             }
             projetos_por_status[status_kanban].append(info_projeto)
@@ -819,6 +1299,43 @@ def carregar_projetos():
         })
     except Exception as e:
         print(f"Erro ao carregar projetos: {e}")
+        return jsonify({"erro": str(e)}), 500
+
+@app.route('/api/dias-na-fase/<project_id>', methods=['GET'])
+def api_dias_na_fase(project_id):
+    try:
+        coluna = request.args.get('coluna')  # coluna alvo para filtrar pelo new_value do status
+        # Cache por projeto+coluna
+        key = f"{project_id}|{coluna or ''}"
+        now = int(time.time())
+        ent = _DIAS_FASE_CACHE.get(key)
+        if ent and (now - ent.get('ts', 0) <= _CACHE_TTL_SECONDS):
+            return jsonify({"project_id": project_id, "dias_na_fase": ent.get('valor', 'N/D')})
+
+        access_token = obter_access_token()
+        if not access_token:
+            return jsonify({"erro": "Erro de autenticação"}), 401
+
+        # Se coluna informada, tenta especificamente pela mudança de status (preferência) ou etiqueta que levou a essa coluna
+        valor = None
+        if coluna:
+            d = obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, coluna)
+            if not d:
+                d = obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, coluna)
+            if d:
+                dias = (date.today() - d).days
+                valor = "Hoje" if dias == 0 else ("Futuro" if dias < 0 else f"{dias}d")
+
+        # Se não conseguiu via coluna/status/etiqueta, fallback genérico
+        if not valor:
+            info_min = { 'data_inicio': '', 'data_criacao': '' }
+            valor = calcular_dias_na_fase(info_min, None, project_id=project_id, access_token=access_token)
+
+        # Atualiza cache
+        _DIAS_FASE_CACHE[key] = { 'valor': valor, 'ts': now }
+        return jsonify({"project_id": project_id, "dias_na_fase": valor})
+    except Exception as e:
+        print(f"Erro no endpoint dias-na-fase: {e}")
         return jsonify({"erro": str(e)}), 500
 
 
