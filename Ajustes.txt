@@ -1,7 +1,7 @@
 * Ajustar modal novo projeto
 
 
-$REFRESH = "1000.1c4d853ca584614d036e42a9208d35be.166690cc51f8db6b10c91996b0ac5159"
+$REFRESH = "1000.21ac86810c1063e32bc0ab09081c2492.6027aecc28a26c903297df96cee382dd"
 # Supondo que $CLIENT_ID e $CLIENT_SECRET já estão definidos
 $CLIENT_ID = "1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DR"
 $CLIENT_SECRET = "70226965d09b04444346222d9b4846c86a5d31d2fe"
@@ -37,7 +37,7 @@ if ($resp.access_token) {
 
 
 
-$GRANT_TOKEN = "1000.bed0d964a1b4fd5ec4d281ff352d02d8.55d208fcbb10ef4b0ff0d2876f55ee97" # Cole o novo código aqui
+$GRANT_TOKEN = "1000.1dfcabe263f38b79a52beb0439f8b191.f3eeb8b7ee52bb7283e62b6d3ddd022e" # Cole o novo código aqui
 
 $response = Invoke-RestMethod -Method Post -Uri "https://accounts.zoho.com/oauth/v2/token" -Body @{
     code = $GRANT_TOKEN
@@ -53,7 +53,7 @@ Write-Output ($response | ConvertTo-Json)
 
 
 
-https://accounts.zoho.com/oauth/v2/auth?scope=ZohoProjects.portals.READ,ZohoProjects.projects.ALL,ZohoProjects.tasks.ALL,ZohoProjects.tags.ALL,ZohoProjects.timesheets.ALL,ZohoSearch.securesearch.READ&client_id=1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DRW&response_type=code&access_type=offline&redirect_uri=https://localhost
+https://accounts.zoho.com/oauth/v2/auth?scope=ZohoProjects.portals.READ,ZohoProjects.projects.ALL,ZohoProjects.tasks.ALL,ZohoProjects.tags.ALL,ZohoProjects.tasklists.ALL,ZohoProjects.timesheets.ALL,ZohoSearch.securesearch.READ&client_id=1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DR&response_type=code&access_type=offline&redirect_uri=https://localhost
 
 
 

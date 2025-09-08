@@ -57,6 +57,11 @@ TAG_AGUARDANDO_INFRA_ID = "2376502000000958355"
 TAG_EM_HOMOLOGACAO_ID = "2376502000000983053"
 TAG_EM_VIRADA_ID = "2376502000001228741"
 TAG_PARADO_ID = "2376502000000983125"
+
+# Domínio web customizado do Zoho Projects (se configurado). Ex.: "https://projects.animati.com.br"
+ZOHO_PROJECTS_CUSTOM_WEB_HOST = "https://projects.animati.com.br"
+# ID fixo da visualização "somente tarefas em aberto" (não varia entre projetos, segundo o uso atual)
+DEFAULT_TASKS_CUSTOM_VIEW_ID = "2376502000000046003"
 TAG_AGUARDANDO_ENCERRAMENTO_ID = "2376502000005304184"
 STATUS_CONCLUIDO_ID = "2376502000000674703"
 # Tags que não devem ser aplicadas em nível de projeto geral
@@ -126,6 +131,135 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Configura a pasta de uploads após definição
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# ================= Helpers de Autenticação Zoho =================
+
+def _zoho_domain() -> str:
+    """Retorna o domínio do tenant Zoho (com ou com.br)."""
+    return (os.environ.get("ZOHO_DOMAIN") or "com").strip()
+
+
+def _zp_base() -> str:
+    """Base da API do Zoho Projects v3 conforme domínio."""
+    return f"https://projectsapi.zoho.{_zoho_domain()}/api/v3"
+
+
+def _zp_headers(access_token: str) -> dict:
+    return {
+        "Authorization": f"Zoho-oauthtoken {access_token}",
+        "Accept": "application/json"
+    }
+
+
+def _portal_web_base(access_token: str) -> str | None:
+    """Obtém a URL base web do portal (ex.: https://projects.zoho.<dc>/portal/<slug>/).
+    Tenta via API; se não conseguir, retorna somente a raiz do projects.<dc>/portal/ para fallback com ID.
+    """
+    headers = _zp_headers(access_token)
+    # Tenta endpoint de portais (lista)
+    try:
+        u1 = f"{_zp_base()}/portals"
+        r = requests.get(u1, headers=headers, timeout=15)
+        if r.ok:
+            data = r.json()
+            portals = data.get('portals') if isinstance(data, dict) else data
+            for p in (portals or []):
+                pid = str(p.get('id') or '')
+                if pid == str(ZOHO_PORTAL_ID):
+                    try:
+                        web = (p.get('link') or {}).get('web') or None
+                        if web:
+                            return web if web.endswith('/') else web + '/'
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    # Fallback: detalhe do portal específico
+    try:
+        u2 = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}"
+        r = requests.get(u2, headers=headers, timeout=15)
+        if r.ok:
+            data = r.json()
+            portal = data.get('portal') if isinstance(data, dict) else None
+            if isinstance(portal, dict):
+                try:
+                    web = (portal.get('link') or {}).get('web') or None
+                    if web:
+                        return web if web.endswith('/') else web + '/'
+                except Exception:
+                    return None
+    except Exception:
+        pass
+    return None
+
+
+def _projects_web_root() -> str:
+    """Monta raiz pública do Projects conforme data center ou host customizado.
+    Prioriza ZOHO_PROJECTS_CUSTOM_WEB_HOST se definido; caso contrário, mapeia o data center do token.
+    Retorna com sufixo '/portal/'.
+    """
+    host = (ZOHO_PROJECTS_CUSTOM_WEB_HOST or '').strip().rstrip('/')
+    if host:
+        return f"{host}/portal/"
+    base_api = _zp_base()
+    # Mapeia projectsapi.zoho.<dc> -> projects.zoho.<dc>/portal
+    if 'projectsapi.zoho.eu' in base_api:
+        return 'https://projects.zoho.eu/portal/'
+    if 'projectsapi.zoho.in' in base_api:
+        return 'https://projects.zoho.in/portal/'
+    if 'projectsapi.zoho.com.au' in base_api:
+        return 'https://projects.zoho.com.au/portal/'
+    if 'projectsapi.zoho.com.cn' in base_api:
+        return 'https://projects.zoho.com.cn/portal/'
+    return 'https://projects.zoho.com/portal/'
+
+
+def _compose_tasklist_web_url(base_web: str, project_id: str, tasklist_id: str, custom_view_id: str | None = None) -> str:
+    """Monta URL da interface web para a tasklist específica no projeto.
+    - Se custom_view_id for informado, usa o formato do Zoho UI com /#zp/projects/.../tasks/custom-view/{custom_view_id}/gantt/tasklist-detail/{tasklist_id}
+    - Caso contrário, usa o formato mais simples de /#myprojects/{project_id}/tasklists/{tasklist_id}
+    """
+    if not base_web.endswith('/'):
+        base_web += '/'
+    if custom_view_id:
+        return (
+            f"{base_web}#zp/projects/{project_id}/tasks/custom-view/{custom_view_id}/gantt/tasklist-detail/{tasklist_id}?group_by=milestone"
+        )
+    return f"{base_web}#myprojects/{project_id}/tasklists/{tasklist_id}"
+
+
+def obter_access_token() -> str:
+    """Obtém access_token usando o refresh_token salvo em ZOHO_TOKEN_PATH."""
+    if not os.path.exists(ZOHO_TOKEN_PATH):
+        raise FileNotFoundError(f"Arquivo de refresh token não encontrado: {ZOHO_TOKEN_PATH}")
+    refresh_token = (open(ZOHO_TOKEN_PATH, 'r', encoding='utf-8').read()).strip()
+    if not refresh_token:
+        raise RuntimeError("Refresh token vazio em zoho_refresh_token.txt")
+    if not ZOHO_CLIENT_ID or not ZOHO_CLIENT_SECRET:
+        raise RuntimeError("ZOHO_CLIENT_ID/ZOHO_CLIENT_SECRET não definidos")
+
+    url = f"https://accounts.zoho.{_zoho_domain()}/oauth/v2/token"
+    payload = {
+        "refresh_token": refresh_token,
+        "client_id": ZOHO_CLIENT_ID,
+        "client_secret": ZOHO_CLIENT_SECRET,
+        "grant_type": "refresh_token",
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    r = requests.post(url, data=payload, headers=headers, timeout=25)
+    try:
+        r.raise_for_status()
+    except requests.exceptions.RequestException:
+        try:
+            body = r.json()
+        except Exception:
+            body = r.text
+        raise RuntimeError(f"Falha ao obter access_token: status={r.status_code} body={body}")
+    data = r.json()
+    token = data.get("access_token")
+    if not token:
+        raise RuntimeError(f"Resposta sem access_token: {data}")
+    return token
 
 # ==============================================================================
 # --- SEÇÃO DE FUNÇÕES DE LÓGICA (COPIADAS E ADAPTADAS) ---
@@ -943,28 +1077,8 @@ def obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, col
     e o new_value mapeia para a coluna alvo informada.
     """
     try:
-        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
-        headers = _zp_headers(access_token)
-        params = {"index": 1, "range": 50}
-        resp = requests.get(url, headers=headers, params=params, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-
-        # Normaliza lista de itens
-        items = []
-        if isinstance(data, list):
-            items = data
-        elif isinstance(data, dict):
-            for key in ["edits", "data", "activities", "logs", "history", "items"]:
-                if isinstance(data.get(key), list):
-                    items = data[key]
-                    break
-            if not items and isinstance(data.get("project"), dict):
-                proj = data["project"]
-                for key in ["edits", "data", "activities", "logs", "history", "items"]:
-                    if isinstance(proj.get(key), list):
-                        items = proj[key]
-                        break
+        # Usa busca robusta com faixas menores e paginação limitada
+        items = _fetch_project_edits(access_token, project_id, max_pages=3)
 
         def parse_action_time(s):
             if not s:
@@ -1018,6 +1132,107 @@ def obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, col
         return None
 
 
+# ====== Utilitários robustos para histórico de edits ======
+
+def _normalize_edits_response(data):
+    """Normaliza diferentes formatos possíveis retornados pelo Zoho para uma lista de edits."""
+    items = []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ["edits", "data", "activities", "logs", "history", "items"]:
+            if isinstance(data.get(key), list):
+                return data[key]
+        if isinstance(data.get("project"), dict):
+            proj = data["project"]
+            for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                if isinstance(proj.get(key), list):
+                    return proj[key]
+    return items
+
+
+def _fetch_project_edits(access_token, project_id, max_pages: int = 3):
+    """Busca histórico de edits do projeto com tolerância a 400, testando faixas menores.
+    Retorna lista de itens normalizados somando as páginas.
+    """
+    headers = _zp_headers(access_token)
+    base_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
+    ranges = [20, 10, 5]
+    for rg in ranges:
+        try:
+            collected = []
+            for page in range(1, max_pages + 1):
+                params = {"index": page, "range": rg}
+                resp = requests.get(base_url, headers=headers, params=params, timeout=20)
+                if resp.status_code == 400:
+                    # tenta com faixa menor
+                    print(f"[edits] 400 com range={rg} page={page} -> tentando range menor")
+                    collected = []
+                    break
+                resp.raise_for_status()
+                items = _normalize_edits_response(resp.json())
+                if not isinstance(items, list) or not items:
+                    break
+                collected.extend(items)
+                if len(items) < rg:
+                    break
+            if collected:
+                return collected
+        except Exception as e:
+            print(f"[edits] falha range={rg}: {e}")
+            continue
+    return []
+
+
+def obter_data_ultima_mudanca_status_ou_tag(project_id, access_token):
+    """Obtém a data da última mudança relevante (status ou etiquetas) do projeto via edits.
+    Se não conseguir buscar/parsear, retorna None.
+    """
+    try:
+        items = _fetch_project_edits(access_token, project_id, max_pages=3)
+        if not items:
+            return None
+        def parse_action_time(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except Exception:
+                    pass
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        best_date = None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            edits = item.get('edits') or []
+            if not isinstance(edits, list):
+                continue
+            for ed in edits:
+                if not isinstance(ed, dict):
+                    continue
+                fname = str(ed.get('field_name', '')).strip().lower()
+                if fname not in ("status", "etiquetas"):
+                    continue
+                d = parse_action_time(item.get('action_time') or item.get('time'))
+                if d and (best_date is None or d > best_date):
+                    best_date = d
+        return best_date
+    except Exception as e:
+        print(f"[edits] obter_data_ultima_mudanca_status_ou_tag falhou: {e}")
+        return None
+
+
 # ====== Mapeamento de colunas (carregado de mapeamento_colunas.json) ======
 _MAPPINGS_CACHE = None
 
@@ -1058,28 +1273,8 @@ def obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, colun
             'cancelado': STATUS_CANCELADO_ID,
         }
 
-        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
-        headers = _zp_headers(access_token)
-        params = {"index": 1, "range": 50}
-        resp = requests.get(url, headers=headers, params=params, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-
-        # Normaliza lista de itens
-        items = []
-        if isinstance(data, list):
-            items = data
-        elif isinstance(data, dict):
-            for key in ["edits", "data", "activities", "logs", "history", "items"]:
-                if isinstance(data.get(key), list):
-                    items = data[key]
-                    break
-            if not items and isinstance(data.get("project"), dict):
-                proj = data["project"]
-                for key in ["edits", "data", "activities", "logs", "history", "items"]:
-                    if isinstance(proj.get(key), list):
-                        items = proj[key]
-                        break
+        # Usa busca robusta com faixas menores e paginação limitada
+        items = _fetch_project_edits(access_token, project_id, max_pages=3)
 
         # Função local para data
         def parse_action_time(s):
@@ -1301,6 +1496,142 @@ def carregar_projetos():
         print(f"Erro ao carregar projetos: {e}")
         return jsonify({"erro": str(e)}), 500
 
+# ================= Indicador de impeditivos =================
+
+def _buscar_tasklist_impeditivos_info(access_token, project_id):
+    """Retorna dict com {id, web_url} da tasklist '00.01 - Itens impeditivos de virada' do projeto (case-insensitive)."""
+    try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasklists"
+        headers = _zp_headers(access_token)
+        page = 1
+        per_page = 100
+        alvo = '00.01 - itens impeditivos de virada'
+        while True:
+            params = {"page": page, "per_page": per_page}
+            r = requests.get(url, headers=headers, params=params, timeout=20)
+            if r.status_code == 400:
+                # Trata projeto sem permissão/sem tasklists de maneira graciosa
+                print(f"[impeditivos] LIST 400 project_id={project_id} body={r.text[:300]}")
+                return None
+            r.raise_for_status()
+            data = r.json()
+            listas = data.get('tasklists') if isinstance(data, dict) else data
+            if not isinstance(listas, list):
+                listas = []
+            for tl in listas:
+                nome = str((tl.get('name') or tl.get('title') or '')).strip().lower()
+                if nome == alvo:
+                    # id pode vir como int/str
+                    tl_id = str(tl.get('id') or tl.get('tasklist_id') or '')
+                    # Muitos recursos retornam 'link': {'web': '...'}
+                    web_url = ''
+                    try:
+                        web_url = (tl.get('link') or {}).get('web') or tl.get('url') or ''
+                    except Exception:
+                        web_url = ''
+                    # Fallback: tenta buscar detalhes da tasklist específica para obter o link web
+                    if not web_url and tl_id:
+                        try:
+                            det_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasklists/{tl_id}"
+                            rr = requests.get(det_url, headers=headers, timeout=20)
+                            if rr.status_code == 400:
+                                print(f"[impeditivos] DETAIL 400 project_id={project_id} tl_id={tl_id} body={rr.text[:300]}")
+                            else:
+                                rr.raise_for_status()
+                                det = rr.json()
+                                node = det.get('tasklist') if isinstance(det, dict) else None
+                                if isinstance(node, dict):
+                                    web_url = ((node.get('link') or {}).get('web')) or node.get('url') or ''
+                        except Exception as _:
+                            pass
+                    return {"id": tl_id, "web_url": web_url}
+            if len(listas) < per_page:
+                break
+            page += 1
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao listar tasklists do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao buscar tasklist impeditivos do projeto {project_id}: {e}")
+        return None
+
+
+def _contar_tarefas_abertas_na_tasklist(access_token, project_id, tasklist_id):
+    """Conta tarefas abertas pertencentes à tasklist informada, percorrendo a paginação."""
+    try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks"
+        headers = _zp_headers(access_token)
+        page = 1
+        per_page = 200
+        total_abertas = 0
+        while True:
+            params = {"page": page, "per_page": per_page}
+            r = requests.get(url, headers=headers, params=params, timeout=25)
+            r.raise_for_status()
+            data = r.json()
+            tarefas = data.get('tasks') if isinstance(data, dict) else data
+            if not isinstance(tarefas, list) or not tarefas:
+                break
+            for t in tarefas:
+                # Identificar a tasklist da tarefa
+                tl_id = None
+                try:
+                    tl_id = t.get('tasklist', {}).get('id') or t.get('tasklist_id')
+                except Exception:
+                    tl_id = t.get('tasklist_id')
+                if str(tl_id) != str(tasklist_id):
+                    continue
+                # Determinar se está aberta
+                is_completed = t.get('is_completed')
+                status_name = (t.get('status', {}) or {}).get('name', '')
+                if is_completed in [True, 'True', 'true']: # concluída
+                    continue
+                if str(status_name).strip().lower() in ['completed', 'concluída', 'finalizado', 'closed']:
+                    continue
+                total_abertas += 1
+            if len(tarefas) < per_page:
+                break
+            page += 1
+        return total_abertas
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao listar tarefas do projeto {project_id}: {e.response.text if e.response else e}")
+        return 0
+    except Exception as e:
+        print(f"Erro inesperado ao contar tarefas abertas em tasklist {tasklist_id} do projeto {project_id}: {e}")
+        return 0
+
+
+@app.route('/api/impeditivos/<project_id>', methods=['GET'])
+def api_impeditivos(project_id):
+    try:
+        # Usa token Zoho que também define a base dinâmica (_map_projects_base)
+        access_token = obter_access_token_zoho()
+        if not access_token:
+            return jsonify({"erro": "Erro de autenticação"}), 401
+        info = _buscar_tasklist_impeditivos_info(access_token, project_id)
+        if not info or not info.get('id'):
+            # Se a lista não existe, considera 0 abertos
+            return jsonify({"project_id": project_id, "count": 0, "has_impediments": False, "web_url": None})
+        count = _contar_tarefas_abertas_na_tasklist(access_token, project_id, info['id'])
+        web_url = info.get('web_url') or None
+        if not web_url:
+            # Construção da URL web a partir do portal
+            base_web = _portal_web_base(access_token) or _projects_web_root()
+            if base_web:
+                # Se base_web já incluir '/portal/<slug>/', usa direto; caso contrário, anexa portal id
+                if not base_web.rstrip('/').endswith('/portal') and '/portal/' in base_web:
+                    web_base_final = base_web
+                else:
+                    web_base_final = base_web.rstrip('/') + f"/{ZOHO_PORTAL_ID}/"
+                # Usa a visualização fixa "somente tarefas em aberto" se disponível
+                web_url = _compose_tasklist_web_url(web_base_final, project_id, info['id'], DEFAULT_TASKS_CUSTOM_VIEW_ID)
+        return jsonify({"project_id": project_id, "count": count, "has_impediments": count > 0, "web_url": web_url})
+    except Exception as e:
+        print(f"Erro no endpoint impeditivos: {e}")
+        return jsonify({"erro": str(e)}), 500
+
+
 @app.route('/api/dias-na-fase/<project_id>', methods=['GET'])
 def api_dias_na_fase(project_id):
     try:
@@ -1312,7 +1643,8 @@ def api_dias_na_fase(project_id):
         if ent and (now - ent.get('ts', 0) <= _CACHE_TTL_SECONDS):
             return jsonify({"project_id": project_id, "dias_na_fase": ent.get('valor', 'N/D')})
 
-        access_token = obter_access_token()
+        # Sempre usar o token Zoho unificado (define a base correta e Authorization)
+        access_token = obter_access_token_zoho()
         if not access_token:
             return jsonify({"erro": "Erro de autenticação"}), 401
 
@@ -1328,8 +1660,24 @@ def api_dias_na_fase(project_id):
 
         # Se não conseguiu via coluna/status/etiqueta, fallback genérico
         if not valor:
-            info_min = { 'data_inicio': '', 'data_criacao': '' }
-            valor = calcular_dias_na_fase(info_min, None, project_id=project_id, access_token=access_token)
+            # Fallback extra: tenta obter datas diretamente do projeto na API
+            try:
+                proj_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+                rproj = requests.get(proj_url, headers=_zp_headers(access_token), params={"fields": "start_date,created_time"}, timeout=20)
+                if rproj.status_code == 200:
+                    pdata = rproj.json() or {}
+                    if isinstance(pdata, dict):
+                        # Normaliza estrutura
+                        node = pdata.get('project') if isinstance(pdata.get('project'), dict) else pdata
+                        start_date = (node.get('start_date') or node.get('start_date_string') or '') if isinstance(node, dict) else ''
+                        created_time = (node.get('created_time') or node.get('created_time_string') or '') if isinstance(node, dict) else ''
+                        info_min = { 'data_inicio': start_date, 'data_criacao': created_time }
+                        valor = calcular_dias_na_fase(info_min, None)
+            except Exception:
+                pass
+            if not valor:
+                info_min = { 'data_inicio': '', 'data_criacao': '' }
+                valor = calcular_dias_na_fase(info_min, None, project_id=project_id, access_token=access_token)
 
         # Atualiza cache
         _DIAS_FASE_CACHE[key] = { 'valor': valor, 'ts': now }
@@ -1542,8 +1890,21 @@ def _map_projects_base(api_domain: str) -> str:
     return 'https://projectsapi.zoho.com/api/v3'
 
 
-def obter_access_token_zoho():
-    """Obtém access_token a partir do refresh_token salvo em arquivo."""
+_ZOHO_TOKEN_CACHE = { 'token': None, 'exp': 0 }
+
+
+def obter_access_token_zoho(ttl_seconds: int = 2700):
+    """Obtém access_token com cache simples (TTL ~45min). Evita rate limit no OAuth.
+    Retorna token válido e atualiza base da API por data center.
+    """
+    import time as _t
+    now = int(_t.time())
+    tok = _ZOHO_TOKEN_CACHE.get('token')
+    exp = int(_ZOHO_TOKEN_CACHE.get('exp') or 0)
+    if tok and now < exp:
+        return tok
+
+    # Quando precisar renovar, faz com backoff rápido em caso de 429/400 rate-limit
     try:
         with open(ZOHO_TOKEN_PATH, 'r', encoding='utf-8') as f:
             refresh_token = f.read().strip()
@@ -1557,19 +1918,27 @@ def obter_access_token_zoho():
         'client_secret': ZOHO_CLIENT_SECRET,
         'grant_type': 'refresh_token'
     }
-    r = requests.post(token_url, data=data_form, timeout=30)
-    if r.status_code != 200:
-        raise Exception(f'Falha ao obter access_token Zoho: HTTP {r.status_code} - {r.text}')
-    data = r.json()
-    access_token = data.get('access_token')
-    if not access_token:
-        raise Exception('Resposta do Zoho sem access_token.')
 
-    # Ajusta base da API conforme o data center do token
-    global ZP_API_BASE_DYNAMIC
-    ZP_API_BASE_DYNAMIC = _map_projects_base(data.get('api_domain'))
-
-    return access_token
+    last_err = None
+    for i in range(3):  # até 3 tentativas com backoff
+        r = requests.post(token_url, data=data_form, timeout=30)
+        if r.status_code == 200:
+            data = r.json()
+            access_token = data.get('access_token')
+            if not access_token:
+                raise Exception('Resposta do Zoho sem access_token.')
+            # Atualiza base da API conforme o data center do token
+            global ZP_API_BASE_DYNAMIC
+            ZP_API_BASE_DYNAMIC = _map_projects_base(data.get('api_domain'))
+            # Armazena no cache com TTL (45min)
+            _ZOHO_TOKEN_CACHE['token'] = access_token
+            _ZOHO_TOKEN_CACHE['exp'] = now + ttl_seconds
+            return access_token
+        else:
+            last_err = f'HTTP {r.status_code} - {r.text}'
+            # Erro por rate limit: espera incremental
+            _t.sleep(1 + i * 2)
+    raise Exception(f'Falha ao obter access_token Zoho: {last_err}')
 
 
 def _zp_headers(access_token: str):

@@ -1,3 +1,5 @@
 * pedir para o Willian criar status Aguardando Encerramento planilha
 * Ajustar modal Novo Projeto.
 * Configurar os prazos por colunas para apresentar em atraso ou não
+
+https://projects.animati.com.br/portal/portal_id/#zp/projects/project_id/tasks/custom-view/2376502000000046003/gantt/tasklist-detail/2376502000005425659?group_by=milestone
