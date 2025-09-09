@@ -83,7 +83,7 @@
 
     <!-- Modal: Adicionar Novo Projeto -->
     <div id="projectModal" class="modal hidden">
-        <div class="modal-content">
+        <div class="modal-content project-modal">
             <div class="modal-header">
                 <h2>Novo Projeto</h2>
                 <button type="button" id="closeProjectModal" class="modal-close">×</button>
@@ -237,6 +237,49 @@
             { nome: "Cancelado", class: "cancelado" },
             { nome: "Status Desconhecido", class: "status-desconhecido" }
         ];
+
+        // ===== Utilitários para "dias na fase" =====
+        function normalizarTexto(s) {
+            return (s || '').toString().toLowerCase();
+        }
+        function projetoTemNetRIS(projeto) {
+            const txt = normalizarTexto(
+                (projeto && (projeto.produto || projeto.produtos_contratados || projeto.product || projeto.produtos))
+                || ''
+            );
+            return txt.includes('netris');
+        }
+        function limiteDiasPara(colunaNome, temNetRIS) {
+            switch (colunaNome) {
+                case 'Aguardando Onboarding': return 5;
+                case 'Falta Liberar Servidor Infra': return 10;
+                case 'Em Andamento': return temNetRIS ? 90 : 30; // netRIS 90, somente PACS 30
+                case 'Em Homologação': return 15;
+                case 'Em Virada': return 10;
+                case 'Em Operação Assistida': return 15;
+                case 'Aguardando Encerramento': return 5;
+                default: return null; // Sem SLA definido
+            }
+        }
+        function aplicarCorDias(spanEl, colunaNome, temNetRIS, dias) {
+            if (!spanEl) return;
+            const n = parseInt(dias, 10);
+            const limite = limiteDiasPara(colunaNome, !!temNetRIS);
+            const container = spanEl.closest('.day-counter.stage-days');
+            if (!isFinite(n) || !limite) {
+                spanEl.classList.remove('overdue');
+                if (container) container.classList.remove('overdue');
+                return;
+            }
+            const isOver = n > limite;
+            if (isOver) {
+                spanEl.classList.add('overdue');
+                if (container) container.classList.add('overdue');
+            } else {
+                spanEl.classList.remove('overdue');
+                if (container) container.classList.remove('overdue');
+            }
+        }
 
         let projetosSalvos = {};
         let elementoSendoArrastado = null;
@@ -404,10 +447,10 @@
                                 .then(r => r.json())
                                 .then(data => {
                                     const span = cardElement.querySelector('.dias-na-fase');
-                                    if (span && data && data.dias_na_fase) {
-                                        span.textContent = data.dias_na_fase;
-                                    } else if (span) {
-                                        span.textContent = 'N/D';
+                                    const dias = (data && (data.dias_na_fase ?? data.dias)) || projeto.dias_na_fase;
+                                    if (span) {
+                                        span.textContent = dias ? dias : 'N/D';
+                                        aplicarCorDias(span, (typeof coluna === 'string' ? coluna : (coluna && coluna.nome ? coluna.nome : '')), projetoTemNetRIS(projeto), dias);
                                     }
                                 })
                                 .catch(() => {
@@ -460,6 +503,15 @@
                                         ind.classList.add('neutral');
                                     }
                                 });
+                        } catch(_) {}
+
+                        // Colorir imediatamente se já temos dados locais
+                        try {
+                            const span = cardElement.querySelector('.dias-na-fase');
+                            if (span) {
+                                const dias = projeto.dias_na_fase;
+                                aplicarCorDias(span, coluna, projetoTemNetRIS(projeto), dias);
+                            }
                         } catch(_) {}
 
                         // Animação escalonada
@@ -518,7 +570,7 @@
                 <div class="project-footer">
                     <div class="day-counter stage-days" title="Dias na etapa atual">
                         <i class="fa-solid fa-hourglass-half"></i>
-                        <span class="dias-na-fase" data-projeto-id="${projeto.id}">${projeto.dias_na_fase ? projeto.dias_na_fase : '...'}</span>
+                        <span class="dias-na-fase" data-projeto-id="${projeto.id}" data-coluna="${coluna}" data-produtos="${(projeto.produtos || projeto.produto || projeto.produtos_contratados || '').toString()}">${projeto.dias_na_fase ? projeto.dias_na_fase : '...'}</span>
                     </div>
                     <div class="day-counter total-days" title="Total de dias do projeto">
                         <i class="fa-solid fa-calendar-days"></i>
