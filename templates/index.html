@@ -200,6 +200,23 @@
         </div>
     </div>
 
+    <!-- Modal: Adicionar Comentário -->
+    <div id="commentModal" class="modal hidden">
+        <div class="modal-content comment-modal">
+            <div class="modal-header">
+                <h2>Adicionar comentário</h2>
+                <button type="button" id="closeCommentModal" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="commentText" rows="8" placeholder="Digite seu comentário..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" id="cancelCommentBtn">Cancelar</button>
+                <button type="button" class="btn-primary" id="submitCommentBtn">Comentar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Sinaliza autenticação para o JS
         window.LOGGED_IN = {{ 'true' if logged_in else 'false' }};
@@ -520,8 +537,7 @@
             if (commentBtn) {
                 commentBtn.addEventListener('click', (e) => {
                     e.stopPropagation(); // Impede que o drag comece ao clicar no botão
-                    alert(`Adicionar comentário ao projeto: ${projeto.nome}`);
-                    // Aqui você pode abrir um modal para adicionar o comentário
+                    abrirModalComentario(projeto);
                 });
             }
 
@@ -766,6 +782,55 @@
 
         // === Lógica do Modal e do Formulário de Novo Projeto ===
         // Removida para evitar duplicidade; toda a lógica está em static/js/script_registro.js
+
+        // ===== Comentários em Projeto =====
+        let projetoParaComentar = null;
+        function abrirModalComentario(projeto) {
+            const modal = document.getElementById('commentModal');
+            if (!modal) return;
+            projetoParaComentar = projeto || null;
+            const textarea = document.getElementById('commentText');
+            if (textarea) textarea.value = '';
+            modal.classList.remove('hidden');
+        }
+        function fecharModalComentario() {
+            const modal = document.getElementById('commentModal');
+            if (!modal) return;
+            const textarea = document.getElementById('commentText');
+            if (textarea) textarea.value = '';
+            modal.classList.add('hidden');
+        }
+        document.addEventListener('click', function(e){
+            if (e.target && e.target.id === 'closeCommentModal') fecharModalComentario();
+            if (e.target && e.target.id === 'cancelCommentBtn') fecharModalComentario();
+        });
+        document.getElementById('submitCommentBtn')?.addEventListener('click', async function(){
+            if (!projetoParaComentar) return fecharModalComentario();
+            const textarea = document.getElementById('commentText');
+            const content = (textarea?.value || '').trim();
+            if (!content) {
+                if (window.mostrarToast) window.mostrarToast('Digite um comentário.', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/projetos/comentar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projeto_id: projetoParaComentar.id, content })
+                });
+                const text = await r.text();
+                let data = null; try { data = JSON.parse(text); } catch(_) {}
+                if (r.ok && data && data.sucesso) {
+                    if (window.mostrarToast) window.mostrarToast('Comentário adicionado com sucesso.', 'success');
+                    fecharModalComentario();
+                } else {
+                    const msg = (data && (data.erro || data.mensagem)) || ('Falha ao comentar. HTTP ' + r.status);
+                    if (window.mostrarToast) window.mostrarToast(msg, 'error'); else alert(msg);
+                }
+            } catch (e) {
+                if (window.mostrarToast) window.mostrarToast('Erro de comunicação com o servidor.', 'error');
+            }
+        });
     </script>
 </body>
 </html>
