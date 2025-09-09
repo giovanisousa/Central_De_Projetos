@@ -22,8 +22,26 @@ from googleapiclient.http import MediaFileUpload
 
 # --- INICIALIZAÇÃO DO FLASK ---
 app = Flask(__name__)
-# Adiciona uma chave secreta, necessária para o gerenciamento de sessão do Flask
-app.config['SECRET_KEY'] = os.urandom(24)
+# Chave secreta estável para manter sessões mesmo após reloads
+_secret = os.environ.get('FLASK_SECRET_KEY')
+if not _secret:
+    try:
+        _base = os.path.abspath(os.path.dirname(__file__))
+        _key_path = os.path.join(_base, '.flask_secret_key')
+        if os.path.exists(_key_path):
+            with open(_key_path, 'r', encoding='utf-8') as f:
+                _secret = (f.read() or '').strip()
+        if not _secret:
+            import secrets
+            _secret = secrets.token_hex(32)
+            try:
+                with open(_key_path, 'w', encoding='utf-8') as f:
+                    f.write(_secret)
+            except Exception:
+                pass
+    except Exception:
+        _secret = 'dev-secret-change-me'
+app.config['SECRET_KEY'] = _secret
 
 # --- CONFIGURAÇÕES GLOBAIS (COPIADAS DO SEU SCRIPT ORIGINAL) ---
 
@@ -1738,7 +1756,11 @@ def login():
 
 @app.route('/oauth2callback')
 def oauth2callback():
-    state = session['state']
+    # Recupera state salvo, se existir; se não, tenta usar o state devolvido pelo Google
+    saved_state = session.get('state')
+    incoming_state = request.args.get('state')
+    state = saved_state or incoming_state
+
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_PATH,
         scopes=SCOPES_GOOGLE,
@@ -2356,6 +2378,55 @@ def api_mover_projeto():
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)}), 500
 
+
+# ==============================
+# --- API: Comentários Projeto ---
+# ==============================
+
+@app.route('/api/projetos/comentar', methods=['POST'])
+def comentar_projeto():
+    try:
+        if 'credentials' not in session:
+            return jsonify({"sucesso": False, "erro": "Não autenticado."}), 401
+
+        data = request.get_json(silent=True) or {}
+        projeto_id = str(data.get('projeto_id') or '').strip()
+        content = (data.get('content') or '').strip()
+        if not projeto_id or not content:
+            return jsonify({"sucesso": False, "erro": "Parâmetros inválidos"}), 400
+
+        access_token = obter_access_token()
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/comments"
+
+        # Tenta formatos aceitos pela API do Zoho
+        last_resp = None
+        for payload in ({"comment": content}, {"content": content}):
+            try:
+                r = requests.post(
+                    url,
+                    headers={**_zp_headers(access_token), "Content-Type": "application/json"},
+                    json=payload,
+                    timeout=30
+                )
+                last_resp = r
+                if r.status_code in (200, 201):
+                    return jsonify({"sucesso": True})
+            except Exception as req_err:
+                last_resp = req_err
+                break
+
+        if hasattr(last_resp, 'status_code'):
+            try:
+                body = last_resp.json()
+            except Exception:
+                body = getattr(last_resp, 'text', str(last_resp))
+            return jsonify({"sucesso": False, "erro": f"HTTP {last_resp.status_code}", "detalhe": body}), 502
+        else:
+            return jsonify({"sucesso": False, "erro": str(last_resp)}), 502
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
 
 # ==============================================================================
 # --- EXECUÇÃO DO SERVIDOR ---

@@ -213,6 +213,24 @@ input[type="radio"], input[type="checkbox"] {
     box-sizing: border-box;
 }
 
+/* Botão de adicionar comentário no card */
+.add-comment-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid #d0d7de;
+    background: #ecf0f1;
+    color: #2c3e50;
+    font-weight: 800;
+    cursor: pointer;
+}
+.add-comment-btn:hover {
+    background: #e2e8f0;
+}
+
 /* Estilo base da página Kanban */
 body.kanban-page {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -237,22 +255,29 @@ body.kanban-page {
 .modal .modal-content {
     width: 95%;
     max-width: 520px;
-    background: #ffffff;
+    background: #f3f4f6; /* cinza claro para o corpo do modal */
     border-radius: 14px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.12);
     overflow: hidden;
     animation: modal-pop 0.2s ease-out;
 }
+/* modal específico para comentários, com largura 600px */
+.modal .modal-content.comment-modal { max-width: 600px; }
 .modal .modal-header {
     padding: 16px 20px;
-    background: #f8fafc; /* cabeçalho claro */
-    color: #111827; /* texto escuro */
-    border-bottom: 1px solid #e5e7eb;
+    background: #dbeafe; /* azul claro no cabeçalho */
+    color: #000000; /* texto preto para melhor contraste */
+    border-bottom: 1px solid #bfdbfe;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
-.modal .modal-header h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.modal .modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #000000 !important; /* força preto, evitando herança do h2 global */
+}
 .modal .modal-close {
     background: transparent;
     border: none;
@@ -261,6 +286,25 @@ body.kanban-page {
     cursor: pointer;
 }
 .modal .modal-body { padding: 16px 20px; }
+/* altura maior para o modal de comentário */
+.modal .modal-content.comment-modal { max-width: 600px; height: 600px; display: flex; flex-direction: column; }
+.modal .modal-content.comment-modal .modal-body { flex: 1; display: flex; }
+/* textarea do comentário com fundo branco, texto preto e borda destacada */
+#commentText {
+    width: 100%;
+    background: #ffffff;
+    color: #111827;
+    border: 2px solid #cbd5e1; /* cinza claro */
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    resize: vertical;
+}
+#commentText:focus {
+    outline: none;
+    border-color: #60a5fa; /* azul mais vivo no foco */
+    box-shadow: 0 0 0 4px rgba(96,165,250,0.25);
+}
 .modal .modal-footer { padding: 16px 20px; display: flex; gap: 10px; justify-content: flex-end; }
 
 .btn-primary {
