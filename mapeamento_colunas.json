@@ -20,6 +20,13 @@
     "zohoTagsToRemove": [],
     "triggersAction": null
   },
+  "Em Andamento - Implantação": {
+    "sheetStatus": "Em Andamento",
+    "zohoStatusId": "2376502000000020092",
+    "zohoTagsToAdd": ["2376502000000188201"],
+    "zohoTagsToRemove": [],
+    "triggersAction": null
+  }, 
   "Em Homologação": {
     "sheetStatus": "Em Homologação",
     "zohoStatusId": "2376502000000020092",
