@@ -6,9 +6,13 @@ import json
 import time
 import traceback
 import urllib.parse
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.utils import secure_filename
+try:
+    from flask_session import Session
+except Exception:
+    Session = None
 
 # --- BIBLIOTECAS DE API (INSTALE COM 'pip install ...') ---
 import requests
@@ -42,6 +46,23 @@ if not _secret:
     except Exception:
         _secret = 'dev-secret-change-me'
 app.config['SECRET_KEY'] = _secret
+
+# Sessão do lado do servidor (recomendado para produção)
+app.config.update({
+    'SESSION_TYPE': 'filesystem',           # simples e sem dependências externas
+    'SESSION_FILE_DIR': os.path.join(os.path.abspath(os.path.dirname(__file__)), '.flask_session'),
+    'SESSION_PERMANENT': True,
+    'PERMANENT_SESSION_LIFETIME': timedelta(hours=8),  # expiração de sessão (ajuste conforme política)
+    'SESSION_COOKIE_HTTPONLY': True,
+    'SESSION_COOKIE_SECURE': False,         # defina True em produção com HTTPS
+    'SESSION_COOKIE_SAMESITE': 'Lax',
+})
+if Session:
+    try:
+        os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+    except Exception:
+        pass
+    Session(app)
 
 # --- CONFIGURAÇÕES GLOBAIS (COPIADAS DO SEU SCRIPT ORIGINAL) ---
 
@@ -111,6 +132,9 @@ MODELOS_ZOHO = {
 ZOHO_MENTION_USERS = {
     # Preencha aqui os usuários que serão mencionados com frequência
     "William Floriano": {"usernum": "870213453", "name": "William Floriano"},
+    "Giovani Sousa": {"usernum": "868816641", "name": "Giovani Sousa"},
+    "Roger Machado": {"usernum": "870218464", "name": "Roger Machado"},
+    "Carlo Tristão": {"usernum": "870217691", "name": "Carlo Tristão"}
     # Exemplo para adicionar outro usuário:
     # "Outro Nome": {"usernum": "XXXXXXXXX", "name": "Outro Nome"},
 }
@@ -149,6 +173,68 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Configura a pasta de uploads após definição
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# ================= Helpers de Autenticação Google =================
+
+def build_google_credentials_from_session():
+    """Monta credenciais Google a partir da sessão, complementando com client_id/secret
+    do credentials.json e atualiza o access token caso esteja expirado.
+    Levanta erro claro se não houver refresh_token disponível para refresh.
+    """
+    info = session.get('credentials')
+    if not info or not isinstance(info, dict):
+        raise RuntimeError("Credenciais Google ausentes na sessão. Faça login novamente.")
+
+    # Carrega client_id/client_secret do arquivo de credenciais
+    client_cfg = {}
+    try:
+        with open(CREDENTIALS_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f) or {}
+            client_cfg = (data.get('installed') or data.get('web') or {})
+    except Exception:
+        client_cfg = {}
+
+    # Garante campos necessários para refresh
+    info = dict(info)  # cópia
+    if not info.get('token_uri'):
+        info['token_uri'] = 'https://oauth2.googleapis.com/token'
+    if client_cfg:
+        cid = client_cfg.get('client_id')
+        csecret = client_cfg.get('client_secret')
+        if cid and not info.get('client_id'):
+            info['client_id'] = cid
+        if csecret and not info.get('client_secret'):
+            info['client_secret'] = csecret
+
+    # Garante presença do campo 'token' (pode ser None) para evitar erro no __init__
+    if 'token' not in info:
+        info['token'] = None
+
+    creds = Credentials(**info)
+
+    # Atualiza o token se necessário ou se inválido
+    try:
+        if not creds.valid:
+            if not creds.refresh_token:
+                raise RuntimeError(
+                    'As credenciais não contêm refresh_token. Refaça o login (com access_type="offline" e prompt="consent").'
+                )
+            creds.refresh(Request())
+            # Persiste de volta na sessão
+            session['credentials'] = {
+                'token': creds.token,
+                'refresh_token': creds.refresh_token,
+                'token_uri': creds.token_uri,
+                'client_id': creds.client_id,
+                'client_secret': creds.client_secret,
+                'scopes': creds.scopes,
+            }
+    except Exception as e:
+        raise RuntimeError(f"Falha ao atualizar token Google: {e}")
+
+    return creds
+
+# ================= Helpers de Autenticação Zoho =================
 
 # ================= Helpers de Autenticação Zoho =================
 
@@ -1430,7 +1516,7 @@ def calcular_dias_total_projeto(data_inicio_str: str, data_criacao_str: str) -> 
 # Cache simples em memória para dias_na_fase para reduzir chamadas pesadas
 _DIAS_FASE_CACHE = {}
 # Estrutura: { project_id: { 'valor': 'Xd|Hoje|Futuro|N/D', 'ts': epoch_seconds } }
-_CACHE_TTL_SECONDS = 600
+_CACHE_TTL_SECONDS = 90
 
 @app.route('/api/carregar_projetos', methods=['POST'])
 def carregar_projetos():
@@ -1653,9 +1739,12 @@ def api_impeditivos(project_id):
 @app.route('/api/dias-na-fase/<project_id>', methods=['GET'])
 def api_dias_na_fase(project_id):
     try:
-        coluna = request.args.get('coluna')  # coluna alvo para filtrar pelo new_value do status
-        # Cache por projeto+coluna
-        key = f"{project_id}|{coluna or ''}"
+        coluna = request.args.get('coluna')  # coluna alvo (opcional)
+        hint = request.args.get('hint')  # quando '1', usar a coluna como dica explicitamente
+        use_coluna = (hint == '1' and bool(coluna))
+
+        # Cache: por projeto (genérico) ou por projeto+coluna quando usar dica
+        key = f"{project_id}|{coluna}" if use_coluna else f"{project_id}"
         now = int(time.time())
         ent = _DIAS_FASE_CACHE.get(key)
         if ent and (now - ent.get('ts', 0) <= _CACHE_TTL_SECONDS):
@@ -1666,9 +1755,9 @@ def api_dias_na_fase(project_id):
         if not access_token:
             return jsonify({"erro": "Erro de autenticação"}), 401
 
-        # Se coluna informada, tenta especificamente pela mudança de status (preferência) ou etiqueta que levou a essa coluna
+        # Se uso de coluna foi explicitamente solicitado, tenta pela mudança de status/etiqueta para essa coluna
         valor = None
-        if coluna:
+        if use_coluna:
             d = obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, coluna)
             if not d:
                 d = obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, coluna)
@@ -1676,16 +1765,14 @@ def api_dias_na_fase(project_id):
                 dias = (date.today() - d).days
                 valor = "Hoje" if dias == 0 else ("Futuro" if dias < 0 else f"{dias}d")
 
-        # Se não conseguiu via coluna/status/etiqueta, fallback genérico
+        # Se não conseguiu via coluna/status/etiqueta (ou coluna não usada), fallback genérico
         if not valor:
-            # Fallback extra: tenta obter datas diretamente do projeto na API
             try:
                 proj_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
                 rproj = requests.get(proj_url, headers=_zp_headers(access_token), params={"fields": "start_date,created_time"}, timeout=20)
                 if rproj.status_code == 200:
                     pdata = rproj.json() or {}
                     if isinstance(pdata, dict):
-                        # Normaliza estrutura
                         node = pdata.get('project') if isinstance(pdata.get('project'), dict) else pdata
                         start_date = (node.get('start_date') or node.get('start_date_string') or '') if isinstance(node, dict) else ''
                         created_time = (node.get('created_time') or node.get('created_time_string') or '') if isinstance(node, dict) else ''
@@ -1697,7 +1784,9 @@ def api_dias_na_fase(project_id):
                 info_min = { 'data_inicio': '', 'data_criacao': '' }
                 valor = calcular_dias_na_fase(info_min, None, project_id=project_id, access_token=access_token)
 
-        # Atualiza cache
+        # Atualiza cache (se valor não definido por algum motivo, mantém 'N/D')
+        if not valor:
+            valor = 'N/D'
         _DIAS_FASE_CACHE[key] = { 'valor': valor, 'ts': now }
         return jsonify({"project_id": project_id, "dias_na_fase": valor})
     except Exception as e:
@@ -1705,6 +1794,91 @@ def api_dias_na_fase(project_id):
         return jsonify({"erro": str(e)}), 500
 
 
+# ===== Movimentação de projeto (atualiza cache e planilha) =====
+
+def _invalidate_dias_cache(project_id: str):
+    try:
+        keys = list(_DIAS_FASE_CACHE.keys())
+        for k in keys:
+            if k == str(project_id) or k.startswith(f"{project_id}|"):
+                _DIAS_FASE_CACHE.pop(k, None)
+    except Exception:
+        pass
+
+
+def _a1_col_letter(idx0: int) -> str:
+    # 0 -> A, 1 -> B, ...
+    s = ""
+    n = idx0 + 1
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def _find_header_indexes(headers_row_values: list[str], desired_names: list[str]) -> dict:
+    out = {}
+    lower_map = {str(v).strip().lower(): i for i, v in enumerate(headers_row_values or []) if str(v).strip()}
+    for name in desired_names:
+        key = str(name).strip().lower()
+        if key in lower_map:
+            out[name] = lower_map[key]
+    return out
+
+
+def _update_status_planilha_principal(sheets_service, cliente_key: str, novo_status: str, status_header_candidates=None) -> bool:
+    # Lê cabeçalho
+    headers_range = f"{NOME_ABA_PLANILHA}!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+    resp = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=headers_range).execute()
+    headers = (resp.get('values') or [[]])[0]
+    if not headers:
+        raise RuntimeError('Cabeçalho não encontrado na planilha principal.')
+
+    # Descobre índices de colunas
+    if status_header_candidates is None:
+        status_header_candidates = ["Status Principal", "Status", "STATUS PRINCIPAL", "STATUS"]
+    idx_map = _find_header_indexes(headers, [COLUNA_REFERENCIA_PARA_CONTAR_LINHAS] + status_header_candidates)
+    if COLUNA_REFERENCIA_PARA_CONTAR_LINHAS not in idx_map:
+        raise RuntimeError(f"Coluna de referência '{COLUNA_REFERENCIA_PARA_CONTAR_LINHAS}' não encontrada no cabeçalho.")
+    # Escolhe a primeira disponível para status
+    status_idx = None
+    for nm in status_header_candidates:
+        if nm in idx_map:
+            status_idx = idx_map[nm]
+            break
+    if status_idx is None:
+        raise RuntimeError("Coluna de Status não encontrada (tente ajustar os nomes candidatos).")
+
+    cliente_idx = idx_map[COLUNA_REFERENCIA_PARA_CONTAR_LINHAS]
+    cliente_col = _a1_col_letter(cliente_idx)
+
+    # Busca linhas da coluna Cliente
+    valores_cli_range = f"{NOME_ABA_PLANILHA}!{cliente_col}{LINHA_CABECALHO+1}:{cliente_col}"
+    vals = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=valores_cli_range).execute()
+    linhas = (vals.get('values') or [])
+
+    # Procura a linha do cliente (match exato)
+    linha_encontrada = None
+    alvo = (cliente_key or '').strip()
+    for i, row in enumerate(linhas, start=LINHA_CABECALHO + 1):
+        val = (row[0] if row else '').strip()
+        if val == alvo:
+            linha_encontrada = i
+            break
+    if not linha_encontrada:
+        raise RuntimeError(f"Cliente '{cliente_key}' não encontrado na planilha principal.")
+
+    # Atualiza célula do status
+    status_col_letter = _a1_col_letter(status_idx)
+    update_range = f"{NOME_ABA_PLANILHA}!{status_col_letter}{linha_encontrada}"
+    body = {"values": [[novo_status]]}
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS,
+        range=update_range,
+        valueInputOption="RAW",
+        body=body
+    ).execute()
+    return True
 
 
 @app.route('/')
@@ -1724,11 +1898,7 @@ def index():
         "Status Desconhecido": "#95A5A6"
     })
     
-    creds_dict = session['credentials']
-    # O refresh_token pode não estar presente em todas as autenticações
-    if 'refresh_token' not in creds_dict:
-         return redirect(url_for('login')) # Força o re-login para obter o refresh_token
-         
+    # Usuário logado: segue normalmente
     return render_template('index.html', logged_in=True, user_email=session.get('user_email'), gps=list(DONOS_PROJETO.keys()), cores_colunas={
         "Aguardando Onboarding": "#6c757d",
         "Falta Liberar Servidor Infra": "#E67E22",
@@ -1750,8 +1920,10 @@ def login():
         scopes=SCOPES_GOOGLE,
         redirect_uri=url_for('oauth2callback', _external=True)
     )
-    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent')
     session['state'] = state
+    # Define a sessão como permanente para aplicar PERMANENT_SESSION_LIFETIME
+    session.permanent = True
     return redirect(authorization_url)
 
 @app.route('/oauth2callback')
@@ -1770,12 +1942,27 @@ def oauth2callback():
     authorization_response = request.url
     flow.fetch_token(authorization_response=authorization_response)
     credentials = flow.credentials
+    # Preserva refresh_token já existente se o Google não retornar um novo
+    prev_refresh = (session.get('credentials') or {}).get('refresh_token') if isinstance(session.get('credentials'), dict) else None
+    refresh_token = credentials.refresh_token or prev_refresh
     session['credentials'] = {
-        'token': credentials.token, 'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri, 'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret, 'scopes': credentials.scopes
+        # Evita guardar token de acesso em sessão (curta duração); manteremos refresh_token e metadados
+        'refresh_token': refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes,
     }
-    user_info_service = build('oauth2', 'v2', credentials=credentials)
+    # Reconstrói Credentials temporárias só para buscar userinfo
+    temp_creds = Credentials(
+        token=credentials.token,
+        refresh_token=refresh_token,
+        token_uri=credentials.token_uri,
+        client_id=credentials.client_id,
+        client_secret=credentials.client_secret,
+        scopes=credentials.scopes,
+    )
+    user_info_service = build('oauth2', 'v2', credentials=temp_creds)
     user_info = user_info_service.userinfo().get().execute()
     session['user_email'] = user_info.get('email')
     return redirect(url_for('index'))
@@ -1790,7 +1977,10 @@ def api_criar_projeto():
     if 'credentials' not in session:
         return jsonify({"status": "error", "message": "Usuário não autenticado."}), 401
     
-    creds = Credentials(**session['credentials'])
+    try:
+        creds = build_google_credentials_from_session()
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Falha nas credenciais Google: {e}"}), 401
     
     temp_deip_path = None
     try:
@@ -2221,6 +2411,7 @@ def api_mover_projeto():
         projeto_id = str(payload.get('projeto_id') or '').strip()
         coluna_origem = (payload.get('coluna_origem') or '').strip()
         coluna_destino = (payload.get('coluna_destino') or '').strip()
+        cliente_sheet = (payload.get('cliente_sheet') or '').strip()
 
         print(f"[/api/mover_projeto] payload recebido: {payload}")
         print(f"[/api/mover_projeto] projeto_id={projeto_id}, origem='{coluna_origem}', destino='{coluna_destino}'")
@@ -2230,6 +2421,19 @@ def api_mover_projeto():
             return jsonify({"sucesso": False, "erro": "Parâmetros inválidos."}), 400
 
         msg_operacoes = []
+
+        # Valida refresh_token antes de usar Google Sheets
+        try:
+            creds_in_session = session.get('credentials') if isinstance(session.get('credentials'), dict) else None
+            if not creds_in_session or not creds_in_session.get('refresh_token'):
+                print("[/api/mover_projeto] Sessão sem refresh_token. Instruindo re-login.")
+                return jsonify({
+                    "sucesso": False,
+                    "erro": "Sessão sem refresh_token. Faça login novamente para conceder acesso offline.",
+                    "acao": "/login"
+                }), 401
+        except Exception:
+            pass
 
         # Aplica regras gerais via mapeamento JSON conforme a coluna de destino
         try:
@@ -2255,10 +2459,13 @@ def api_mover_projeto():
             # Google Sheets service
             sheets_service = None
             try:
-                creds = Credentials(**session['credentials'])
+                creds = build_google_credentials_from_session()
                 sheets_service = build('sheets', 'v4', credentials=creds)
             except Exception as e:
                 print(f"[/api/mover_projeto] ERRO ao iniciar Google Sheets service: {e}")
+                if isinstance(e, Exception):
+                    # Dica: geralmente faltam refresh_token/client_id/client_secret/token_uri
+                    pass
 
             # 2) Descobrir valor do cliente ("codigo - nome") a partir do nome do projeto no Zoho
             valor_cliente = None
@@ -2275,19 +2482,45 @@ def api_mover_projeto():
             # 3) Atualizar planilha: Status Principal por valor exato da coluna "Cliente"
             try:
                 novo_status_sheet = info_dest.get('sheetStatus')
-                if sheets_service and valor_cliente and novo_status_sheet:
-                    # Lê cabeçalho
+                # Preferência: usar cliente_sheet do frontend, ignorando placeholders; fallback = extraído do Zoho
+                _cli_raw = (cliente_sheet or '').strip()
+                if _cli_raw.lower().startswith('cliente não informado') or _cli_raw.lower() in {'', 'n/a', 'na', 'null', 'none'}:
+                    cliente_lookup = (valor_cliente or '').strip()
+                else:
+                    cliente_lookup = _cli_raw
+                # Tenta extrair o código numérico antes do " - "
+                codigo_lookup = None
+                try:
+                    import re
+                    parte = (cliente_lookup or valor_cliente or '').split(' - ')[0].strip()
+                    m = re.match(r'^\d+', parte.replace('.', ''))
+                    if m:
+                        codigo_lookup = m.group(0)
+                except Exception:
+                    codigo_lookup = None
+                if sheets_service and (cliente_lookup or codigo_lookup) and novo_status_sheet:
+                    # Lê cabeçalho (case-insensitive) e encontra colunas de Cliente e Status
                     range_cab = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
                     cabecalhos = sheets_service.spreadsheets().values().get(
                         spreadsheetId=ID_PLANILHA_PROJETOS,
                         range=range_cab
                     ).execute().get('values', [[]])[0]
-                    mapa_colunas = {c: i for i, c in enumerate(cabecalhos)}
-                    if 'Cliente' in mapa_colunas and 'Status Principal' in mapa_colunas:
-                        col_cliente_idx = mapa_colunas['Cliente']
-                        col_status_idx = mapa_colunas['Status Principal']
-                        letra_col_cliente = indice_para_letra_coluna(col_cliente_idx)
-                        letra_col_status = indice_para_letra_coluna(col_status_idx)
+                    lower_map = {str(c).strip().lower(): i for i, c in enumerate(cabecalhos)}
+                    # Cliente: usa a constante configurada, com fallback para 'cliente'
+                    cliente_key_lower = str(COLUNA_REFERENCIA_PARA_CONTAR_LINHAS).strip().lower() or 'cliente'
+                    col_cliente_idx = lower_map.get(cliente_key_lower)
+                    if col_cliente_idx is None:
+                        col_cliente_idx = lower_map.get('cliente')
+                    # Status: tenta várias possibilidades
+                    status_candidates = ['status principal', 'status', 'status_principal', 'statusprincipal']
+                    col_status_idx = None
+                    for nm in status_candidates:
+                        if nm in lower_map:
+                            col_status_idx = lower_map[nm]
+                            break
+                    if col_cliente_idx is not None and col_status_idx is not None:
+                        letra_col_cliente = _a1_col_letter(col_cliente_idx)
+                        letra_col_status = _a1_col_letter(col_status_idx)
                         # Lê valores da coluna Cliente a partir da primeira linha de dados
                         start_row = LINHA_CABECALHO + 1
                         range_clientes = f"'{NOME_ABA_PLANILHA}'!{letra_col_cliente}{start_row}:{letra_col_cliente}"
@@ -2295,16 +2528,18 @@ def api_mover_projeto():
                             spreadsheetId=ID_PLANILHA_PROJETOS,
                             range=range_clientes
                         ).execute().get('values', [])
-                        # Encontra linha do cliente
+                        # Encontra linha do cliente por match exato OU pelo código
                         linha_encontrada = None
                         for idx, row in enumerate(valores_clientes):
                             cell = (row[0] if row else '').strip()
-                            if cell == valor_cliente:
+                            if cliente_lookup and cell == cliente_lookup:
+                                linha_encontrada = start_row + idx
+                                break
+                            if not linha_encontrada and codigo_lookup and cell.startswith(f"{codigo_lookup} - "):
                                 linha_encontrada = start_row + idx
                                 break
                         if linha_encontrada:
                             range_status_cell = f"'{NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}"
-                            body = { 'range': range_status_cell, 'values': [[novo_status_sheet]] }
                             sheets_service.spreadsheets().values().update(
                                 spreadsheetId=ID_PLANILHA_PROJETOS,
                                 range=range_status_cell,
@@ -2314,6 +2549,8 @@ def api_mover_projeto():
                             msg_operacoes.append('Planilha principal: Status Principal atualizado')
                         else:
                             msg_operacoes.append('Cliente não encontrado na planilha principal')
+                    else:
+                        msg_operacoes.append('Cabeçalho: colunas de Cliente/Status não encontradas')
                 else:
                     msg_operacoes.append('Planilha não atualizada (serviço/cliente/status indisponível)')
             except Exception as e:
@@ -2337,6 +2574,179 @@ def api_mover_projeto():
                 print(f"[/api/mover_projeto] ERRO ao atualizar status do projeto: {e}")
                 msg_operacoes.append(f'Erro ao atualizar status no Zoho: {e}')
 
+            # Regra específica: Falta Liberar Servidor Infra -> Em Andamento
+            try:
+                if (coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento"):
+                    # 1) Planilha principal: Status Principal = Em Andamento; Lib.Servidor = data atual
+                    if sheets_service:
+                        try:
+                            range_cab = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+                            cabecalhos = sheets_service.spreadsheets().values().get(
+                                spreadsheetId=ID_PLANILHA_PROJETOS,
+                                range=range_cab
+                            ).execute().get('values', [[]])[0]
+                            lower_map = {str(c).strip().lower(): i for i, c in enumerate(cabecalhos)}
+
+                            # Índices das colunas relevantes
+                            cliente_key_lower = str(COLUNA_REFERENCIA_PARA_CONTAR_LINHAS).strip().lower() or 'cliente'
+                            col_cliente_idx = lower_map.get(cliente_key_lower)
+                            if col_cliente_idx is None:
+                                col_cliente_idx = lower_map.get('cliente')
+
+                            status_candidates = ['status principal', 'status', 'status_principal', 'statusprincipal']
+                            col_status_idx = None
+                            for nm in status_candidates:
+                                if nm in lower_map:
+                                    col_status_idx = lower_map[nm]
+                                    break
+
+                            col_libservidor_idx = (lower_map.get('lib.servidor')
+                                                   if 'lib.servidor' in lower_map else lower_map.get('lib servidor'))
+
+                            if col_cliente_idx is not None and (col_status_idx is not None or col_libservidor_idx is not None):
+                                letra_col_cliente = indice_para_letra_coluna(col_cliente_idx)
+                                start_row = LINHA_CABECALHO + 1
+                                range_clientes = f"'{NOME_ABA_PLANILHA}'!{letra_col_cliente}{start_row}:{letra_col_cliente}"
+                                valores_clientes = sheets_service.spreadsheets().values().get(
+                                    spreadsheetId=ID_PLANILHA_PROJETOS,
+                                    range=range_clientes
+                                ).execute().get('values', [])
+
+                                # Encontrar a linha do cliente
+                                linha_encontrada = None
+                                for idx, row in enumerate(valores_clientes):
+                                    cell = (row[0] if row else '').strip()
+                                    if cliente_lookup and cell == cliente_lookup:
+                                        linha_encontrada = start_row + idx
+                                        break
+                                    if not linha_encontrada and codigo_lookup and cell.startswith(f"{codigo_lookup} - "):
+                                        linha_encontrada = start_row + idx
+                                        break
+
+                                if linha_encontrada:
+                                    updates = []
+                                    if col_status_idx is not None:
+                                        letra_col_status = indice_para_letra_coluna(col_status_idx)
+                                        updates.append({
+                                            'range': f"'{NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}",
+                                            'values': [["Em Andamento"]]
+                                        })
+                                    if col_libservidor_idx is not None:
+                                        letra_col_lib = indice_para_letra_coluna(col_libservidor_idx)
+                                        hoje_ddmmyyyy = datetime.now().strftime('%d/%m/%Y')
+                                        updates.append({
+                                            'range': f"'{NOME_ABA_PLANILHA}'!{letra_col_lib}{linha_encontrada}",
+                                            'values': [[hoje_ddmmyyyy]]
+                                        })
+                                    if updates:
+                                        sheets_service.spreadsheets().values().batchUpdate(
+                                            spreadsheetId=ID_PLANILHA_PROJETOS,
+                                            body={'valueInputOption': 'USER_ENTERED', 'data': updates}
+                                        ).execute()
+                                        msg_operacoes.append('Planilha principal: Status/Lib.Servidor atualizados')
+                        except Exception as e:
+                            msg_operacoes.append(f'Falha ao atualizar planilha (regra específica): {e}')
+
+                    # 2) Zoho: status e campo customizado "data_liberacao_servidor"
+                    if access_token:
+                        try:
+                            # Define explicitamente o status Em Andamento
+                            status_id = "2376502000000020092"
+                            url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
+                            r = requests.patch(url, headers=_zp_headers(access_token), json={"status": {"id": status_id}}, timeout=30)
+                            if r.status_code in (200, 201):
+                                msg_operacoes.append('Zoho: Status do projeto definido para Em Andamento')
+                            else:
+                                msg_operacoes.append(f"Zoho: falha ao definir status (HTTP {r.status_code})")
+                        except Exception as e:
+                            msg_operacoes.append(f'Zoho: erro ao definir status (regra específica): {e}')
+
+                        try:
+                            hoje_iso = datetime.now().strftime('%Y-%m-%d')
+                            url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
+                            payload = {"custom_fields": {"data_liberacao_servidor": hoje_iso}}
+                            headers = _zp_headers(access_token)
+
+                            # Logs detalhados para diagnosticar a atualização do campo customizado
+                            headers_log = dict(headers)
+                            if 'Authorization' in headers_log:
+                                headers_log['Authorization'] = 'Zoho-oauthtoken ***'
+                            print(f"[/api/mover_projeto] PATCH custom_fields (data_liberacao_servidor) -> proj={projeto_id}")
+                            print(f"[/api/mover_projeto] URL: {url}")
+                            print(f"[/api/mover_projeto] Payload: {payload}")
+                            print(f"[/api/mover_projeto] Headers: {headers_log}")
+
+                            r2 = requests.patch(url, headers=headers, json=payload, timeout=30)
+                            print(f"[/api/mover_projeto] Resposta PATCH custom_fields -> status={r2.status_code}")
+                            try:
+                                print(f"[/api/mover_projeto] Body (primeiros 800 chars): {r2.text[:800]}")
+                            except Exception:
+                                pass
+
+                            updated_ok = False
+                            try:
+                                resp_json = r2.json() if hasattr(r2, 'json') else None
+                                cf = (resp_json or {}).get('custom_fields') if isinstance(resp_json, dict) else None
+                                if isinstance(cf, dict) and cf.get('data_liberacao_servidor') == hoje_iso:
+                                    updated_ok = True
+                                # Alguns tenants retornam no topo ou com prefixo cf_
+                                if isinstance(resp_json, dict):
+                                    if resp_json.get('data_liberacao_servidor') == hoje_iso:
+                                        updated_ok = True
+                                    if resp_json.get('cf_data_liberacao_servidor') == hoje_iso:
+                                        updated_ok = True
+                            except Exception:
+                                pass
+
+                            # Fallback 1: tentar enviar o campo no topo (sem custom_fields)
+                            if not updated_ok:
+                                payload_inline = {"data_liberacao_servidor": hoje_iso}
+                                print(f"[/api/mover_projeto] Fallback PATCH inline -> payload: {payload_inline}")
+                                r3 = requests.patch(url, headers=headers, json=payload_inline, timeout=30)
+                                print(f"[/api/mover_projeto] Resposta PATCH inline -> status={r3.status_code}")
+                                try:
+                                    print(f"[/api/mover_projeto] Body inline (primeiros 800 chars): {r3.text[:800]}")
+                                except Exception:
+                                    pass
+                                try:
+                                    j3 = r3.json() if hasattr(r3, 'json') else None
+                                    if isinstance(j3, dict):
+                                        if (j3.get('data_liberacao_servidor') == hoje_iso) or (j3.get('cf_data_liberacao_servidor') == hoje_iso):
+                                            updated_ok = True
+                                except Exception:
+                                    pass
+
+                            # GET de verificação (se ainda não temos confirmação)
+                            try:
+                                g = requests.get(url, headers=headers, timeout=20)
+                                print(f"[/api/mover_projeto] GET verificação -> status={g.status_code}")
+                                try:
+                                    gj = g.json()
+                                except Exception:
+                                    gj = None
+                                try:
+                                    print(f"[/api/mover_projeto] GET body (primeiros 800 chars): {g.text[:800]}")
+                                except Exception:
+                                    pass
+                                if isinstance(gj, dict):
+                                    cf2 = gj.get('custom_fields') if isinstance(gj.get('custom_fields'), dict) else None
+                                    if (cf2 and cf2.get('data_liberacao_servidor') == hoje_iso) or \
+                                       (gj.get('data_liberacao_servidor') == hoje_iso) or \
+                                       (gj.get('cf_data_liberacao_servidor') == hoje_iso):
+                                        updated_ok = True
+                            except Exception:
+                                pass
+
+                            if updated_ok or r2.status_code in (200, 201):
+                                msg_operacoes.append('Zoho: Campo "Data Liberação Servidor" atualizado (verificado)')
+                            else:
+                                msg_operacoes.append(f"Zoho: falha ao atualizar campo customizado (HTTP {r2.status_code})")
+                        except Exception as e:
+                            print(f"[/api/mover_projeto] EXCEPTION ao atualizar custom_fields data_liberacao_servidor: {e}")
+                            msg_operacoes.append(f'Zoho: erro ao atualizar campo customizado (regra específica): {e}')
+            except Exception as e:
+                print(f"[/api/mover_projeto] ERRO regra específica Falta Liberar Servidor -> Em Andamento: {e}")
+
             # 5) Tags (definir exatamente conforme mapeamento)
             if access_token:
                 try:
@@ -2353,7 +2763,7 @@ def api_mover_projeto():
             if trigger and access_token:
                 try:
                     if trigger == 'adicionar_comentario_servidor':
-                        mentions_text = zoho_mentions(["William Floriano"])  # ajuste os nomes se necessário
+                        mentions_text = zoho_mentions(["Giovani Sousa"])  # ajuste os nomes se necessário
                         comentario = (
                             f"Bom dia {mentions_text}, tudo bem? Realizada reunião de onboarding com o cliente. "
                             "Sendo assim, podemos dar inicio as atividades de infra. Vamos iniciar os grupos. "
@@ -2371,6 +2781,52 @@ def api_mover_projeto():
                 except Exception as e:
                     print(f"[/api/mover_projeto] ERRO em ação de gatilho ({trigger}): {e}")
                     msg_operacoes.append(f'Falha ao executar ação: {e}')
+
+            # Ações específicas para a coluna "Em Andamento"
+            if coluna_destino == "Em Andamento" and access_token:
+                try:
+                    # TODO: Tornar o nome do usuário a ser mencionado configurável
+                    # Comentário na tarefa de importação
+                    mentions_text_import = zoho_mentions(["Giovani Sousa"])
+                    task_import_id = find_task_by_name(access_token, projeto_id, "Contato inicial com o cliente")
+                    if task_import_id:
+                        comentario_import = (
+                            f"Bom dia {mentions_text_import}, tudo bem? Apenas para informar que o servidor se encontra liberado.\n\n"
+                            "Sendo assim, podemos dar inicio as atividades de Importação. Vamos iniciar os grupos. \n\n"
+                            "Os detalhes do projeto se encontram na descrição do mesmo. Att"
+                        )
+                        add_comment_to_task(access_token, projeto_id, task_import_id, comentario_import)
+                        msg_operacoes.append('Comentário adicionado na tarefa de importação.')
+                    else:
+                        msg_operacoes.append('Tarefa de importação não encontrada.')
+
+                    # Comentário na tarefa de integração
+                    mentions_text_integ = zoho_mentions(["Giovani Sousa"])
+                    task_integ_id = find_task_by_name(access_token, projeto_id, "Solicitar dados ao RIS/HIS para integração de worklist")
+                    if task_integ_id:
+                        comentario_integ = (
+                            f"Bom dia {mentions_text_integ}, tudo bem? Apenas para informar que o servidor se encontra liberado.\n\n"
+                            "Sendo assim, podemos dar inicio as atividades de Integração. Vamos iniciar os grupos. \n\n"
+                            "Os detalhes do projeto se encontram na descrição do mesmo. Att"
+                        )
+                        add_comment_to_task(access_token, projeto_id, task_integ_id, comentario_integ)
+                        msg_operacoes.append('Comentário adicionado na tarefa de integração.')
+                    else:
+                        msg_operacoes.append('Tarefa de integração não encontrada.')
+
+                except Exception as e:
+                    print(f"[/api/mover_projeto] ERRO ao adicionar comentários em tarefas de 'Em Andamento': {e}")
+                    msg_operacoes.append(f'Falha ao adicionar comentários: {e}')
+
+        # Atualiza cache de dias-na-fase apenas para o projeto movido
+        try:
+            _invalidate_dias_cache(projeto_id)
+            now_ts = int(time.time())
+            chave_hint = f"{projeto_id}|{coluna_destino}"
+            _DIAS_FASE_CACHE[chave_hint] = { 'valor': 'Hoje', 'ts': now_ts }
+            _DIAS_FASE_CACHE[str(projeto_id)] = { 'valor': 'Hoje', 'ts': now_ts }
+        except Exception:
+            pass
 
         return jsonify({"sucesso": True, "mensagem": "; ".join(msg_operacoes) or 'Movimentação registrada.'})
 
@@ -2427,6 +2883,20 @@ def comentar_projeto():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+# ======================
+# --- ROTAS GOOGLE ---
+# ======================
+
+
+
+
+
+# ======================
+# --- ROTA PRINCIPAL ---
+# ======================
+
+
 
 # ==============================================================================
 # --- EXECUÇÃO DO SERVIDOR ---

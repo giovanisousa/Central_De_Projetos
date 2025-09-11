@@ -687,7 +687,7 @@ body.kanban-page {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: 150px; /* Ajuste para layout flexível */
+    min-height: 180px; /* Ajuste para layout flexível */
 }
 
 /* Destaque visual para novo projeto inserido */
@@ -1122,4 +1122,25 @@ body.kanban-page {
 #confirmMoveModal .modal-content {
     width: 480px; /* Um tamanho menor para confirmação */
     max-width: 90vw;
+}
+
+.play-btn-container {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0px; /* Add some padding to align with the content */
+}
+
+/* Botão de Play para registrar atividade */
+.project-card .play-btn {
+    background: none;
+    border: none;
+    color: #27ae60; /* Verde, combinando com a coluna "Em Andamento" */
+    font-size: 20px; /* Tamanho do ícone reduzido */
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 0; /* Remove padding to avoid extra space */
+}
+
+.project-card .play-btn:hover {
+    color: #229954; /* Verde mais escuro no hover */
 }

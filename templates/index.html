@@ -551,6 +551,16 @@
             // 2. Botão de adicionar comentário
             const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;
 
+            // 4. Botão de Play (se aplicável)
+            let playButtonHtml = '';
+            if (coluna === 'Em Andamento') {
+                playButtonHtml = `
+                    <button class="play-btn" title="Registrar atividade">
+                        <i class="fas fa-play"></i>
+                    </button>
+                `;
+            }
+
             // 3. HTML principal do card
             card.innerHTML = `
                 ${impedimentoHtml}
@@ -566,6 +576,9 @@
                             <span>${(projeto.data_inicio_formatada || projeto.data_inicio || projeto.start_date || '').toString()}</span>
                         </div>
                     </div>
+                </div>
+                <div class="play-btn-container">
+                    ${playButtonHtml}
                 </div>
                 <div class="project-footer">
                     <div class="day-counter stage-days" title="Dias na etapa atual">
@@ -714,14 +727,17 @@
         // Move o card visualmente entre colunas
         function moverCardVisualmente(cardElement, colunaOrigem, colunaDestino) {
             const projetoId = cardElement.dataset.projetoId;
+            const idStr = String(projetoId);
+            const slug = (s) => (s || '').toLowerCase().replace(/\s+/g,'-').normalize('NFD').replace(/[^\w-]/g,'');
             
-            // Encontrar o projeto nos dados salvos
+            // Encontrar o projeto nos dados salvos (comparação segura por string)
             let projetoEncontrado = null;
             for (const coluna in projetosSalvos) {
-                const index = projetosSalvos[coluna].findIndex(p => p.id === projetoId);
+                const lista = projetosSalvos[coluna] || [];
+                const index = lista.findIndex(p => String(p.id) === idStr);
                 if (index !== -1) {
-                    projetoEncontrado = projetosSalvos[coluna][index];
-                    projetosSalvos[coluna].splice(index, 1);
+                    projetoEncontrado = lista[index];
+                    lista.splice(index, 1); // remove da coluna onde estava
                     break;
                 }
             }
@@ -745,18 +761,75 @@
                 return;
             }
 
-            // Adicionar à nova coluna
+            // Adicionar à nova coluna em memória
             if (!projetosSalvos[colunaDestino]) {
                 projetosSalvos[colunaDestino] = [];
             }
             projetoEncontrado.status_atual = colunaDestino;
             projetosSalvos[colunaDestino].push(projetoEncontrado);
 
-            // Atualizar a interface
-            renderizarProjetos(projetosSalvos);
+            // Atualizar a interface (preferir atualização parcial do DOM)
+            try {
+                const origemContainer = document.getElementById(`cards-${slug(colunaOrigem)}`);
+                const destinoContainer = document.getElementById(`cards-${slug(colunaDestino)}`);
+                const origemCountEl = document.getElementById(`count-${slug(colunaOrigem)}`);
+                const destinoCountEl = document.getElementById(`count-${slug(colunaDestino)}`);
 
-            // Enviar para o servidor
-            enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino);
+                if (destinoContainer) {
+                    const novoCard = criarCardProjeto(projetoEncontrado, colunaDestino);
+                    destinoContainer.prepend(novoCard);
+
+                    // Remove visualmente o card da coluna de origem para evitar duplicação
+                    try {
+                        if (cardElement && cardElement.parentElement) {
+                            cardElement.parentElement.removeChild(cardElement);
+                        }
+                    } catch(_) {}
+
+                    // Atualiza contadores de ambas as colunas
+                    try {
+                        if (origemCountEl) origemCountEl.textContent = (projetosSalvos[colunaOrigem] ? projetosSalvos[colunaOrigem].length : 0);
+                        if (destinoCountEl) destinoCountEl.textContent = (projetosSalvos[colunaDestino] ? projetosSalvos[colunaDestino].length : 0);
+                    } catch(_) {}
+
+                    // Se a coluna de origem ficou vazia, mostra placeholder
+                    try {
+                        if (origemContainer && (!projetosSalvos[colunaOrigem] || projetosSalvos[colunaOrigem].length === 0)) {
+                            origemContainer.innerHTML = '<div class="empty-column">Nenhum projeto nesta coluna</div>';
+                        }
+                    } catch(_) {}
+
+                    // Atualiza apenas os "dias na fase" do card movido, sem recarregar toda a board
+                    try {
+                        const spanDias = novoCard.querySelector('.dias-na-fase');
+                        if (spanDias) {
+                            fetch(`/api/dias-na-fase/${encodeURIComponent(projetoEncontrado.id)}?coluna=${encodeURIComponent(colunaDestino)}&hint=1`)
+                                .then(r => r.json())
+                                .then(data => {
+                                    const dias = (data && (data.dias_na_fase ?? data.dias)) || projetoEncontrado.dias_na_fase;
+                                    spanDias.textContent = dias ? dias : 'N/D';
+                                    aplicarCorDias(spanDias, colunaDestino, projetoTemNetRIS(projetoEncontrado), dias);
+                                })
+                                .catch(() => { spanDias.textContent = 'N/D'; });
+                        }
+                    } catch(_) {}
+
+                    requestAnimationFrame(() => {
+                        novoCard.style.opacity = '1';
+                        novoCard.style.transform = 'translateY(0)';
+                    });
+                } else {
+                    // Fallback: re-render completo
+                    renderizarProjetos(projetosSalvos);
+                }
+            } catch (e) {
+                console.warn('Falha na renderização parcial, aplicando renderização completa:', e);
+                renderizarProjetos(projetosSalvos);
+            }
+
+            // Enviar para o servidor (inclui cliente_sheet igual ao valor da planilha "Cliente")
+            const clienteSheet = (projetoEncontrado && projetoEncontrado.cliente) ? String(projetoEncontrado.cliente).trim() : '';
+            enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino, clienteSheet);
 
             console.log(`✅ Projeto movido de "${colunaOrigem}" para "${colunaDestino}"`);
         }
@@ -777,9 +850,9 @@
             }, 3500);
         }
 
-        async function enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino) {
+        async function enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino, clienteSheet) {
             try {
-                console.log('[enviarMovimentoParaServidor] Enviando...', { projetoId, colunaOrigem, colunaDestino });
+                console.log('[enviarMovimentoParaServidor] Enviando...', { projetoId, colunaOrigem, colunaDestino, clienteSheet });
                 const response = await fetch('/api/mover_projeto', {
                     method: 'POST',
                     headers: {
@@ -788,7 +861,8 @@
                     body: JSON.stringify({
                         projeto_id: projetoId,
                         coluna_origem: colunaOrigem,
-                        coluna_destino: colunaDestino
+                        coluna_destino: colunaDestino,
+                        cliente_sheet: clienteSheet
                     })
                 });
                 const rawText = await response.text();
