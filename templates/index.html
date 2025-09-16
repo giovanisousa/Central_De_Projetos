@@ -34,9 +34,9 @@
 
                 {% if logged_in %}
                     <span class="user">{{ user_email }}</span>
-                    <a class="auth-link" href="{{ url_for('logout') }}">Sair</a>
+                    <a class="auth-link" href="{{ url_for('main.logout') }}">Sair</a>
                 {% else %}
-                    <a class="auth-link google-login" href="{{ url_for('login') }}">
+                    <a class="auth-link google-login" href="{{ url_for('main.login') }}">
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="google-icon" />
                         Entrar com Google
                     </a>

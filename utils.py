@@ -1,0 +1,1747 @@
+import os
+import json
+import time
+import traceback
+import urllib.parse
+from datetime import date, datetime, timedelta
+from flask import session, jsonify, request
+import requests
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+import docx
+import io
+import re
+from config import *
+_MAPPINGS_CACHE = None
+
+def zoho_mention_token(usernum: str, name: str) -> str:
+    return f"zp[@zpuser#{usernum}#{name}]zp"
+
+def zoho_mention_by_name(name: str) -> str:
+    info = ZOHO_MENTION_USERS.get(name)
+    if not info:
+        return name
+    return zoho_mention_token(info.get("usernum", ""), info.get("name", name))
+
+def zoho_mentions(names):
+    try:
+        return " ".join(zoho_mention_by_name(n) for n in (names or []) if n)
+    except Exception:
+        return ""
+
+def build_google_credentials_from_session():
+    info = session.get('credentials')
+    if not info or not isinstance(info, dict):
+        raise RuntimeError("Credenciais Google ausentes na sessão. Faça login novamente.")
+
+    client_cfg = {}
+    try:
+        with open(CREDENTIALS_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f) or {}
+            client_cfg = (data.get('installed') or data.get('web') or {})
+    except Exception:
+        client_cfg = {}
+
+    info = dict(info)
+    if not info.get('token_uri'):
+        info['token_uri'] = 'https://oauth2.googleapis.com/token'
+    if client_cfg:
+        cid = client_cfg.get('client_id')
+        csecret = client_cfg.get('client_secret')
+        if cid and not info.get('client_id'):
+            info['client_id'] = cid
+        if csecret and not info.get('client_secret'):
+            info['client_secret'] = csecret
+
+    if 'token' not in info:
+        info['token'] = None
+
+    creds = Credentials(**info)
+
+    try:
+        if not creds.valid:
+            if not creds.refresh_token:
+                raise RuntimeError(
+                    'As credenciais não contêm refresh_token. Refaça o login (com access_type="offline" e prompt="consent").'
+                )
+            creds.refresh(Request())
+            session['credentials'] = {
+                'token': creds.token,
+                'refresh_token': creds.refresh_token,
+                'token_uri': creds.token_uri,
+                'client_id': creds.client_id,
+                'client_secret': creds.client_secret,
+                'scopes': creds.scopes,
+            }
+    except Exception as e:
+        raise RuntimeError(f"Falha ao atualizar token Google: {e}")
+
+    return creds
+
+def _zoho_domain() -> str:
+    return (os.environ.get("ZOHO_DOMAIN") or "com").strip()
+
+def _zp_base() -> str:
+    return f"https://projectsapi.zoho.{_zoho_domain()}/api/v3"
+
+def _zp_headers(access_token: str) -> dict:
+    return {
+        "Authorization": f"Zoho-oauthtoken {access_token}",
+        "Accept": "application/json"
+    }
+
+def _portal_web_base(access_token: str) -> str | None:
+    headers = _zp_headers(access_token)
+    try:
+        u1 = f"{_zp_base()}/portals"
+        r = requests.get(u1, headers=headers, timeout=15)
+        if r.ok:
+            data = r.json()
+            portals = data.get('portals') if isinstance(data, dict) else data
+            for p in (portals or []):
+                pid = str(p.get('id') or '')
+                if pid == str(ZOHO_PORTAL_ID):
+                    try:
+                        web = (p.get('link') or {}).get('web') or None
+                        if web:
+                            return web if web.endswith('/') else web + '/'
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    try:
+        u2 = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}"
+        r = requests.get(u2, headers=headers, timeout=15)
+        if r.ok:
+            data = r.json()
+            portal = data.get('portal') if isinstance(data, dict) else None
+            if isinstance(portal, dict):
+                try:
+                    web = (portal.get('link') or {}).get('web') or None
+                    if web:
+                        return web if web.endswith('/') else web + '/'
+                except Exception:
+                    return None
+    except Exception:
+        pass
+    return None
+
+def _projects_web_root() -> str:
+    host = (ZOHO_PROJECTS_CUSTOM_WEB_HOST or '').strip().rstrip('/')
+    if host:
+        return f"{host}/portal/"
+    base_api = _zp_base()
+    if 'projectsapi.zoho.eu' in base_api:
+        return 'https://projects.zoho.eu/portal/'
+    if 'projectsapi.zoho.in' in base_api:
+        return 'https://projects.zoho.in/portal/'
+    if 'projectsapi.zoho.com.au' in base_api:
+        return 'https://projects.zoho.com.au/portal/'
+    if 'projectsapi.zoho.com.cn' in base_api:
+        return 'https://projects.zoho.com.cn/portal/'
+    return 'https://projects.zoho.com/portal/'
+
+def _compose_tasklist_web_url(base_web: str, project_id: str, tasklist_id: str, custom_view_id: str | None = None) -> str:
+    if not base_web.endswith('/'):
+        base_web += '/'
+    if custom_view_id:
+        return (
+            f"{base_web}#zp/projects/{project_id}/tasks/custom-view/{custom_view_id}/gantt/tasklist-detail/{tasklist_id}?group_by=milestone"
+        )
+    return f"{base_web}#myprojects/{project_id}/tasklists/{tasklist_id}"
+
+def obter_access_token() -> str:
+    if not os.path.exists(ZOHO_TOKEN_PATH):
+        raise FileNotFoundError(f"Arquivo de refresh token não encontrado: {ZOHO_TOKEN_PATH}")
+    refresh_token = (open(ZOHO_TOKEN_PATH, 'r', encoding='utf-8').read()).strip()
+    if not refresh_token:
+        raise RuntimeError("Refresh token vazio em zoho_refresh_token.txt")
+    if not ZOHO_CLIENT_ID or not ZOHO_CLIENT_SECRET:
+        raise RuntimeError("ZOHO_CLIENT_ID/ZOHO_CLIENT_SECRET não definidos")
+
+    url = f"https://accounts.zoho.{_zoho_domain()}/oauth/v2/token"
+    payload = {
+        "refresh_token": refresh_token,
+        "client_id": ZOHO_CLIENT_ID,
+        "client_secret": ZOHO_CLIENT_SECRET,
+        "grant_type": "refresh_token",
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    r = requests.post(url, data=payload, headers=headers, timeout=25)
+    try:
+        r.raise_for_status()
+    except requests.exceptions.RequestException:
+        try:
+            body = r.json()
+        except Exception:
+            body = r.text
+        raise RuntimeError(f"Falha ao obter access_token: status={r.status_code} body={body}")
+    data = r.json()
+    token = data.get("access_token")
+    if not token:
+        raise RuntimeError(f"Resposta sem access_token: {data}")
+    return token
+
+def criar_estrutura_no_drive(drive_service, dados):
+    try:
+        produto_map = {"netRIS": "1", "AnimatiPACS": "2", "netRIS e AnimatiPACS": "3"}
+        produto_id = produto_map.get(dados['produto'], "2")
+        id_pasta_pai = ID_PASTA_PAI_NETRIS if produto_id in ['1', '3'] else ID_PASTA_PAI_ANIMATIPACS
+        nome_pasta_cliente = construir_titulo_projeto(dados)
+        print(f"INFO: Criando pasta no Drive: {nome_pasta_cliente}")
+        query = (
+            "name = '" + nome_pasta_cliente.replace("'", "'" ) + "' and "
+            "mimeType = 'application/vnd.google-apps.folder' and "
+            f"'{id_pasta_pai}' in parents and trashed = false"
+        )
+        existentes = drive_service.files().list(q=query, fields="files(id, webViewLink)",pageSize=1).execute().get('files', [])
+        if existentes:
+            print("AVISO: Pasta já existe. Reutilizando pasta existente.")
+            id_pasta_cliente, link_pasta_cliente = existentes[0]['id'], existentes[0]['webViewLink']
+        else:
+            file_metadata = {'name': nome_pasta_cliente, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_pai]}
+            pasta_cliente = drive_service.files().create(body=file_metadata, fields='id, webViewLink').execute()
+            id_pasta_cliente, link_pasta_cliente = pasta_cliente.get('id'), pasta_cliente.get('webViewLink')
+        dados['link_google'] = link_pasta_cliente
+        subpastas = {'Implantação': '', 'Infraestrutura': '', 'Suporte': '', 'CS': ''}
+        if dados['importacao'] == 's':
+            subpastas['Importação'] = ''
+        for nome_subpasta in subpastas:
+            q_sub = (
+                "name = '" + nome_subpasta.replace("'", "'" ) + "' and "
+                "mimeType = 'application/vnd.google-apps.folder' and "
+                f"'{id_pasta_cliente}' in parents and trashed = false"
+            )
+            existentes_sub = drive_service.files().list(q=q_sub, fields="files(id)",pageSize=1).execute().get('files', [])
+            if existentes_sub:
+                subpastas[nome_subpasta] = existentes_sub[0]['id']
+            else:
+                subpasta_metadata = {'name': nome_subpasta, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_cliente]}
+                subpasta = drive_service.files().create(body=subpasta_metadata, fields='id').execute()
+                subpastas[nome_subpasta] = subpasta.get('id')
+        print("INFO: Fazendo upload dos arquivos para o Google Drive...")
+        media_deip = MediaFileUpload(dados['caminho_deip'], mimetype='application/pdf')
+        deip_metadata = {'name': os.path.basename(dados['caminho_deip_original']), 'parents': [subpastas['Implantação']]} 
+        drive_service.files().create(body=deip_metadata, media_body=media_deip, fields='id').execute()
+        nome_cliente = dados['nome_cliente']
+        templates_para_upload = {
+            "Protocolo de Implantação.docx": {'pasta': 'Implantação', 'nome_final': f"Protocolo de Implantação - {nome_cliente}.docx"},
+            "Documento DPI.docx": {'pasta': 'Implantação', 'nome_final': f"Documento DPI - {nome_cliente}.docx"},
+            "Definição_Cronograma_Homologação.docx": {'pasta': 'Implantação', 'nome_final': f"Definição_Cronograma_Homologação - {nome_cliente}.docx"},
+        }
+        if dados['importacao'] == 's':
+            templates_para_upload["Formulário de Importação.docx"] = {'pasta': 'Importação', 'nome_final': f"Formulário de Importação - {nome_cliente}.docx"}
+        for template_original, info in templates_para_upload.items():
+            caminho_template = os.path.join(TEMPLATE_DOCS_PATH, template_original)
+            if os.path.exists(caminho_template):
+                try:
+                    metadata = {'name': info['nome_final'], 'parents': [subpastas[info['pasta']]]}
+                    media = MediaFileUpload(caminho_template, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+                    created = drive_service.files().create(body=metadata, media_body=media, fields='id, name, parents').execute()
+                    print(f"INFO: Template upado: {template_original} -> {info['pasta']} ({created.get('id')})")
+                except HttpError as e:
+                    print(f"AVISO: Falha ao upar template '{template_original}': {e}")
+            else:
+                print(f"AVISO: Arquivo de template não encontrado: {caminho_template}")
+        return link_pasta_cliente
+    except (HttpError, FileNotFoundError) as error:
+        raise Exception(f"Erro no Google Drive: {error}")
+
+def indice_para_letra_coluna(n):
+    string = ""
+    while n >= 0:
+        string = chr(n % 26 + 65) + string
+        n = n // 26 - 1
+    return string
+
+def atualizar_planilha_principal(sheets_service, dados, url_pasta_drive):
+    try:
+        print("INFO: Atualizando planilha principal...")
+        range_cabecalho = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+        cabecalhos = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=range_cabecalho).execute().get('values', [[]])[0]
+        mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+        primeiro_nome_gp = dados['gp_selecionado'].split()[0]
+        letra_coluna_ref = indice_para_letra_coluna(mapa_colunas[COLUNA_REFERENCIA_PARA_CONTAR_LINHAS])
+        range_coluna_ref = f"'{NOME_ABA_PLANILHA}'!{letra_coluna_ref}{LINHA_CABECALHO+1}:{letra_coluna_ref}"
+        valores_col_ref = sheets_service.spreadsheets().values().get(
+            spreadsheetId=ID_PLANILHA_PROJETOS,
+            range=range_coluna_ref
+        ).execute().get('values', [])
+        proxima_linha_vazia = (LINHA_CABECALHO + len(valores_col_ref) + 1)
+
+        data_selecionada_formatada = dados['start_date'].replace('-', '/')
+        if dados.get('integracao_status') == 's':
+            integracao_texto = dados.get('integracao_nome') or 'Possui'
+        else:
+            integracao_texto = 'Não possui'
+        dados_para_inserir = {
+            "Cliente": dados['codigo_contrato_numero'] + ' - ' + dados['nome_cliente'],
+            "Cidade": dados['cidade'],
+            "Estado": dados['estado'],
+            "Link": f'=HYPERLINK("{url_pasta_drive}"; "DOC")',
+            "GP": primeiro_nome_gp,
+            "Produtos": dados['produto'],
+            "Projetos": "Cliente Novo",
+            "Status Principal": "Aguardando Onboarding",
+            "Rec. DEIP": data_selecionada_formatada,
+            "Integração": integracao_texto,
+            "Importação": "Contratado" if dados['importacao'] == 's' else "Não Contratado"
+        }
+        data_to_update = []
+        for nome_coluna, valor in dados_para_inserir.items():
+            if nome_coluna in mapa_colunas:
+                letra_coluna = indice_para_letra_coluna(mapa_colunas[nome_coluna])
+                range_celula = f"'{NOME_ABA_PLANILHA}'!{letra_coluna}{proxima_linha_vazia}"
+                data_to_update.append({'range': range_celula, 'values': [[valor]]})
+        body = {'valueInputOption': 'USER_ENTERED', 'data': data_to_update}
+        sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=ID_PLANILHA_PROJETOS, body=body).execute()
+        return True
+    except HttpError as error:
+        raise Exception(f"Erro no Google Sheets: {error}")
+
+def atualizar_planilha_secundaria(sheets_service, dados):
+    try:
+        print("INFO: Atualizando planilha secundária...")
+        sheet_id, sheet_name = ID_PLANILHA_PROJETOS_SECUNDARIA, NOME_ABA_PLANILHA_SECUNDARIA
+        range_cabecalho = f"'{sheet_name}'!1:1"
+        cabecalhos = sheets_service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_cabecalho).execute().get('values', [[]])[0]
+        mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+        letra_coluna_ref = indice_para_letra_coluna(mapa_colunas[COLUNA_REFERENCIA_SECUNDARIA])
+        range_coluna_ref = f"'{sheet_name}'!{letra_coluna_ref}:{letra_coluna_ref}"
+        proxima_linha_vazia = len(sheets_service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_coluna_ref).execute().get('values', [])) + 1
+        novo_num_sequencial = proxima_linha_vazia - 1
+        sistema = 'NR/AP' if dados['produto'] == 'netRIS e AnimatiPACS' else ('NR' if dados['produto'] == 'netRIS' else 'AP')
+        mapeamento = {
+            COLUNA_SEQUENCIAL_SECUNDARIA: novo_num_sequencial,
+            "Recebido": dados['start_date'].replace('-', '/'),
+            "Cód CS": dados['codigo_contrato'],
+            "Cliente": dados['nome_cliente'],
+            "Cidade": f"{dados['cidade']} - {dados['estado']}",
+            "Sistema": sistema,
+            "GP": dados['gp_selecionado'].split()[0],
+            "Concorrente": dados['concorrente'],
+        }
+        linha_final = [''] * len(cabecalhos)
+        for nome_coluna, valor in mapeamento.items():
+            if nome_coluna in mapa_colunas:
+                linha_final[mapa_colunas[nome_coluna]] = valor
+        body = {'values': [linha_final]}
+        range_para_escrever = f"'{sheet_name}'!A{proxima_linha_vazia}"
+        sheets_service.spreadsheets().values().append(spreadsheetId=sheet_id, range=range_para_escrever, valueInputOption="USER_ENTERED", insertDataOption="INSERT_ROWS", body=body).execute()
+        return True
+    except HttpError as error:
+        raise Exception(f"Erro na Planilha Secundária: {error}")
+
+def obter_access_token_zoho():
+    return obter_access_token()
+
+def construir_titulo_projeto(dados):
+    sufixo_map = {"netRIS": "NR", "AnimatiPACS": "AP", "netRIS e AnimatiPACS": "NR/AP"}
+    sufixo = sufixo_map.get(dados['produto'], "")
+    return f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']} - {sufixo}"
+
+def construir_descricao(dados):
+    pacs_check = "[X]" if 'PACS' in dados['produto'] else "[ ]"; ris_check = "[X]" if 'RIS' in dados['produto'] else "[ ]"
+    servidor_local = "(X)" if dados['servidor'] == 'Local' else "( )"; servidor_cloud_animati = "(X)" if dados['servidor'] == 'Cloud Animati' else "( )"; servidor_cloud_terceiros = "(X)" if dados['servidor'] == 'Cloud Terceiros' else "( )"
+    integracao_sim = "(X)" if dados['integracao_status'] == 's' else "( )"; integracao_nao = "( )" if dados['integracao_status'] == 's' else "(X)"
+    importacao_sim = "(X)" if dados['importacao'] == 's' else "( )"; importacao_nao = "( )" if dados['importacao'] == 's' else "(X)"
+    detalhes_integracao = ""
+    if dados['integracao_status'] == 's':
+        worklist_check = "[X]" if dados['integ_worklist'] else "[ ]"; laudos_check = "[X]" if dados['integ_laudos'] else "[ ]"; docs_check = "[X]" if dados['integ_docs'] else "[ ]"; lab_check = "[X]" if dados['integ_lab'] else "[ ]"; outros_check = "[X]" if dados['integ_outros'] else "[ ]"
+        detalhes_integracao = f"<p><b>Se Sim, selecione as integrações:</b></p><ul><li>{worklist_check} Worklist</li><li>{laudos_check} Retorno de Laudos</li><li>{docs_check} Documentos</li><li>{lab_check} Laboratório</li><li>{outros_check} Outros</li></ul>"
+    detalhes_importacao = ""
+    if dados['importacao'] == 's':
+        cadastros_check = "[X]" if dados['import_cadastros'] else "[ ]"; prontuarios_check = "[X]" if dados['import_prontuarios'] else "[ ]"; laudos_check = "[X]" if dados['import_laudos'] else "[ ]"; imagens_check = "[X]" if dados['import_imagens'] else "[ ]"
+        detalhes_importacao = f"<p><b>Se Sim, selecione os itens para importação:</b></p><ul><li>{cadastros_check} Cadastros</li><li>{prontuarios_check} Prontuários</li><li>{laudos_check} Laudos</li><li>{imagens_check} Imagens</li></ul>"
+    obs_texto = ""
+    if dados['observacoes'] and dados['observacoes'].strip():
+        obs_formatado = dados['observacoes'].strip().replace('\\n', '<br>')
+        obs_texto = f"<p><b>Observações Adicionais:</b></p><p>{obs_formatado}</p>"
+    descricao_html = f"<h2>Descrição do Projeto</h2><p><b>Ferramentas Contratadas:</b></p><ul><li>{pacs_check} AnimatiPACS</li><li>{ris_check} netRIS</li><li>[ ] netPACS</li></ul><p><b>Servidor:</b></p><ul><li>{servidor_local} Local</li><li>{servidor_cloud_animati} Cloud Animati</li><li>{servidor_cloud_terceiros} Cloud Terceiros</li></ul><p><b>Haverá integração?</b></p><ul><li>{integracao_sim} Sim</li><li>{integracao_nao} Não</li></ul>{detalhes_integracao}<p><b>Haverá importação?</b></p><ul><li>{importacao_sim} Sim</li><li>{importacao_nao} Não</li></ul>{detalhes_importacao}<p><b>Link da pasta do Google:</b></p><p>{dados.get('link_google', 'Link não gerado')}</p>{obs_texto}"
+    return " ".join(descricao_html.split())
+
+def escolher_template_zoho(dados):
+    produto, importacao, integracao = dados['produto'], dados['importacao'] == 's', dados['integracao_status'] == 's'
+    print(f"INFO: Selecionando modelo para: {produto}, Importação={importacao}, Integração={integracao}")
+    if produto == 'netRIS':
+        if importacao and integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e COM integração)")
+        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e SEM integração)")
+        return MODELOS_ZOHO.get("Implantação RIS (SEM importação e SEM integração)")
+    if produto == 'AnimatiPACS':
+        if importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS ( IMPORTAÇÃO + INTEGRAÇÃO) - UNIFICADO FINAL")
+        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação PACS (COM importação e SEM integração) - UNIFICADO FINAL")
+        if not importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS (COM integração e SEM importação) - Unificado FINAL")
+        return MODELOS_ZOHO.get("Implantação PACS (SEM importação e SEM integração) - UNIFICADO FINAL")
+    if produto == 'netRIS e AnimatiPACS':
+        if importacao: return MODELOS_ZOHO.get("Implantação RIS + PACS (COM importação) - UNIFICADO Final")
+        return MODELOS_ZOHO.get("Implantação RIS + PACS (SEM importação ) - UNIFICADO FINAL")
+    print("AVISO: Nenhum modelo Zoho para este cenário.")
+    return None
+
+def criar_projeto_no_zoho(access_token, dados, template_id):
+    print(f"INFO: Criando projeto Zoho para '{dados['nome_cliente']}'...")
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        start_date_obj = datetime.strptime(dados['start_date'], '%d-%m-%Y')
+        start_date_api_format = start_date_obj.strftime('%Y-%m-%d')
+    except ValueError:
+        start_date_api_format = date.today().strftime("%Y-%m-%d")
+    payload = {
+        "name": construir_titulo_projeto(dados), "description": construir_descricao(dados),
+        "start_date": start_date_api_format, "copy_from": str(template_id),
+        "project_type": "active", "project_group": {"id": GRUPOS_ZOHO.get("Hibrido" if "e" in dados['produto'] else ("RIS" if "RIS" in dados['produto'] else "PACS"))},
+        "owner": {"zpuid": DONOS_PROJETO[dados['gp_selecionado']]},
+        "is_rollup_project": True,
+        "tags": [{"id": 2376502000001291513}]
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        projeto_criado = response.json()
+        id_do_projeto = projeto_criado.get('id')
+        if not id_do_projeto:
+            raise Exception(f"Resposta do Zoho OK, mas sem ID do projeto: {projeto_criado}")
+        print(f"INFO: Projeto Zoho '{projeto_criado.get('name')}' criado!")
+        # A aplicação de tags será garantida posteriormente via ensure_project_tags
+        return id_do_projeto
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Erro da API Zoho: {e.response.text}")
+
+def processar_tarefas_iniciais(access_token, project_id, gp_zpuid):
+    """
+    - Conclui tarefas iniciais definidas em TAREFAS_PARA_CONCLUIR
+    - Atribui o dono (GP) para tarefas definidas em TAREFAS_PARA_ATRIBUIR
+    - Tenta garantir a tag de 'Aguardando Onboarding' no projeto
+    """
+    try:
+        # Concluir tarefas específicas
+        for nome in TAREFAS_PARA_CONCLUIR:
+            try:
+                tid = find_task_by_name(access_token, project_id, nome)
+                if tid:
+                    concluir_tarefa(access_token, project_id, tid)
+                    tempo = TEMPO_RELATO.get(nome)
+                    if tempo:
+                        try:
+                            add_comment_to_task(access_token, project_id, tid, f"Tarefa concluída automaticamente. Tempo estimado: {tempo}.")
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"AVISO: Falha ao concluir '{nome}': {e}")
+
+        # Atribuir GP às tarefas específicas
+        for nome in TAREFAS_PARA_ATRIBUIR:
+            try:
+                tid = find_task_by_name(access_token, project_id, nome)
+                if tid:
+                    atribuir_dono_tarefa(access_token, project_id, tid, gp_zpuid)
+            except Exception as e:
+                print(f"AVISO: Falha ao atribuir dono em '{nome}': {e}")
+
+        # Garantir tag principal de onboarding
+        try:
+            ensure_project_tags(access_token, project_id, [TAG_AGUARDANDO_ONBOARDING_ID])
+        except Exception as e:
+            print(f"AVISO: Falha ao garantir tag no projeto: {e}")
+
+        return True
+    except Exception as e:
+        print(f"AVISO: Erro em processar_tarefas_iniciais: {e}")
+        return False
+
+
+def listar_tarefas_do_projeto(access_token, project_id):
+    print(f"INFO: Listando tarefas do projeto {project_id}...")
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks"
+    headers = _zp_headers(access_token)
+    todas_as_tarefas, page_number = [], 1
+    while True:
+        params = {"page": page_number, "per_page": 100}
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            tarefas_da_pagina = response.json().get('tasks', [])
+            if not tarefas_da_pagina: break
+            todas_as_tarefas.extend(tarefas_da_pagina)
+            if len(tarefas_da_pagina) < 100: break
+            page_number += 1
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Erro ao listar tarefas: {e.response.text}")
+    print(f"INFO: Lista de tarefas obtida ({len(todas_as_tarefas)} total).")
+    return todas_as_tarefas
+
+def atribuir_dono_tarefa(access_token, project_id, task_id, gp_zpuid):
+    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"person_responsible": str(gp_zpuid)}
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Erro ao atribuir dono à tarefa {task_id}: {e.response.text}")
+        return False
+
+def _zp_rest_base():
+    return f"https://projectsapi.zoho.{_zoho_domain()}/restapi"
+
+def concluir_tarefa(access_token, project_id, task_id):
+    url = f"{_zp_rest_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/"
+    headers = _zp_headers(access_token)
+    payload = {"custom_status": STATUS_CONCLUIDO_ID}
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Erro ao concluir tarefa {task_id}: {e.response.text}")
+        return False
+
+def aplicar_tag_ao_projeto(access_token, project_id, tag_id_num):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    try:
+        payload = {
+            "tags": {
+                "add": [
+                    {"id": int(tag_id_num)}
+                ]
+            }
+        }
+        r_patch = requests.patch(url, headers=headers, json=payload)
+        r_patch.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
+
+def remover_tag_do_projeto(access_token, project_id, tag_id_num):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    try:
+        payload = {"tags": {"remove": [{"id": int(tag_id_num)}]}}
+        r_patch = requests.patch(url, headers=headers, json=payload)
+        r_patch.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
+
+def obter_detalhes_projeto(access_token, project_id):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    try:
+        print(f"[obter_detalhes_projeto] URL={url}")
+        r = requests.get(url, headers=headers)
+        print(f"[obter_detalhes_projeto] status={r.status_code} body={r.text[:500]}")
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, dict) and data.get('id'):
+            return data
+        projects = (data or {}).get('projects', []) if isinstance(data, dict) else []
+        if projects:
+            return projects[0]
+        return {}
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
+
+def comentar_na_tarefa(access_token, project_id, task_id, conteudo):
+    url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/comments/"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    payload = {"content": conteudo}
+    try:
+        r = requests.post(url, headers=headers, data=payload)
+        r.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"AVISO: Falha ao comentar na tarefa {task_id}: {e.response.text if e.response else e}")
+        return False
+
+def atualizar_status_principal_planilha_por_cliente(sheets_service, valor_cliente, novo_status):
+    range_cabecalho = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+    cabecalhos = sheets_service.spreadsheets().values().get(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=range_cabecalho
+    ).execute().get('values', [[]])[0]
+    mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+    if 'Cliente' not in mapa_colunas or 'Status Principal' not in mapa_colunas:
+        raise Exception("Colunas necessárias não encontradas na planilha")
+
+    def _norm(s):
+        import unicodedata
+        if not isinstance(s, str):
+            s = '' if s is None else str(s)
+        s = unicodedata.normalize('NFD', s)
+        s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+        s = s.strip().lower().replace('–', '-').replace('—', '-')
+        s = ' '.join(s.split())
+        return s
+
+    letra_cliente = indice_para_letra_coluna(mapa_colunas['Cliente'])
+    letra_status = indice_para_letra_coluna(mapa_colunas['Status Principal'])
+    range_coluna_cliente = f"'{NOME_ABA_PLANILHA}'!{letra_cliente}{LINHA_CABECALHO+1}:{letra_cliente}"
+    valores = sheets_service.spreadsheets().values().get(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=range_coluna_cliente
+    ).execute().get('values', [])
+
+    alvo_norm = _norm(valor_cliente)
+    print(f"[atualizar_planilha] Procurando cliente: '{valor_cliente}' (norm='{alvo_norm}')")
+    linha_encontrada = None
+
+    for idx, row in enumerate(valores):
+        cel = (row[0] if row else '')
+        if _norm(cel) == alvo_norm:
+            linha_encontrada = LINHA_CABECALHO + 1 + idx
+            print(f"[atualizar_planilha] Match exato na linha {linha_encontrada}: '{cel}'")
+            break
+
+    if not linha_encontrada:
+        try:
+            partes = valor_cliente.split(' - ', 1)
+            nome_parte = _norm(partes[1] if len(partes) > 1 else valor_cliente)
+        except Exception:
+            nome_parte = alvo_norm
+        for idx, row in enumerate(valores):
+            cel = (row[0] if row else '')
+            if nome_parte and nome_parte in _norm(cel):
+                linha_encontrada = LINHA_CABECALHO + 1 + idx
+                print(f"[atualizar_planilha] Match parcial na linha {linha_encontrada}: '{cel}'")
+                break
+
+    if not linha_encontrada:
+        raise Exception("Linha do cliente não encontrada na planilha")
+
+    range_status_cell = f"'{NOME_ABA_PLANILHA}'!{letra_status}{linha_encontrada}"
+    print(f"[atualizar_planilha] Atualizando célula {range_status_cell} para '{novo_status}'")
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS,
+        range=range_status_cell,
+        valueInputOption='USER_ENTERED',
+        body={"values": [[novo_status]]}
+    ).execute()
+    print("[atualizar_planilha] Atualização concluída")
+    return True
+
+def determinar_coluna_projeto(projeto):
+    status = projeto.get('status', {})
+    status_id = str(status.get('id', ''))
+    tags = projeto.get('tags', [])
+    tag_ids = [str(tag.get('id', '')) for tag in tags]
+    if status_id == STATUS_ABERTO_ID and TAG_AGUARDANDO_ONBOARDING_ID in tag_ids:
+        return "Aguardando Onboarding"
+    if status_id == STATUS_ABERTO_ID and TAG_AGUARDANDO_INFRA_ID in tag_ids:
+        return "Falta Liberar Servidor Infra"
+    if status_id == STATUS_EM_ANDAMENTO_ID and TAG_EM_HOMOLOGACAO_ID in tag_ids:
+        return "Em Homologação"
+    if status_id == STATUS_EM_ANDAMENTO_ID and TAG_EM_VIRADA_ID in tag_ids:
+        return "Em Virada"
+    if status_id == STATUS_OPERACAO_ASSISTIDA_ID and TAG_AGUARDANDO_ENCERRAMENTO_ID in tag_ids:
+        return "Aguardando Encerramento"
+    if status_id == STATUS_AGUARDANDO_CLIENTE_ID and TAG_PARADO_ID in tag_ids:
+        return "Projeto Parado"
+    if status_id == STATUS_PENDENCIA_ID and TAG_PARADO_ID in tag_ids:
+        return "Projeto Parado"
+    status_map = {
+        STATUS_EM_ANDAMENTO_ID: "Em Andamento",
+        STATUS_FINALIZADO_ID: "Finalizado",
+        STATUS_OPERACAO_ASSISTIDA_ID: "Em Operação Assistida"
+    }
+    return status_map.get(status_id, "Status Desconhecido")
+
+def formatar_data_brasileira(data_str):
+    try:
+        if not data_str:
+            return "N/D"
+        formatos_entrada = [
+            '%Y-%m-%d','%m-%d-%Y','%d-%m-%Y','%Y-%m-%d %H:%M:%S','%m-%d-%Y %H:%M:%S'
+        ]
+        for formato in formatos_entrada:
+            try:
+                data_obj = datetime.strptime(data_str[:10], formato)
+                return data_obj.strftime('%d-%m-%Y')
+            except ValueError:
+                continue
+        return "N/D"
+    except Exception as e:
+        print(f"Erro na formatação de data: {e}")
+        return "N/D"
+
+def obter_data_ultima_mudanca_status_ou_tag(project_id, access_token):
+    try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
+        headers = _zp_headers(access_token)
+        params = {"index": 1, "range": 50}
+        resp = requests.get(url, headers=headers, params=params, timeout=20)
+        resp.raise_for_status()
+        data = resp.json()
+
+        items = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                if isinstance(data.get(key), list):
+                    items = data[key]
+                    break
+            if not items and isinstance(data.get("project"), dict):
+                proj = data["project"]
+                for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                    if isinstance(proj.get(key), list):
+                        items = proj[key]
+                        break
+
+        def parse_date_str(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        dt = datetime.strptime(s, fmt)
+                        return dt.date()
+                    except Exception:
+                        pass
+            fmts = [
+                "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S.%f%z",
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d",
+                "%d-%m-%Y",
+            ]
+            for fmt in fmts:
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    return dt.date()
+                except Exception:
+                    continue
+            try:
+                dt = datetime.strptime(s[:10], "%Y-%m-%d")
+                return dt.date()
+            except Exception:
+                return None
+
+        last_date = None
+        for item in items or []:
+            try:
+                item_text = json.dumps(item, ensure_ascii=False).lower()
+            except Exception:
+                item_text = str(item).lower()
+            if ("status" in item_text) or ("tag" in item_text) or ("tags" in item_text):
+                ts = None
+                if isinstance(item, dict):
+                    ts = item.get('action_time') or item.get('time')
+                if ts is None:
+                    for key in [
+                        "updated_time", "modified_time", "modified_at", "time", "date", "created_time", "log_time", "timestamp"
+                    ]:
+                        if isinstance(item, dict) and key in item:
+                            ts = item[key]
+                            break
+                if ts is None and isinstance(item, dict):
+                    for sub in ["details", "edit", "activity"]:
+                        if isinstance(item.get(sub), dict):
+                            for key in [
+                                "updated_time", "modified_time", "modified_at", "time", "date", "created_time", "log_time", "timestamp"
+                            ]:
+                                if key in item[sub]:
+                                    ts = item[sub][key]
+                                    break
+                        if ts:
+                            break
+                d = parse_date_str(ts) if ts else None
+                if d and (last_date is None or d > last_date):
+                    last_date = d
+        return last_date
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar edits do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao processar edits do projeto {project_id}: {e}")
+        return None
+
+def map_status_to_coluna(status_nome: str) -> str:
+    if not status_nome:
+        return None
+    s = str(status_nome).strip().lower()
+    mapa = {
+        'em andamento': 'Em Andamento',
+        'finalizado': 'Finalizado',
+        'operação assistida': 'Em Operação Assistida',
+        'em operação assistida': 'Em Operação Assistida',
+        'cancelado': 'Cancelado',
+        'ativo': 'Em Andamento',
+    }
+    return mapa.get(s)
+
+def map_etiquetas_to_coluna_por_ids(tags_str: str) -> str:
+    if not tags_str:
+        return None
+
+    nome_tag_para_id = {
+        'aguardando onboarding': TAG_AGUARDANDO_ONBOARDING_ID,
+        'aguardando infra': TAG_AGUARDANDO_INFRA_ID,
+        'falta liberar servidor infra': TAG_AGUARDANDO_INFRA_ID,
+        'em homologação': TAG_EM_HOMOLOGACAO_ID,
+        'homologação': TAG_EM_HOMOLOGACAO_ID,
+        'em virada': TAG_EM_VIRADA_ID,
+        'virada': TAG_EM_VIRADA_ID,
+        'parado': TAG_PARADO_ID,
+        'projeto parado': TAG_PARADO_ID,
+        'aguardando encerramento': TAG_AGUARDANDO_ENCERRAMENTO_ID,
+    }
+
+    mapeamento = get_mapeamento_colunas()
+    colunas_por_tag_id = {}
+    for coluna, cfg in (mapeamento or {}).items():
+        for tag_id in cfg.get('zohoTagsToAdd', []) or []:
+            colunas_por_tag_id[str(tag_id)] = coluna
+
+    try:
+        s = str(tags_str).strip()
+        if s.startswith('[') and s.endswith(']'):
+            s = s[1:-1]
+        nomes = [p.strip().lower() for p in s.split(',') if p.strip()]
+    except Exception:
+        nomes = [str(tags_str).strip().lower()]
+
+    for nome in nomes:
+        tag_id = nome_tag_para_id.get(nome)
+        if not tag_id:
+            continue
+        coluna = colunas_por_tag_id.get(str(tag_id))
+        if coluna:
+            return coluna
+    return None
+
+def obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, coluna_alvo: str):
+    try:
+        items = _fetch_project_edits(access_token, project_id, max_pages=3)
+
+        def parse_action_time(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except Exception:
+                    pass
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+
+        coluna_alvo_norm = (coluna_alvo or '').strip()
+        best_date = None
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            edits = item.get('edits') or []
+            if not isinstance(edits, list):
+                continue
+            for ed in edits:
+                if not isinstance(ed, dict):
+                    continue
+                field_name = str(ed.get('field_name', '')).strip().lower()
+                if field_name != 'etiquetas':
+                    continue
+                coluna_resultante = map_etiquetas_to_coluna_por_ids(ed.get('new_value'))
+                if not coluna_resultante:
+                    continue
+                if coluna_resultante != coluna_alvo_norm:
+                    continue
+                d = parse_action_time(item.get('action_time') or item.get('time'))
+                if d and (best_date is None or d > best_date):
+                    best_date = d
+        return best_date
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar edits/etiquetas do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao processar edits/etiquetas do projeto {project_id}: {e}")
+        return None
+
+
+def _normalize_edits_response(data):
+    items = []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ["edits", "data", "activities", "logs", "history", "items"]:
+            if isinstance(data.get(key), list):
+                return data[key]
+        if isinstance(data.get("project"), dict):
+            proj = data["project"]
+            for key in ["edits", "data", "activities", "logs", "history", "items"]:
+                if isinstance(proj.get(key), list):
+                    return proj[key]
+    return items
+
+def _fetch_project_edits(access_token, project_id, max_pages: int = 3):
+    headers = _zp_headers(access_token)
+    base_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
+    ranges = [20, 10, 5]
+    for rg in ranges:
+        try:
+            collected = []
+            for page in range(1, max_pages + 1):
+                params = {"index": page, "range": rg}
+                resp = requests.get(base_url, headers=headers, params=params, timeout=20)
+                if resp.status_code == 400:
+                    print(f"[edits] 400 com range={rg} page={page} -> tentando range menor")
+                    collected = []
+                    break
+                resp.raise_for_status()
+                items = _normalize_edits_response(resp.json())
+                if not isinstance(items, list) or not items:
+                    break
+                collected.extend(items)
+                if len(items) < rg:
+                    break
+            if collected:
+                return collected
+        except Exception as e:
+            print(f"[edits] falha range={rg}: {e}")
+            continue
+    return []
+
+def obter_data_ultima_mudanca_status_ou_tag(project_id, access_token):
+    try:
+        items = _fetch_project_edits(access_token, project_id, max_pages=3)
+        if not items:
+            return None
+        def parse_action_time(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except Exception:
+                    pass
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        best_date = None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            edits = item.get('edits') or []
+            if not isinstance(edits, list):
+                continue
+            for ed in edits:
+                if not isinstance(ed, dict):
+                    continue
+                fname = str(ed.get('field_name', '')).strip().lower()
+                if fname not in ("status", "etiquetas"):
+                    continue
+                d = parse_action_time(item.get('action_time') or item.get('time'))
+                if d and (best_date is None or d > best_date):
+                    best_date = d
+        return best_date
+    except Exception as e:
+        print(f"[edits] obter_data_ultima_mudanca_status_ou_tag falhou: {e}")
+        return None
+
+def get_mapeamento_colunas():
+    global _MAPPINGS_CACHE
+    if _MAPPINGS_CACHE is not None:
+        return _MAPPINGS_CACHE
+    try:
+        path = os.path.join(os.path.dirname(__file__), 'mapeamento_colunas.json')
+        with open(path, 'r', encoding='utf-8') as f:
+            _MAPPINGS_CACHE = json.load(f)
+    except Exception as e:
+        print(f"ERRO ao carregar mapeamento_colunas.json: {e}")
+        _MAPPINGS_CACHE = {}
+    return _MAPPINGS_CACHE
+
+def obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, coluna_alvo: str):
+    try:
+        mapeamento = get_mapeamento_colunas()
+        cfg = mapeamento.get(coluna_alvo or '') or {}
+        status_id_alvo = str(cfg.get('zohoStatusId') or '')
+        if not status_id_alvo:
+            return None
+
+        nome_status_para_id = {
+            'aberto': STATUS_ABERTO_ID,
+            'ativo': STATUS_ABERTO_ID,
+            'em andamento': STATUS_EM_ANDAMENTO_ID,
+            'finalizado': STATUS_FINALIZADO_ID,
+            'operação assistida': STATUS_OPERACAO_ASSISTIDA_ID,
+            'em operação assistida': STATUS_OPERACAO_ASSISTIDA_ID,
+            'cancelado': STATUS_CANCELADO_ID,
+        }
+
+        items = _fetch_project_edits(access_token, project_id, max_pages=3)
+
+        def parse_action_time(s):
+            if not s:
+                return None
+            s = str(s)
+            if s.endswith('Z'):
+                for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+                    try:
+                        return datetime.strptime(s, fmt).date()
+                    except Exception:
+                        pass
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(s, fmt).date()
+                except Exception:
+                    pass
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+
+        best_date = None
+        for item in items or []:
+            if not isinstance(item, dict):
+                continue
+            edits = item.get('edits') or []
+            if not isinstance(edits, list):
+                continue
+            for ed in edits:
+                if not isinstance(ed, dict):
+                    continue
+                field_name = str(ed.get('field_name', '')).strip().lower()
+                if field_name != 'status':
+                    continue
+                new_val = str(ed.get('new_value', '')).strip().lower()
+                status_id_do_evento = nome_status_para_id.get(new_val)
+                if not status_id_do_evento:
+                    continue
+                if str(status_id_do_evento) != status_id_alvo:
+                    continue
+                d = parse_action_time(item.get('action_time') or item.get('time'))
+                if d and (best_date is None or d > best_date):
+                    best_date = d
+        return best_date
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao buscar edits/status do projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"Erro inesperado ao processar edits/status do projeto {project_id}: {e}")
+        return None
+
+def calcular_dias_na_fase(info_projeto, status_atual, project_id=None, access_token=None):
+    try:
+        if project_id and access_token:
+            ultima_data = obter_data_ultima_mudanca_status_ou_tag(project_id, access_token)
+            if ultima_data:
+                dias = (date.today() - ultima_data).days
+                if str(project_id) == "2376502000000213310":
+                    print(f"DEBUG dias_na_fase: projeto={project_id} ultima_data={ultima_data} dias={dias}")
+                if dias < 0:
+                    return "Futuro"
+                elif dias == 0:
+                    return "Hoje"
+                else:
+                    return f"{dias}d"
+
+        data_inicio_str = info_projeto.get('data_inicio') or info_projeto.get('data_criacao', '')
+        if not data_inicio_str:
+            return "N/D"
+        formatos_data = [
+            '%Y-%m-%d','%m-%d-%Y','%d-%m-%Y','%Y-%m-%d %H:%M:%S','%m-%d-%Y %H:%M:%S'
+        ]
+        data_inicio = None
+        for formato in formatos_data:
+            try:
+                data_inicio = datetime.strptime(data_inicio_str[:10], formato).date()
+                break
+            except ValueError:
+                continue
+        if not data_inicio:
+            return "N/D"
+        dias_na_fase = (date.today() - data_inicio).days
+        if dias_na_fase < 0:
+            return "Futuro"
+        elif dias_na_fase == 0:
+            return "Hoje"
+        else:
+            return f"{dias_na_fase}d"
+    except Exception as e:
+        print(f"Erro no cálculo de dias: {e}")
+        return "N/D"
+
+def calcular_dias_total_projeto(data_inicio_str: str, data_criacao_str: str) -> str:
+    try:
+        def parse_date(s):
+            if not s:
+                return None
+            s = str(s).strip()
+            for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    return datetime.strptime(s[:19], fmt).date() if 'T' in s or ' ' in s else datetime.strptime(s, fmt).date()
+                except Exception:
+                    continue
+            try:
+                return datetime.strptime(s[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        d_inicio = parse_date(data_inicio_str)
+        if not d_inicio:
+            d_inicio = parse_date(data_criacao_str)
+        if not d_inicio:
+            return "N/D"
+        dias = (date.today() - d_inicio).days
+        if dias < 0:
+            dias = 0
+        return f"{dias}d"
+    except Exception:
+        return "N/D"
+
+_DIAS_FASE_CACHE = {}
+_CACHE_TTL_SECONDS = 90
+
+def _invalidate_dias_cache(project_id: str):
+    try:
+        keys = list(_DIAS_FASE_CACHE.keys())
+        for k in keys:
+            if k == str(project_id) or k.startswith(f"{project_id}|"):
+                _DIAS_FASE_CACHE.pop(k, None)
+    except Exception:
+        pass
+
+def _a1_col_letter(idx0: int) -> str:
+    s = ""
+    n = idx0 + 1
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+def _find_header_indexes(headers_row_values: list[str], desired_names: list[str]) -> dict:
+    out = {}
+    lower_map = {str(v).strip().lower(): i for i, v in enumerate(headers_row_values or []) if str(v).strip()}
+    for name in desired_names:
+        key = str(name).strip().lower()
+        if key in lower_map:
+            out[name] = lower_map[key]
+    return out
+
+import unicodedata
+
+def _normalize_text(s: str) -> str:
+    s = (s or '').strip()
+    s = unicodedata.normalize('NFD', s)
+    s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')  # remove acentos
+    s = ' '.join(s.split())  # colapsa espaços
+    return s.lower()
+
+def _extract_codigo(s: str) -> str | None:
+    try:
+        parte = (s or '').split(' - ')[0].strip().replace('.', '')
+        m = re.match(r'^\d+', parte)
+        return m.group(0) if m else None
+    except Exception:
+        return None
+
+def _update_status_planilha_principal(sheets_service, cliente_key: str, novo_status: str, status_header_candidates=None) -> bool:
+    headers_range = f"{NOME_ABA_PLANILHA}!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+    resp = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=headers_range).execute()
+    headers = (resp.get('values') or [[]])[0]
+    if not headers:
+        raise RuntimeError('Cabeçalho não encontrado na planilha principal.')
+
+    if status_header_candidates is None:
+        status_header_candidates = ["Status Principal", "Status", "STATUS PRINCIPAL", "STATUS"]
+    idx_map = _find_header_indexes(headers, [COLUNA_REFERENCIA_PARA_CONTAR_LINHAS] + status_header_candidates)
+    if COLUNA_REFERENCIA_PARA_CONTAR_LINHAS not in idx_map:
+        raise RuntimeError(f"Coluna de referência '{COLUNA_REFERENCIA_PARA_CONTAR_LINHAS}' não encontrada no cabeçalho.")
+    status_idx = None
+    for nm in status_header_candidates:
+        if nm in idx_map:
+            status_idx = idx_map[nm]
+            break
+    if status_idx is None:
+        raise RuntimeError("Coluna de Status não encontrada (tente ajustar os nomes candidatos).")
+
+    cliente_idx = idx_map[COLUNA_REFERENCIA_PARA_CONTAR_LINHAS]
+    cliente_col = _a1_col_letter(cliente_idx)
+
+    valores_cli_range = f"{NOME_ABA_PLANILHA}!{cliente_col}{LINHA_CABECALHO+1}:{cliente_col}"
+    vals = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=valores_cli_range).execute()
+    linhas = (vals.get('values') or [])
+
+    alvo = (cliente_key or '').strip()
+    alvo_norm = _normalize_text(alvo)
+    alvo_cod = _extract_codigo(alvo)
+
+    linha_encontrada = None
+    for i, row in enumerate(linhas, start=LINHA_CABECALHO + 1):
+        val = (row[0] if row else '').strip()
+        val_norm = _normalize_text(val)
+        # match exato normalizado
+        if val_norm == alvo_norm and val:
+            linha_encontrada = i
+            break
+        # match por código numérico no prefixo
+        if alvo_cod:
+            val_cod = _extract_codigo(val)
+            if val_cod and val_cod == alvo_cod:
+                linha_encontrada = i
+                break
+    if not linha_encontrada:
+        raise RuntimeError(f"Cliente '{cliente_key}' não encontrado na planilha principal.")
+
+    status_col_letter = _a1_col_letter(status_idx)
+    update_range = f"{NOME_ABA_PLANILHA}!{status_col_letter}{linha_encontrada}"
+    body = {"values": [[novo_status]]}
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS,
+        range=update_range,
+        valueInputOption="RAW",
+        body=body
+    ).execute()
+    return True
+
+def update_col_value_by_cliente_tolerant(sheets_service, cliente_full: str, col_name: str, value: str) -> bool:
+    headers_range = f"{NOME_ABA_PLANILHA}!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+    resp = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=headers_range).execute()
+    headers = (resp.get('values') or [[]])[0]
+    if not headers:
+        raise RuntimeError('Cabeçalho não encontrado na planilha principal.')
+    idx_map = _find_header_indexes(headers, [COLUNA_REFERENCIA_PARA_CONTAR_LINHAS, col_name])
+    if COLUNA_REFERENCIA_PARA_CONTAR_LINHAS not in idx_map:
+        raise RuntimeError(f"Coluna de referência '{COLUNA_REFERENCIA_PARA_CONTAR_LINHAS}' não encontrada.")
+    if col_name not in idx_map:
+        raise RuntimeError(f"Coluna '{col_name}' não encontrada no cabeçalho.")
+
+    cliente_idx = idx_map[COLUNA_REFERENCIA_PARA_CONTAR_LINHAS]
+    cliente_col = _a1_col_letter(cliente_idx)
+
+    valores_cli_range = f"{NOME_ABA_PLANILHA}!{cliente_col}{LINHA_CABECALHO+1}:{cliente_col}"
+    vals = sheets_service.spreadsheets().values().get(spreadsheetId=ID_PLANILHA_PROJETOS, range=valores_cli_range).execute()
+    linhas = (vals.get('values') or [])
+
+    alvo = (cliente_full or '').strip()
+    alvo_norm = _normalize_text(alvo)
+    alvo_cod = _extract_codigo(alvo)
+
+    linha_encontrada = None
+    for i, row in enumerate(linhas, start=LINHA_CABECALHO + 1):
+        val = (row[0] if row else '').strip()
+        val_norm = _normalize_text(val)
+        if val and (val_norm == alvo_norm):
+            linha_encontrada = i
+            break
+        if alvo_cod:
+            val_cod = _extract_codigo(val)
+            if val_cod and val_cod == alvo_cod:
+                linha_encontrada = i
+                break
+        if alvo_norm and alvo_norm in val_norm:
+            linha_encontrada = i
+            break
+
+    if not linha_encontrada:
+        raise RuntimeError(f"Cliente '{cliente_full}' não encontrado na planilha principal (tolerante).")
+
+    target_col_letter = _a1_col_letter(idx_map[col_name])
+    update_range = f"{NOME_ABA_PLANILHA}!{target_col_letter}{linha_encontrada}"
+    body = {"values": [[value]]}
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS,
+        range=update_range,
+        valueInputOption="RAW",
+        body=body
+    ).execute()
+    return True
+
+def obter_ipv6_do_drive(drive_service, id_pasta_cliente):
+    try:
+        print(f"DEBUG: Iniciando busca de IPv6 na pasta do cliente com ID: {id_pasta_cliente}")
+        query_infra = f"name = 'Infraestrutura' and mimeType = 'application/vnd.google-apps.folder' and '{id_pasta_cliente}' in parents and trashed = false"
+        results_infra = drive_service.files().list(q=query_infra, fields="files(id, name)").execute()
+        items_infra = results_infra.get('files', [])
+        if not items_infra:
+            print(f"DEBUG: Pasta 'Infraestrutura' não encontrada na pasta do cliente com ID '{id_pasta_cliente}'.")
+            return None
+        id_pasta_infra = items_infra[0]['id']
+        print(f"DEBUG: Pasta 'Infraestrutura' encontrada (ID: {id_pasta_infra})")
+
+        query_docx = f"mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' and '{id_pasta_infra}' in parents and trashed = false"
+        results_docx = drive_service.files().list(q=query_docx, fields="files(id, name)").execute()
+        files_docx = results_docx.get('files', [])
+        print(f"DEBUG: Arquivos .docx encontrados na pasta 'Infraestrutura': {[f['name'] for f in files_docx]}")
+        
+        target_file = None
+        for file in files_docx:
+            if 'broker' not in file['name'].lower():
+                target_file = file
+                break
+        
+        if not target_file:
+            print("DEBUG: Nenhum arquivo .docx válido (sem 'broker' no nome) encontrado.")
+            return None
+        
+        print(f"DEBUG: Arquivo .docx alvo selecionado: {target_file['name']} (ID: {target_file['id']})")
+
+        request_download = drive_service.files().get_media(fileId=target_file['id'])
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request_download)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        
+        fh.seek(0)
+        document = docx.Document(fh)
+        
+        for para in document.paragraphs:
+            if 'vpn animati' in para.text.lower():
+                match = re.search(r'(fd[0-9a-fA-F:]+)', para.text)
+                if match:
+                    ipv6 = match.group(1)
+                    print(f"DEBUG: IPv6 encontrado em parágrafo: {ipv6}")
+                    return ipv6
+
+        for table in document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        if 'vpn animati' in para.text.lower():
+                            match = re.search(r'(fd[0-9a-fA-F:]+)', para.text)
+                            if match:
+                                ipv6 = match.group(1)
+                                print(f"DEBUG: IPv6 encontrado em tabela: {ipv6}")
+                                return ipv6
+        
+        print("DEBUG: IPv6 não encontrado no documento.")
+        return None
+
+    except HttpError as error:
+        print(f"ERRO: Ocorreu um erro na API do Google Drive: {error}")
+        return None
+    except Exception as e:
+        print(f"ERRO: Ocorreu um erro inesperado em obter_ipv6_do_drive: {e}")
+        return None
+
+
+ZP_API_BASE = 'https://projectsapi.zoho.com/api/v3'
+ZP_API_BASE_DYNAMIC = None
+
+def _zp_base():
+    return ZP_API_BASE_DYNAMIC or ZP_API_BASE
+
+def _map_projects_base(api_domain: str) -> str:
+    try:
+        host = urllib.parse.urlparse(api_domain).netloc if api_domain else ''
+    except Exception:
+        host = ''
+    if 'zohoapis.eu' in host:
+        return 'https://projectsapi.zoho.eu/api/v3'
+    if 'zohoapis.in' in host:
+        return 'https://projectsapi.zoho.in/api/v3'
+    if 'zohoapis.com.au' in host:
+        return 'https://projectsapi.zoho.com.au/api/v3'
+    if 'zohoapis.com.cn' in host:
+        return 'https://projectsapi.zoho.com.cn/api/v3'
+    return 'https://projectsapi.zoho.com/api/v3'
+
+
+_ZOHO_TOKEN_CACHE = { 'token': None, 'exp': 0 }
+
+def obter_access_token_zoho(ttl_seconds: int = 2700):
+    import time as _t
+    now = int(_t.time())
+    tok = _ZOHO_TOKEN_CACHE.get('token')
+    exp = int(_ZOHO_TOKEN_CACHE.get('exp') or 0)
+    if tok and now < exp:
+        return tok
+
+    try:
+        with open(ZOHO_TOKEN_PATH, 'r', encoding='utf-8') as f:
+            refresh_token = f.read().strip()
+    except FileNotFoundError:
+        raise Exception('Arquivo de refresh token do Zoho não encontrado.')
+
+    token_url = 'https://accounts.zoho.com/oauth/v2/token'
+    data_form = {
+        'refresh_token': refresh_token,
+        'client_id': ZOHO_CLIENT_ID,
+        'client_secret': ZOHO_CLIENT_SECRET,
+        'grant_type': 'refresh_token'
+    }
+
+    last_err = None
+    for i in range(3):
+        r = requests.post(token_url, data=data_form, timeout=30)
+        if r.status_code == 200:
+            data = r.json()
+            access_token = data.get('access_token')
+            if not access_token:
+                raise Exception('Resposta do Zoho sem access_token.')
+            global ZP_API_BASE_DYNAMIC
+            ZP_API_BASE_DYNAMIC = _map_projects_base(data.get('api_domain'))
+            _ZOHO_TOKEN_CACHE['token'] = access_token
+            _ZOHO_TOKEN_CACHE['exp'] = now + ttl_seconds
+            return access_token
+        else:
+            last_err = f'HTTP {r.status_code} - {r.text}'
+            _t.sleep(1 + i * 2)
+    raise Exception(f'Falha ao obter access_token Zoho: {last_err}')
+
+def _zp_headers(access_token: str):
+    return {
+        'Authorization': f'Zoho-oauthtoken {access_token}',
+        'Content-Type': 'application/json'
+    }
+
+def get_portal_project_tags(access_token: str):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/tags"
+    params = {"module": "projects"}
+    print(f"[get_portal_project_tags] URL={url} params={params}")
+    r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[get_portal_project_tags] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    data = r.json() if r.text else {}
+    tags = data.get('tags') if isinstance(data, dict) else None
+    return tags or []
+
+def get_project_tags(access_token: str, project_id: str):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tags"
+    print(f"[get_project_tags] URL={url}")
+    r = requests.get(url, headers=_zp_headers(access_token), timeout=30)
+    print(f"[get_project_tags] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    data = r.json() if r.text else {}
+    return (data.get('tags') or []) if isinstance(data, dict) else []
+
+def get_project_tags_strict(access_token: str, project_id: str):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    params = {"fields": "tags"}
+    print(f"[get_project_tags_strict] URL={url} params={params}")
+    r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[get_project_tags_strict] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    data = r.json() if r.text else {}
+    tags_atuais = []
+    if isinstance(data, dict):
+        if isinstance(data.get('tags'), list):
+            tags_atuais = data['tags']
+        elif isinstance(data.get('tags'), dict):
+            tags_atuais = data['tags'].get('data', []) or []
+    return tags_atuais
+
+def add_project_tag(access_token: str, project_id: str, tag_id: str):
+    current_tags = get_project_tags_strict(access_token, project_id)
+    current_ids = [str(t.get('id')) for t in (current_tags or []) if t.get('id') is not None]
+
+    target_id = str(tag_id)
+    if target_id not in current_ids:
+        final_ids = current_ids + [target_id]
+    else:
+        final_ids = current_ids
+
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    payload = { "tags": [ { "id": tid } for tid in final_ids ] }
+    print(f"[add_project_tag] PATCH URL={url} payload={payload}")
+    resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[add_project_tag] status={resp.status_code} body={resp.text[:10000]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao adicionar tag ao projeto: HTTP {resp.status_code} - {resp.text}')
+
+    
+def remove_project_tag(access_token: str, project_id: str, tag_id: str):
+    current_tags = get_project_tags_strict(access_token, project_id)
+    current_ids = [str(t.get('id')) for t in (current_tags or []) if t.get('id') is not None]
+
+    target_id = str(tag_id)
+    final_ids = [tid for tid in current_ids if tid != target_id]
+
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    payload = { "tags": [ { "id": tid } for tid in final_ids ] }
+    print(f"[remove_project_tag] PATCH URL={url} payload={payload}")
+    resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[remove_project_tag] status={resp.status_code} body={resp.text[:1000]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao remover tag do projeto: HTTP {resp.status_code} - {resp.text}')
+
+def ensure_project_tags(access_token: str, project_id: str, required_tag_ids, attempts: int = 2, delay_sec: float = 2.0):
+    required = {str(tid) for tid in (required_tag_ids or [])}
+    for i in range(max(1, attempts)):
+        try:
+            current_tags = get_project_tags_strict(access_token, project_id)
+            current_ids = {str(t.get('id')) for t in (current_tags or []) if t.get('id') is not None}
+            final_ids = list(current_ids.union(required))
+            url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+            payload = {"tags": [{"id": tid} for tid in final_ids]}
+            print(f"[ensure_project_tags] try={i+1} PATCH URL={url} payload={payload}")
+            resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+            print(f"[ensure_project_tags] status={resp.status_code} body={resp.text[:500]}")
+        except Exception as e:
+            print(f"[ensure_project_tags] erro tentativa {i+1}: {e}")
+        try:
+            time.sleep(delay_sec)
+        except Exception:
+            pass
+
+def set_project_tags_exact(access_token: str, project_id: str, final_tag_ids):
+    desired = []
+    for tid in (final_tag_ids or []):
+        s = str(tid)
+        if s and s not in BANNED_PROJECT_TAG_IDS:
+            desired.append(s)
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    payload = {"tags": [{"id": tid} for tid in desired]}
+    print(f"[set_project_tags_exact] PATCH URL={url} payload={payload}")
+    resp = requests.patch(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[set_project_tags_exact] status={resp.status_code} body={resp.text[:500]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao definir tags do projeto: HTTP {resp.status_code} - {resp.text}')
+
+def obter_detalhes_projeto(access_token: str, project_id):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    params = {"fields": "id,name,status,tags,description"}
+    print(f"[obter_detalhes_projeto] URL={url} params={params}")
+    r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[obter_detalhes_projeto] status={r.status_code} body={r.text[:500]}")
+    r.raise_for_status()
+    try:
+        return r.json() if r.text else {}
+    except Exception:
+        return {}
+
+
+def _buscar_tasklist_impeditivos_info(access_token: str, project_id: str):
+    """
+    Procura pela tasklist de Impeditivos no projeto e retorna { id, web_url }.
+    Critério: nome contendo 'impedit' (case-insensitive) ou 'impedimento'.
+    """
+    try:
+        base_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasklists"
+        print(f"[_buscar_tasklist_impeditivos_info] URL={base_url}")
+        resp = requests.get(base_url, headers=_zp_headers(access_token), timeout=30)
+        print(f"[_buscar_tasklist_impeditivos_info] status={resp.status_code} body_sample={resp.text[:500]}")
+        if resp.status_code != 200:
+            return None
+        data = resp.json() if resp.text else {}
+        items = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            for key in ["tasklists", "data", "items", "results"]:
+                if isinstance(data.get(key), list):
+                    items = data[key]
+                    break
+            if not items and isinstance(data.get('project'), dict):
+                proj = data['project']
+                for key in ["tasklists", "data", "items"]:
+                    if isinstance(proj.get(key), list):
+                        items = proj[key]
+                        break
+        sel = None
+        for it in items or []:
+            try:
+                name = str(it.get('name') or it.get('title') or it.get('tasklist_name') or '')
+                if not name:
+                    continue
+                nm = name.strip().lower()
+                if ('impedit' in nm) or ('impediment' in nm) or ('impedimento' in nm) or ('impeditivos' in nm):
+                    sel = it
+                    break
+            except Exception:
+                continue
+        if not sel:
+            return None
+        tid = sel.get('id') or sel.get('tasklist_id') or sel.get('entity_id')
+        if tid is None:
+            return None
+        web_url = None
+        try:
+            link = sel.get('link') or {}
+            web_url = link.get('web') or None
+        except Exception:
+            web_url = None
+        return { 'id': str(tid), 'web_url': web_url }
+    except Exception as e:
+        print(f"[_buscar_tasklist_impeditivos_info] erro: {e}")
+        return None
+
+
+def _contar_tarefas_abertas_na_tasklist(access_token: str, project_id: str, tasklist_id: str) -> int:
+    """Conta tarefas não concluídas dentro de uma tasklist específica."""
+    total_abertas = 0
+    try:
+        page = 1
+        per_page = 200
+        while True:
+            url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasklists/{tasklist_id}/tasks"
+            params = {"page": page, "per_page": per_page}
+            print(f"[_contar_tarefas_abertas_na_tasklist] URL={url} params={params}")
+            r = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+            print(f"[_contar_tarefas_abertas_na_tasklist] status={r.status_code} body_sample={r.text[:300]}")
+            if r.status_code != 200:
+                # Fallback: lista tarefas do projeto e filtra pela tasklist
+                url2 = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks"
+                params2 = {"page": page, "per_page": per_page}
+                r = requests.get(url2, headers=_zp_headers(access_token), params=params2, timeout=30)
+                print(f"[_contar_tarefas_abertas_na_tasklist] fallback status={r.status_code}")
+                if r.status_code != 200:
+                    break
+            data = r.json() if r.text else {}
+            items = data.get('tasks') or data.get('data') or []
+            if not isinstance(items, list):
+                items = []
+            count_page = 0
+            for t in items:
+                try:
+                    # Filtra por tasklist quando estamos usando o fallback de /tasks
+                    tlid = t.get('tasklist_id') or (t.get('tasklist') or {}).get('id')
+                    if tlid is not None and str(tlid) != str(tasklist_id):
+                        continue
+                    is_completed = t.get('is_completed')
+                    if isinstance(is_completed, str):
+                        is_completed = is_completed.lower() in {'true', '1', 'yes'}
+                    if is_completed is True:
+                        continue
+                    status_id = None
+                    try:
+                        st = t.get('status') or {}
+                        status_id = str(st.get('id')) if st.get('id') is not None else None
+                    except Exception:
+                        status_id = None
+                    if status_id and status_id == str(STATUS_CONCLUIDO_ID):
+                        continue
+                    count_page += 1
+                except Exception:
+                    continue
+            total_abertas += count_page
+            if len(items) < per_page:
+                break
+            page += 1
+    except Exception as e:
+        print(f"[_contar_tarefas_abertas_na_tasklist] erro: {e}")
+    return total_abertas
+
+def find_task_by_name(access_token: str, project_id: str, task_name):
+    def _normalize(s: str) -> str:
+        return (s or '').strip().lower()
+
+    target_norm = _normalize(task_name)
+
+    base_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks"
+    page = 1
+    per_page = 200
+    max_pages = 10
+    while page <= max_pages:
+        params = { 'page': page, 'per_page': per_page }
+        print(f"[find_task_by_name] LIST URL={base_url} params={params}")
+        resp = requests.get(base_url, headers=_zp_headers(access_token), params=params, timeout=30)
+        if resp.status_code != 200:
+            print(f"[find_task_by_name] list status={resp.status_code} body={resp.text[:300]}")
+            break
+        data = resp.json() or {}
+        items = data.get('tasks') or data.get('data') or []
+        if not isinstance(items, list):
+            items = []
+        for it in items:
+            name = it.get('name') or it.get('title') or it.get('task_name') or ''
+            if _normalize(name) == target_norm:
+                tid = it.get('id') or it.get('task_id') or it.get('entity_id')
+                if tid is not None:
+                    print(f"[find_task_by_name] FOUND VIA LIST (exact): {tid}")
+                    return str(tid)
+        for it in items:
+            name = it.get('name') or it.get('title') or it.get('task_name') or ''
+            name_norm = _normalize(name)
+            if target_norm in name_norm or name_norm in target_norm:
+                tid = it.get('id') or it.get('task_id') or it.get('entity_id')
+                if tid is not None:
+                    print(f"[find_task_by_name] FOUND VIA LIST (contains): {tid} - name='{name}'")
+                    return str(tid)
+        if len(items) < per_page:
+            break
+        page += 1
+
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/search"
+    params = {
+        'search_term': task_name,
+        'module': 'tasks',
+        'per_page': 50
+    }
+    resp = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    if resp.status_code != 200:
+        raise Exception(f'Falha ao buscar tarefas: HTTP {resp.status_code} - {resp.text}')
+    data = resp.json() or {}
+    results = data.get('results') or []
+    for r in results:
+        proj = (r.get('project') or {})
+        name = r.get('title') or r.get('name') or ''
+        name_norm = _normalize(name)
+        if str(proj.get('id')) == str(project_id) and (name_norm == target_norm or target_norm in name_norm or name_norm in target_norm):
+            ent = r.get('entity_id')
+            if ent is not None:
+                print(f"[find_task_by_name] FOUND VIA GLOBAL (fallback): {ent} - name='{name}'")
+                return str(ent)
+    return None
+
+def add_comment_to_task(access_token: str, project_id: str, task_id: str, content: str):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/comments"
+    payload = { "comment": content }
+    print(f"[add_comment_to_task] URL={url} payload_size={len(content)}")
+    resp = requests.post(url, headers=_zp_headers(access_token), json=payload, timeout=30)
+    print(f"[add_comment_to_task] status={resp.status_code} body={resp.text[:300]}")
+    if resp.status_code not in (200, 201):
+        raise Exception(f'Falha ao adicionar comentário na tarefa: HTTP {resp.status_code} - {resp.text}')
+
+def list_task_comments(access_token: str, project_id: str, task_id: str, page: int = 1, per_page: int = 200):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/tasks/{task_id}/comments"
+    params = {"page": page, "per_page": per_page}
+    print(f"[list_task_comments] URL={url} params={params}")
+    resp = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=30)
+    print(f"[list_task_comments] status={resp.status_code} body_sample={resp.text[:500]}")
+    if resp.status_code != 200:
+        raise Exception(f"Falha ao listar comentários: HTTP {resp.status_code} - {resp.text}")
+    return resp.json() or {}
+
+def listar_todos_projetos_ativos(access_token):
+    """Lista todos os projetos ativos do Zoho Projects"""
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    todos_os_projetos = []
+    page_number = 1
+    while True:
+        params = {"page": page_number, "per_page": 100}
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            projetos_da_pagina = response.json()
+            if isinstance(projetos_da_pagina, dict):
+                projetos_da_pagina = projetos_da_pagina.get("projects", [])
+            if not isinstance(projetos_da_pagina, list) or not projetos_da_pagina:
+                break
+            todos_os_projetos.extend(projetos_da_pagina)
+            if len(projetos_da_pagina) < 100:
+                break
+            page_number += 1
+        except requests.exceptions.RequestException as e:
+            print(f"ERRO ao listar projetos: {e.response.text if e.response else e}")
+            return []
+    # Filtra apenas projetos não completos e não cancelados
+    projetos_filtrados = []
+    for projeto in todos_os_projetos:
+        is_completed = projeto.get('is_completed')
+        status = projeto.get('status', {}).get('name', '').lower()
+        status_id = str(projeto.get('status', {}).get('id', ''))
+        if (is_completed not in [True, "true", "True"] and status not in ["completed", "completo"] and status_id != STATUS_CANCELADO_ID):
+            projetos_filtrados.append(projeto)
+    return projetos_filtrados
