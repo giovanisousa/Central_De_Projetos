@@ -24,12 +24,12 @@
                     </select>
                 </div>
                 
-                <button id="loadButton" onclick="carregarProjetos()">
-                    Carregar Projetos
+                <button id="loadButton" onclick="carregarProjetos()" title="Carregar Projetos">
+                    <i class="fas fa-sync-alt"></i>
                 </button>
 
-                <button type="button" id="openProjectModal">
-                    Adicionar Novo Projeto
+                <button type="button" id="openProjectModal" title="Adicionar Novo Projeto">
+                    <i class="fas fa-plus"></i>
                 </button>
 
                 {% if logged_in %}
@@ -281,6 +281,44 @@
             }
         }
 
+        // Formata datas variadas para dd-mm-yyyy (sem timezone)
+        function formatDateToDDMMYYYY(input) {
+            if (!input) return '';
+            try {
+                const s = String(input).trim();
+                // Normaliza separadores
+                const clean = s.replace(/[\.\/]/g, '-');
+                // Padrão ISO: yyyy-mm-dd(...)
+                const mISO = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (mISO) {
+                    const [_, y, m, d] = mISO;
+                    return `${d}-${m}-${y}`;
+                }
+                // Padrão dd-mm-yyyy
+                const mDMY = clean.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+                if (mDMY) {
+                    return `${mDMY[1]}-${mDMY[2]}-${mDMY[3]}`;
+                }
+                // Padrão mm-dd-yyyy
+                const mMDY = clean.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+                if (mMDY) {
+                    const [_, mm, dd, yyyy] = mMDY;
+                    // Heurística: se já tratamos DMY acima, aqui assumimos MDY quando originário dos EUA
+                    return `${dd}-${mm}-${yyyy}`;
+                }
+                // Fallback: tenta extrair 10 primeiros dígitos que pareçam data
+                const ten = clean.slice(0, 10);
+                const mAny = ten.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (mAny) {
+                    const [_, y, m, d] = mAny;
+                    return `${d}-${m}-${y}`;
+                }
+                return clean;
+            } catch (_) {
+                return String(input);
+            }
+        }
+
         let projetosSalvos = {};
         let elementoSendoArrastado = null;
         // Variáveis para auto-scroll horizontal durante arrasto
@@ -374,7 +412,7 @@
 
             // Atualizar UI
             loadButton.disabled = true;
-            loadButton.textContent = 'Carregando...';
+            loadButton.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i>';
             statusText.textContent = 'Carregando projetos...';
             loadingSpinner.style.display = 'inline-block';
 
@@ -410,7 +448,7 @@
             } finally {
                 // Restaurar UI
                 loadButton.disabled = false;
-                loadButton.textContent = 'Carregar Projetos';
+                loadButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
                 loadingSpinner.style.display = 'none';
             }
         }
@@ -573,7 +611,7 @@
                         </div>
                         <div class="project-detail" title="Data de início do projeto">
                             <span class="icon">📅</span>
-                            <span>${(projeto.data_inicio_formatada || projeto.data_inicio || projeto.start_date || '').toString()}</span>
+                            <span>${formatDateToDDMMYYYY(projeto.data_inicio_formatada || projeto.data_inicio || projeto.start_date || '')}</span>
                         </div>
                     </div>
                 </div>

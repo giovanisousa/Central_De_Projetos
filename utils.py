@@ -928,7 +928,8 @@ def map_etiquetas_to_coluna_por_ids(tags_str: str) -> str:
 
 def obter_data_ultima_mudanca_etiqueta_para_coluna(project_id, access_token, coluna_alvo: str):
     try:
-        items = _fetch_project_edits(access_token, project_id, max_pages=3)
+        # Usa o cache interno e paginação moderada para respeitar rate limit
+        items = _fetch_project_edits(access_token, project_id, max_pages=6)
 
         def parse_action_time(s):
             if not s:
@@ -997,12 +998,19 @@ def _normalize_edits_response(data):
     return items
 
 def _fetch_project_edits(access_token, project_id, max_pages: int = 3):
+    # Cache leve para reduzir chamadas repetitivas ao Zoho
+    now = int(time.time())
+    cache_entry = _EDITS_CACHE.get(str(project_id))
+    if cache_entry and (now - cache_entry.get('ts', 0) <= _EDITS_TTL_SECONDS):
+        return cache_entry.get('items', [])
+
     headers = _zp_headers(access_token)
     base_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}/edits"
-    ranges = [20, 10, 5]
+    # Tenta intervalos menores primeiro para evitar 400
+    ranges = [10, 5, 20]
+    collected = []
     for rg in ranges:
         try:
-            collected = []
             for page in range(1, max_pages + 1):
                 params = {"index": page, "range": rg}
                 resp = requests.get(base_url, headers=headers, params=params, timeout=20)
@@ -1015,18 +1023,23 @@ def _fetch_project_edits(access_token, project_id, max_pages: int = 3):
                 if not isinstance(items, list) or not items:
                     break
                 collected.extend(items)
+                # Se trouxe menos que o range, provavelmente acabaram os itens nesta paginação
                 if len(items) < rg:
                     break
             if collected:
-                return collected
+                break
         except Exception as e:
             print(f"[edits] falha range={rg}: {e}")
             continue
-    return []
+
+    # Atualiza cache (mesmo vazio) para evitar bater na API em loop
+    _EDITS_CACHE[str(project_id)] = { 'items': collected, 'ts': now }
+    return collected
 
 def obter_data_ultima_mudanca_status_ou_tag(project_id, access_token):
     try:
-        items = _fetch_project_edits(access_token, project_id, max_pages=3)
+        # Usa o cache interno e paginação moderada para respeitar rate limit
+        items = _fetch_project_edits(access_token, project_id, max_pages=6)
         if not items:
             return None
         def parse_action_time(s):
@@ -1222,6 +1235,10 @@ def calcular_dias_total_projeto(data_inicio_str: str, data_criacao_str: str) -> 
 
 _DIAS_FASE_CACHE = {}
 _CACHE_TTL_SECONDS = 90
+
+# Cache para histórico de edits do Zoho (por projeto)
+_EDITS_CACHE = {}
+_EDITS_TTL_SECONDS = 300
 
 def _invalidate_dias_cache(project_id: str):
     try:

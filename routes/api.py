@@ -232,9 +232,9 @@ def api_impeditivos(project_id):
 @api_bp.route('/dias-na-fase/<project_id>', methods=['GET'])
 def api_dias_na_fase(project_id):
     try:
-        coluna = request.args.get('coluna')  # coluna alvo (opcional)
-        hint = request.args.get('hint')  # quando '1', usar a coluna como dica explicitamente
-        use_coluna = (hint == '1' and bool(coluna))
+        coluna = request.args.get('coluna')  # coluna alvo (opcional, vindo do frontend)
+        # Trate a presença de 'coluna' como dica implícita para precisão dos cálculos
+        use_coluna = bool(coluna)
 
         # Cache: por projeto (genérico) ou por projeto+coluna quando usar dica
         key = f"{project_id}|{coluna}" if use_coluna else f"{project_id}"
@@ -248,7 +248,7 @@ def api_dias_na_fase(project_id):
         if not access_token:
             return jsonify({"erro": "Erro de autenticação"}), 401
 
-        # Se uso de coluna foi explicitamente solicitado, tenta pela mudança de status/etiqueta para essa coluna
+        # 1) Preferir data da última entrada na coluna (por status ou por etiqueta mapeada)
         valor = None
         if use_coluna:
             d = utils.obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, coluna)
@@ -258,7 +258,7 @@ def api_dias_na_fase(project_id):
                 dias = (date.today() - d).days
                 valor = "Hoje" if dias == 0 else ("Futuro" if dias < 0 else f"{dias}d")
 
-        # Se não conseguiu via coluna/status/etiqueta (ou coluna não usada), prioriza histórico de mudanças (status/etiquetas)
+        # 2) Se não achou para a coluna, usa o histórico genérico de mudanças (status/etiquetas)
         if not valor:
             try:
                 info_min = { 'data_inicio': '', 'data_criacao': '' }
@@ -266,21 +266,32 @@ def api_dias_na_fase(project_id):
             except Exception:
                 valor = None
 
-        # Fallback final: usa start_date/created_time do projeto (dias totais)
+        # 3) Fallback final: dias totais desde início/criação (auditar ocorrência)
         if not valor or valor == 'N/D':
             try:
                 proj_url = f"{utils._zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
-                rproj = requests.get(proj_url, headers=utils._zp_headers(access_token), params={"fields": "start_date,created_time"}, timeout=20)
+                rproj = requests.get(proj_url, headers=utils._zp_headers(access_token), params={"fields": "start_date,created_time,name,status"}, timeout=20)
                 if rproj.status_code == 200:
                     pdata = rproj.json() or {}
-                    if isinstance(pdata, dict):
-                        node = pdata.get('project') if isinstance(pdata.get('project'), dict) else pdata
-                        start_date = (node.get('start_date') or node.get('start_date_string') or '') if isinstance(node, dict) else ''
-                        created_time = (node.get('created_time') or node.get('created_time_string') or '') if isinstance(node, dict) else ''
-                        info_min = { 'data_inicio': start_date, 'data_criacao': created_time }
-                        valor = utils.calcular_dias_na_fase(info_min, None)
-            except Exception:
-                pass
+                    node = pdata.get('project') if isinstance(pdata, dict) and isinstance(pdata.get('project'), dict) else (pdata if isinstance(pdata, dict) else {})
+                    start_date = (node.get('start_date') or node.get('start_date_string') or '') if isinstance(node, dict) else ''
+                    created_time = (node.get('created_time') or node.get('created_time_string') or '') if isinstance(node, dict) else ''
+                    proj_name = (node.get('name') or '') if isinstance(node, dict) else ''
+                    proj_status = (node.get('status', {}).get('name') or node.get('status') or '') if isinstance(node, dict) else ''
+                    info_min = { 'data_inicio': start_date, 'data_criacao': created_time }
+
+                    # Log de auditoria (por que caiu no fallback)
+                    try:
+                        print(f"[AUDIT][dias-na-fase][fallback] project_id={project_id} coluna='{coluna or ''}' name='{proj_name}' status='{proj_status}' start='{start_date}' created='{created_time}'")
+                    except Exception:
+                        pass
+
+                    valor = utils.calcular_dias_na_fase(info_min, None)
+            except Exception as e:
+                try:
+                    print(f"[AUDIT][dias-na-fase][fallback-error] project_id={project_id} coluna='{coluna or ''}' erro='{e}'")
+                except Exception:
+                    pass
 
         # Atualiza cache (se valor não definido por algum motivo, mantém 'N/D')
         if not valor:

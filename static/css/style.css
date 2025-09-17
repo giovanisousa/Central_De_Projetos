@@ -1144,3 +1144,16 @@ body.kanban-page {
 .project-card .play-btn:hover {
     color: #229954; /* Verde mais escuro no hover */
 }
+
+.kanban-page .controls button#loadButton,
+.kanban-page .controls button#openProjectModal {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 18px;
+    padding: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
