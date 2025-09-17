@@ -4,7 +4,7 @@ import time
 import traceback
 import urllib.parse
 from datetime import date, datetime, timedelta
-from flask import session, jsonify, request
+from flask import session, jsonify, request, current_app
 import requests
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -16,6 +16,118 @@ import io
 import re
 from config import *
 _MAPPINGS_CACHE = None
+
+# ====== UTILITÁRIOS: Atualização tolerante de planilha por coluna ======
+def _get_sheet_headers(sheets_service, spreadsheet_id: str, sheet_name: str, header_row: int = 1):
+    rng = f"'{sheet_name}'!A{header_row}:ZZ{header_row}"
+    vals = sheets_service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id, range=rng
+    ).execute().get('values', [[]])
+    headers = (vals[0] if vals else [])
+    return headers, {h: i for i, h in enumerate(headers)}
+
+def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_name: str, header_cliente: str, chave: str):
+    headers, hmap = _get_sheet_headers(sheets_service, spreadsheet_id, sheet_name, header_row=LINHA_CABECALHO)
+    if header_cliente not in hmap:
+        raise RuntimeError(f"Cabeçalho '{header_cliente}' não encontrado em {sheet_name}")
+    col_letter = indice_para_letra_coluna(hmap[header_cliente])
+    rng = f"'{sheet_name}'!{col_letter}{LINHA_CABECALHO+1}:{col_letter}"
+    col_vals = sheets_service.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id, range=rng
+    ).execute().get('values', [])
+    alvo_norm = (chave or '').strip().lower()
+    for idx, row in enumerate(col_vals, start=LINHA_CABECALHO+1):
+        v = (row[0] if row else '').strip()
+        if not v:
+            continue
+        txt = v.lower()
+        if alvo_norm and (txt == alvo_norm or alvo_norm in txt or txt in alvo_norm):
+            return idx
+    # tentativa por código numérico antes do ' - '
+    try:
+        codigo = (chave or '').split(' - ')[0].strip()
+        if codigo:
+            for idx, row in enumerate(col_vals, start=LINHA_CABECALHO+1):
+                v = (row[0] if row else '').strip()
+                if v.startswith(codigo):
+                    return idx
+    except Exception:
+        pass
+    return None
+
+def update_col_value_by_cliente_tolerant(sheets_service, cliente_chave: str, nome_coluna: str, valor):
+    headers, hmap = _get_sheet_headers(sheets_service, ID_PLANILHA_PROJETOS, NOME_ABA_PLANILHA)
+    if nome_coluna not in hmap:
+        raise RuntimeError(f"Coluna '{nome_coluna}' não existe na planilha principal")
+    linha = _find_row_by_cliente_tolerant(
+        sheets_service, ID_PLANILHA_PROJETOS, NOME_ABA_PLANILHA, COLUNA_REFERENCIA_PARA_CONTAR_LINHAS, cliente_chave
+    )
+    if not linha:
+        raise RuntimeError(f"Linha do cliente não encontrada para chave '{cliente_chave}'")
+    col_letter = indice_para_letra_coluna(hmap[nome_coluna])
+    rng = f"'{NOME_ABA_PLANILHA}'!{col_letter}{linha}"
+    body = {'values': [[valor]]}
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=rng, valueInputOption='USER_ENTERED', body=body
+    ).execute()
+
+# ====== UTILITÁRIOS: Buscar IPv6 no Drive (via pasta Infraestrutura) ======
+def buscar_ipv6_por_pasta(drive_service, pasta_cliente_id: str) -> str | None:
+    """Procura subpasta 'Infraestrutura', encontra .docx sem 'broker' e extrai IPv6 (fd...)."""
+    # 1) Encontrar subpasta Infraestrutura
+    q_infra = (
+        f"name = 'Infraestrutura' and mimeType = 'application/vnd.google-apps.folder' and '{pasta_cliente_id}' in parents and trashed = false"
+    )
+    res_infra = drive_service.files().list(q=q_infra, fields="files(id,name)").execute()
+    items = res_infra.get('files', [])
+    if not items:
+        return None
+    pasta_infra_id = items[0]['id']
+
+    # 2) Listar .docx na pasta
+    q_docx = (
+        f"mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' and '{pasta_infra_id}' in parents and trashed = false"
+    )
+    res_docx = drive_service.files().list(q=q_docx, fields="files(id,name)").execute()
+    files_docx = res_docx.get('files', [])
+    alvo = None
+    for f in files_docx:
+        if 'broker' not in (f.get('name','').lower()):
+            alvo = f
+            break
+    if not alvo:
+        return None
+
+    # 3) Baixar e ler .docx
+    req = drive_service.files().get_media(fileId=alvo['id'])
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, req)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+    fh.seek(0)
+
+    document = docx.Document(fh)
+
+    # 4) Procurar IPv6 nos parágrafos
+    for para in document.paragraphs:
+        txt = para.text or ''
+        if 'vpn animati' in txt.lower():
+            m = re.search(r'(fd[0-9a-fA-F:]+)', txt)
+            if m:
+                return m.group(1)
+
+    # 5) Procurar IPv6 nas tabelas
+    for t in document.tables:
+        for row in t.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    txt = para.text or ''
+                    if 'vpn animati' in txt.lower():
+                        m = re.search(r'(fd[0-9a-fA-F:]+)', txt)
+                        if m:
+                            return m.group(1)
+    return None
 
 def zoho_mention_token(usernum: str, name: str) -> str:
     return f"zp[@zpuser#{usernum}#{name}]zp"

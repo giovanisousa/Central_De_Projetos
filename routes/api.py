@@ -432,13 +432,33 @@ def api_mover_projeto():
             # Regra específica: Falta Liberar Servidor Infra -> Em Andamento
             if (coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento"):
                 print("DEBUG: Entrou na regra específica 'Falta Liberar Servidor Infra -> Em Andamento'")
-                if sheets_service:
-                    try:
-                        if google_drive_folder_id:
-                            # ... (código para atualizar a planilha com o IPv6)
-                            pass
-                    except Exception as e:
-                        msg_operacoes.append(f'Falha ao atualizar planilha (regra específica): {e}')
+                # 1) Se tivermos o ID da pasta do Drive na descrição do projeto, tentar extrair IPv6
+                try:
+                    ipv6_encontrado = None
+                    if google_drive_folder_id:
+                        try:
+                            creds = utils.build_google_credentials_from_session()
+                            drive_service = build('drive', 'v3', credentials=creds)
+                            ipv6_encontrado = utils.buscar_ipv6_por_pasta(drive_service, google_drive_folder_id)
+                            print(f"DEBUG: IPv6 encontrado? {ipv6_encontrado}")
+                        except Exception as e_busca:
+                            print(f"DEBUG: Falha ao buscar IPv6: {e_busca}")
+                    # 2) Atualiza planilha: coluna 'VPN' com o IPv6 (se encontrado)
+                    if sheets_service and ipv6_encontrado:
+                        try:
+                            alvo_cliente = (locals().get('cliente_lookup') or locals().get('codigo_lookup') or valor_cliente or '').strip()
+                            if alvo_cliente:
+                                utils.update_col_value_by_cliente_tolerant(
+                                    sheets_service,
+                                    alvo_cliente,
+                                    "VPN",
+                                    ipv6_encontrado
+                                )
+                                msg_operacoes.append('Planilha: coluna VPN atualizada com IPv6')
+                        except Exception as e_upd_vpn:
+                            msg_operacoes.append(f'Falha ao atualizar coluna VPN: {e_upd_vpn}')
+                except Exception as e:
+                    msg_operacoes.append(f'Falha na rotina de extração de IPv6: {e}')
 
                     # 2) Zoho: status e campo customizado "data_liberacao_servidor"
                     if access_token:
