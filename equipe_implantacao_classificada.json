@@ -1,0 +1,140 @@
+{
+    "Implantação RIS": [
+        {
+            "name": "Pablo Pyerri Ferreira da Costa",
+            "zuid": "870083147",
+            "zpuid": "2376502000000080073",
+            "email": "pablo.pyerri@animati.com.br"
+        },
+        {
+            "name": "Lukas Correa",
+            "zuid": "894192862",
+            "zpuid": "2376502000004578029",
+            "email": "lukas.correa@animati.com.br"
+        },
+        {
+            "name": "Rodrigo Brasil",
+            "zuid": "870082961",
+            "zpuid": "2376502000000080079",
+            "email": "rodrigo.brasil@animati.com.br"
+        },
+        {
+            "name": "Jessika Rodrigues",
+            "zuid": "870029933",
+            "zpuid": "2376502000000080055",
+            "email": "jessika.barros@animati.com.br"
+        },
+        {
+            "name": "Rodrigo Viera Chagas",
+            "zuid": "870032657",
+            "zpuid": "2376502000000080085",
+            "email": "rodrigo.chagas@animati.com.br"
+        },
+        {
+            "name": "Celio Santos",
+            "zuid": "870094468",
+            "zpuid": "2376502000000080031",
+            "email": "celio.santos@animati.com.br"
+        },
+        {
+            "name": "Fernando Carvalho",
+            "zuid": "894193049",
+            "zpuid": "2376502000004578041",
+            "email": "fernando.carvalho@animati.com.br"
+        }
+    ],
+    "Implantação PACS": [
+        {
+            "name": "Aneidia Sa",
+            "zuid": "870217538",
+            "zpuid": "2376502000004578023",
+            "email": "aneidia.sa@animati.com.br"
+        },
+        {
+            "name": "Danilo Sales",
+            "zuid": "870029303",
+            "zpuid": "2376502000000080037",
+            "email": "danilo.sales@animati.com.br"
+        },
+        {
+            "name": "Geraldo Junior",
+            "zuid": "870029572",
+            "zpuid": "2376502000000080043",
+            "email": "geraldo.junior@animati.com.br"
+        },
+        {
+            "name": "Antonio Furtado Luiz Junior",
+            "zuid": "870029321",
+            "zpuid": "2376502000000080019",
+            "email": "antonio.furtado@animati.com.br"
+        },
+        {
+            "name": "Katieli Abreu Rodrigues",
+            "zuid": "892708322",
+            "zpuid": "2376502000004578035",
+            "email": "katieli.rodrigues@animati.com.br"
+        },
+        {
+            "name": "Camilo Osaida",
+            "zuid": "870030547",
+            "zpuid": "2376502000000080025",
+            "email": "camilo.osaida@animati.com.br"
+        },
+        {
+            "name": "Marcello Roza de Souza",
+            "zuid": "870125247",
+            "zpuid": "2376502000000080061",
+            "email": "marcello.roza@animati.com.br"
+        }
+    ],
+    "Não Classificado": [
+        {
+            "name": "Suporte Animati",
+            "zuid": "868067724",
+            "zpuid": "2376502000000052003",
+            "email": "support@animati.com.br"
+        },
+        {
+            "name": "Nery Paolo Alessi Piquetti",
+            "zuid": "870082785",
+            "zpuid": "2376502000000080067",
+            "email": "nery.paolo@animati.com.br"
+        },
+        {
+            "name": "Arcadea Animati",
+            "zuid": "868847042",
+            "zpuid": "2376502000000071009",
+            "email": "arcadea@animati.com.br"
+        },
+        {
+            "name": "Willian Anjos",
+            "zuid": "868816668",
+            "zpuid": "2376502000000057285",
+            "email": "willian.anjos@animati.com.br"
+        },
+        {
+            "name": "Giovani Sousa",
+            "zuid": "868816641",
+            "zpuid": "2376502000000057291",
+            "email": "giovani.sousa@animati.com.br"
+        },
+        {
+            "name": "Patricia Larre",
+            "zuid": "870025301",
+            "zpuid": "2376502000000080013",
+            "email": "patricia.larre@animati.com.br"
+        },
+        {
+            "name": "Jean Souza",
+            "zuid": "870029317",
+            "zpuid": "2376502000000080049",
+            "email": "jean.souza@animati.com.br"
+        },
+        {
+            "name": "thissiane.mendes thissi",
+            "zuid": "870030408",
+            "zpuid": "2376502000000080091",
+            "email": "thissiane.mendes@animati.com.br"
+        }
+    ]
+}

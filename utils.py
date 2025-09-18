@@ -24,6 +24,11 @@ def _get_sheet_headers(sheets_service, spreadsheet_id: str, sheet_name: str, hea
         spreadsheetId=spreadsheet_id, range=rng
     ).execute().get('values', [[]])
     headers = (vals[0] if vals else [])
+    try:
+        print(f"[DEBUG:_get_sheet_headers] range={rng}")
+        print(f"[DEBUG:_get_sheet_headers] headers encontrados ({len(headers)}): {headers}")
+    except Exception:
+        pass
     return headers, {h: i for i, h in enumerate(headers)}
 
 def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_name: str, header_cliente: str, chave: str):
@@ -35,6 +40,11 @@ def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_nam
     col_vals = sheets_service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, range=rng
     ).execute().get('values', [])
+    try:
+        print(f"[DEBUG:_find_row_by_cliente_tolerant] header_cliente='{header_cliente}', col_letter={col_letter}")
+        print(f"[DEBUG:_find_row_by_cliente_tolerant] chave de busca='{chave}' (normalizada='{(chave or '').strip().lower()}')")
+    except Exception:
+        pass
     alvo_norm = (chave or '').strip().lower()
     for idx, row in enumerate(col_vals, start=LINHA_CABECALHO+1):
         v = (row[0] if row else '').strip()
@@ -57,6 +67,11 @@ def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_nam
 
 def update_col_value_by_cliente_tolerant(sheets_service, cliente_chave: str, nome_coluna: str, valor):
     headers, hmap = _get_sheet_headers(sheets_service, ID_PLANILHA_PROJETOS, NOME_ABA_PLANILHA)
+    try:
+        print(f"[DEBUG:update_col_value_by_cliente_tolerant] nome_coluna='{nome_coluna}', valor='{valor}'")
+        print(f"[DEBUG:update_col_value_by_cliente_tolerant] cabeçalhos disponíveis: {headers}")
+    except Exception:
+        pass
     if nome_coluna not in hmap:
         raise RuntimeError(f"Coluna '{nome_coluna}' não existe na planilha principal")
     linha = _find_row_by_cliente_tolerant(
@@ -67,6 +82,10 @@ def update_col_value_by_cliente_tolerant(sheets_service, cliente_chave: str, nom
     col_letter = indice_para_letra_coluna(hmap[nome_coluna])
     rng = f"'{NOME_ABA_PLANILHA}'!{col_letter}{linha}"
     body = {'values': [[valor]]}
+    try:
+        print(f"[DEBUG:update_col_value_by_cliente_tolerant] range={rng}, body={body}")
+    except Exception:
+        pass
     sheets_service.spreadsheets().values().update(
         spreadsheetId=ID_PLANILHA_PROJETOS, range=rng, valueInputOption='USER_ENTERED', body=body
     ).execute()

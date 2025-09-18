@@ -217,6 +217,57 @@
         </div>
     </div>
 
+    <!-- Modal: Iniciar Implantação (Play) -->
+    <div id="playModal" class="modal hidden">
+        <div class="modal-content project-modal">
+            <div class="modal-header">
+                <div>
+                    <h2>Iniciar Implantação</h2>
+                    <p id="play-modal-project-name" style="font-size: 0.9rem; color: #555; margin-top: 4px;"></p>
+                </div>
+                <button type="button" id="closePlayModal" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="play-form">
+                    <input type="hidden" id="play-project-id" name="project_id">
+                    <div class="form-grid-play">
+                        <fieldset>
+                            <legend><i class="fas fa-calendar-alt"></i> Datas</legend>
+                            <div class="form-group date-container">
+                                <label for="data_inicio_implantacao">Data de Início da Implantação:</label>
+                                <input type="date" id="data_inicio_implantacao" name="data_inicio_implantacao" required>
+                            </div>
+                        </fieldset>
+                        <fieldset id="implantadores-fieldset">
+                            <legend><i class="fas fa-users"></i> Implantadores</legend>
+                            <div class="implantadores-grid">
+                                <div id="implantador-ris-group" class="form-group hidden">
+                                    <label for="implantador_ris">Implantador RIS:</label>
+                                    <select id="implantador_ris" name="implantador_ris">
+                                        <option value="">Selecione...</option>
+                                        {% for implantador in implantadores_ris %}
+                                        <option value="{{ implantador.name }}">{{ implantador.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div id="implantador-pacs-group" class="form-group hidden">
+                                    <label for="implantador_pacs">Implantador PACS:</label>
+                                    <select id="implantador_pacs" name="implantador_pacs">
+                                        <option value="">Selecione...</option>
+                                        {% for implantador in implantadores_pacs %}
+                                        <option value="{{ implantador.name }}">{{ implantador.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                    <button type="submit" class="submit-button" style="margin-top: 1.5rem;">Agendar Implantação</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Sinaliza autenticação para o JS
         window.LOGGED_IN = {{ 'true' if logged_in else 'false' }};
@@ -644,6 +695,81 @@
                 });
             }
 
+            // Adicionar evento ao botão de play
+            const playBtn = card.querySelector('.play-btn');
+            if (playBtn) {
+                playBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    abrirModalPlay(projeto);
+                });
+            }
+
+            function abrirModalPlay(projeto) {
+                const modal = document.getElementById('playModal');
+                if (!modal) return;
+                // Preenche informações do modal
+                const nameEl = document.getElementById('play-modal-project-name');
+                if (nameEl) nameEl.textContent = projeto.nome || '';
+                const inputId = document.getElementById('play-project-id');
+                if (inputId) inputId.value = projeto.id || '';
+
+                // Mostrar selects certos conforme produtos
+                const temRIS = /ris/i.test(projeto.produto || projeto.produtos || projeto.produtos_contratados || projeto.nome || '');
+                const temPACS = /pacs/i.test(projeto.produto || projeto.produtos || projeto.produtos_contratados || projeto.nome || '');
+                const risGroup = document.getElementById('implantador-ris-group');
+                const pacsGroup = document.getElementById('implantador-pacs-group');
+                if (risGroup) risGroup.classList.toggle('hidden', !temRIS);
+                if (pacsGroup) pacsGroup.classList.toggle('hidden', !temPACS);
+
+                modal.classList.remove('hidden');
+
+                // Fechar
+                const closeBtn = document.getElementById('closePlayModal');
+                if (closeBtn && !closeBtn.dataset.bound) {
+                    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+                    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+                    closeBtn.dataset.bound = '1';
+                }
+
+                // Bind submit do formulário do modal
+                const playForm = document.getElementById('play-form');
+                if (playForm && !playForm.dataset.bound) {
+                    playForm.addEventListener('submit', async (ev) => {
+                        ev.preventDefault();
+                        try {
+                            const projectId = document.getElementById('play-project-id').value;
+                            const dataInicio = document.getElementById('data_inicio_implantacao').value; // yyyy-mm-dd
+                            const implRIS = document.getElementById('implantador_ris')?.value || '';
+                            const implPACS = document.getElementById('implantador_pacs')?.value || '';
+
+                            const resp = await fetch('/api/iniciar_implantacao', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    project_id: projectId,
+                                    data_inicio_implantacao: dataInicio,
+                                    implantador_ris: implRIS,
+                                    implantador_pacs: implPACS
+                                })
+                            });
+                            const data = await resp.json();
+                            if (!resp.ok || data.sucesso !== True && data.sucesso !== true) {
+                                const msg = data && (data.erro || data.mensagem || JSON.stringify(data));
+                                alert('Falha ao agendar implantação: ' + (msg || 'Erro desconhecido'));
+                                return;
+                            }
+                            // Sucesso
+                            if (window.mostrarToast) window.mostrarToast('Implantação agendada. Planilha atualizada.', 'success');
+                            modal.classList.add('hidden');
+                        } catch (err) {
+                            console.error('Erro no agendamento de implantação:', err);
+                            alert('Erro no agendamento de implantação.');
+                        }
+                    });
+                    playForm.dataset.bound = '1';
+                }
+            }
+
             return card;
         }
 
@@ -946,6 +1072,83 @@
 
         // === Lógica do Modal e do Formulário de Novo Projeto ===
         // Removida para evitar duplicidade; toda a lógica está em static/js/script_registro.js
+
+        // ===== Modal de Play =====
+        function abrirModalPlay(projeto) {
+            const modal = document.getElementById('playModal');
+            if (!modal) return;
+
+            // Preencher o ID e o nome do projeto
+            document.getElementById('play-project-id').value = projeto.id;
+            document.getElementById('play-modal-project-name').textContent = projeto.nome;
+
+            // Resetar o formulário
+            document.getElementById('play-form').reset();
+
+            // Lógica para exibir campos de implantador
+            const produtos = (projeto.produto || projeto.produtos_contratados || '').toLowerCase();
+            const temNetRis = produtos.includes('netris');
+            const temPacs = produtos.includes('pacs');
+
+            const risGroup = document.getElementById('implantador-ris-group');
+            const pacsGroup = document.getElementById('implantador-pacs-group');
+            const implantadoresFieldset = document.getElementById('implantadores-fieldset');
+
+            risGroup.classList.toggle('hidden', !temNetRis);
+            pacsGroup.classList.toggle('hidden', !temPacs);
+            implantadoresFieldset.classList.toggle('hidden', !temNetRis && !temPacs);
+
+
+            modal.classList.remove('hidden');
+        }
+
+        function fecharModalPlay() {
+            const modal = document.getElementById('playModal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        document.getElementById('closePlayModal')?.addEventListener('click', fecharModalPlay);
+
+        document.getElementById('play-form')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const project_id = document.getElementById('play-project-id').value;
+            const data_inicio_implantacao = document.getElementById('data_inicio_implantacao').value;
+            const implantador_ris = document.getElementById('implantador_ris').value;
+            const implantador_pacs = document.getElementById('implantador_pacs').value;
+
+            const formData = {
+                project_id,
+                data_inicio_implantacao,
+                implantador_ris,
+                implantador_pacs
+            };
+
+            try {
+                const response = await fetch('/api/iniciar_implantacao', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData),
+                });
+
+                const result = await response.json();
+
+                if (result.sucesso) {
+                    mostrarToast(result.mensagem || 'Dados de implantação atualizados com sucesso!', 'success');
+                } else {
+                    mostrarToast(result.erro || 'Falha ao atualizar dados de implantação.', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao submeter formulário de implantação:', error);
+                mostrarToast('Erro de comunicação com o servidor.', 'error');
+            } finally {
+                fecharModalPlay();
+            }
+        });
 
         // ===== Comentários em Projeto =====
         let projetoParaComentar = null;

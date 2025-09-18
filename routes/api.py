@@ -156,9 +156,18 @@ def carregar_projetos():
                 or projeto.get('client_name')
                 or "Cliente não informado"
             )
+            nome_projeto = projeto.get('name', '')
+            produto_info = ''
+            if ' - NR/AP' in nome_projeto:
+                produto_info = 'netRIS e AnimatiPACS'
+            elif ' - NR' in nome_projeto:
+                produto_info = 'netRIS'
+            elif ' - AP' in nome_projeto:
+                produto_info = 'AnimatiPACS'
+
             info_projeto = {
                 'id': projeto.get('id'),
-                'nome': projeto.get('name'),
+                'nome': nome_projeto,
                 'cliente': cliente,
                 'gp': projeto.get('owner', {}).get('name', 'GP não informado'),
                 'data_inicio': projeto.get('start_date', ''),
@@ -168,7 +177,8 @@ def carregar_projetos():
                 'dias_na_fase': '',
                 # Total de dias do projeto: sempre calculado localmente pela data de início ou criação
                 'dias_total': utils.calcular_dias_total_projeto(projeto.get('start_date', ''), projeto.get('created_time', '')),
-                'status_atual': status_kanban
+                'status_atual': status_kanban,
+                'produto': produto_info
             }
             projetos_por_status[status_kanban].append(info_projeto)
             # Coleta para auditoria se cair em coluna desconhecida
@@ -301,6 +311,8 @@ def api_dias_na_fase(project_id):
     except Exception as e:
         print(f"Erro no endpoint dias-na-fase: {e}")
         return jsonify({"erro": str(e)}), 500
+
+
 
 @api_bp.route('/mover_projeto', methods=['POST'])
 def api_mover_projeto():
@@ -657,6 +669,99 @@ def comentar_projeto():
             return jsonify({"sucesso": False, "erro": f"HTTP {last_resp.status_code}", "detalhe": body}), 502
         else:
             return jsonify({"sucesso": False, "erro": str(last_resp)}), 502
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+
+@api_bp.route('/iniciar_implantacao', methods=['POST'])
+def iniciar_implantacao():
+    try:
+        if 'credentials' not in session:
+            return jsonify({"sucesso": False, "erro": "Não autenticado."}), 401
+
+        data = request.get_json(silent=True) or {}
+        project_id = str(data.get('project_id') or '').strip()
+        data_inicio_implantacao = (data.get('data_inicio_implantacao') or '').strip()  # esperado yyyy-mm-dd
+        implantador_ris = (data.get('implantador_ris') or '').strip()
+        implantador_pacs = (data.get('implantador_pacs') or '').strip()
+
+        print(f"[DEBUG:/api/iniciar_implantacao] payload: project_id={project_id}, data_inicio_implantacao={data_inicio_implantacao}, implantador_ris='{implantador_ris}', implantador_pacs='{implantador_pacs}'")
+
+        if not project_id or not data_inicio_implantacao:
+            return jsonify({"sucesso": False, "erro": "Parâmetros inválidos."}), 400
+
+        # Serviço do Google Sheets a partir da sessão
+        creds = utils.build_google_credentials_from_session()
+        sheets_service = build('sheets', 'v4', credentials=creds)
+
+        # Buscar dados do projeto no Zoho para identificar o cliente (chave da planilha)
+        access_token = utils.obter_access_token_zoho()
+        detalhes_zoho = utils.obter_detalhes_projeto(access_token, project_id)
+        proj_name = str((detalhes_zoho or {}).get('name', '') or '')
+        # Extrai base 'CODIGO[/ANO] - Cliente' removendo sufixos de produto
+        base_cliente = proj_name.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+        chave_busca = base_cliente
+        print(f"[DEBUG:/api/iniciar_implantacao] proj_name='{proj_name}' base_cliente='{base_cliente}'")
+        if not chave_busca:
+            return jsonify({"sucesso": False, "erro": "Não foi possível identificar o cliente do projeto."}), 400
+
+        # Formata data para dd/mm/yyyy
+        def _fmt_ddmmyyyy(s: str) -> str:
+            try:
+                y, m, d = s.split('-')
+                return f"{d.zfill(2)}/{m.zfill(2)}/{y}"
+            except Exception:
+                return s
+
+        # Monta valor no formato do dropdown usando apenas o primeiro nome (RIS com exceção opcional p/ Rodrigo)
+        def _primeiro_nome(nome: str) -> str:
+            nome = (nome or '').strip()
+            if not nome:
+                return ''
+            partes = nome.split()
+            # Exceção: se RIS começar com Rodrigo, manter "Rodrigo <sobrenome>"
+            return partes[0]
+        implant_responsavel = ''
+        pacs_first = _primeiro_nome(implantador_pacs)
+        ris_first = _primeiro_nome(implantador_ris)
+        if pacs_first:
+            implant_responsavel = f"Pacs - {pacs_first}"
+            if ris_first:
+                implant_responsavel += f" + Ris - {ris_first}"
+        print(f"[DEBUG:/api/iniciar_implantacao] implant_responsavel='{implant_responsavel}'")
+
+        # 1) Atualiza Dt Inicio Implantação
+        try:
+            utils.update_col_value_by_cliente_tolerant(
+                sheets_service,
+                chave_busca,
+                'Dt Inicio Implantação',
+                _fmt_ddmmyyyy(data_inicio_implantacao)
+            )
+        except Exception as e:
+            print(f"[DEBUG:/api/iniciar_implantacao] erro ao atualizar 'Dt Inicio Implantação': {e}")
+            return jsonify({"sucesso": False, "erro": f"Falha ao atualizar data na planilha: {e}"}), 500
+
+        # 2) Atualiza Implant Responsável somente quando houver PACS (para casar com o dropdown)
+        detalhes_msg = []
+        if implant_responsavel:
+            try:
+                utils.update_col_value_by_cliente_tolerant(
+                    sheets_service,
+                    chave_busca,
+                    'Implant Responsável',
+                    implant_responsavel
+                )
+                detalhes_msg.append("Implant Responsável atualizado.")
+            except Exception as e:
+                print(f"[DEBUG:/api/iniciar_implantacao] erro ao atualizar 'Implant Responsável': {e}")
+                return jsonify({"sucesso": False, "erro": f"Falha ao atualizar implantador na planilha: {e}"}), 500
+        else:
+            detalhes_msg.append("Implant Responsável não atualizado (selecione PACS).")
+
+        return jsonify({"sucesso": True, "mensagem": "Implantação agendada e planilha atualizada.", "detalhes": detalhes_msg})
 
     except Exception as e:
         traceback.print_exc()
