@@ -3,40 +3,45 @@ from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from config import CREDENTIALS_PATH, SCOPES_GOOGLE, DONOS_PROJETO
+import json
+import os
 
 main_bp = Blueprint('main', __name__)
 
+def carregar_implantadores():
+    try:
+        path = os.path.join(os.path.dirname(__file__), '..', 'equipe_implantacao_classificada.json')
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get("Implantação RIS", []), data.get("Implantação PACS", [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        return [], []
+
 @main_bp.route('/')
 def index():
-    if 'credentials' not in session:
-        return render_template('index.html', logged_in=False, gps=list(DONOS_PROJETO.keys()), cores_colunas={
-        "Aguardando Onboarding": "#6c757d",
-        "Falta Liberar Servidor Infra": "#E67E22",
-        "Em Andamento": "#2ECC71",
-        "Em Homologação": "#1ABC9C",
-        "Em Virada": "#1ABC9C",
-        "Em Operação Assistida": "#3498DB",
-        "Aguardando Encerramento": "#8B5CF6",
-        "Finalizado": "#27AE60",
-        "Projeto Parado": "#DC143C",
-        "Cancelado": "#b5b5b5",
-        "Status Desconhecido": "#95A5A6"
-    })
+    implantadores_ris, implantadores_pacs = carregar_implantadores()
     
-    # Usuário logado: segue normalmente
-    return render_template('index.html', logged_in=True, user_email=session.get('user_email'), gps=list(DONOS_PROJETO.keys()), cores_colunas={
-        "Aguardando Onboarding": "#6c757d",
-        "Falta Liberar Servidor Infra": "#E67E22",
-        "Em Andamento": "#2ECC71",
-        "Em Homologação": "#1ABC9C",
-        "Em Virada": "#1ABC9C",
-        "Em Operação Assistida": "#3498DB",
-        "Aguardando Encerramento": "#8B5CF6",
-        "Finalizado": "#27AE60",
-        "Projeto Parado": "#DC143C",
-        "Cancelado": "#b5b5b5",
-        "Status Desconhecido": "#95A5A6"
-    })
+    template_vars = {
+        "logged_in": 'credentials' in session,
+        "user_email": session.get('user_email'),
+        "gps": list(DONOS_PROJETO.keys()),
+        "implantadores_ris": implantadores_ris,
+        "implantadores_pacs": implantadores_pacs,
+        "cores_colunas": {
+            "Aguardando Onboarding": "#6c757d",
+            "Falta Liberar Servidor Infra": "#E67E22",
+            "Em Andamento": "#2ECC71",
+            "Em Homologação": "#1ABC9C",
+            "Em Virada": "#1ABC9C",
+            "Em Operação Assistida": "#3498DB",
+            "Aguardando Encerramento": "#8B5CF6",
+            "Finalizado": "#27AE60",
+            "Projeto Parado": "#DC143C",
+            "Cancelado": "#b5b5b5",
+            "Status Desconhecido": "#95A5A6"
+        }
+    }
+    return render_template('index.html', **template_vars)
 
 @main_bp.route('/login')
 def login():

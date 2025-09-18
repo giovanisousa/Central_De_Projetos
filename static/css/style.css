@@ -61,7 +61,7 @@ form {
 fieldset {
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    padding: 1.5rem;
+    padding: 2rem;
     margin: 0;
 }
 
@@ -133,15 +133,21 @@ input[type="radio"], input[type="checkbox"] {
 
 .deip-button, .submit-button {
     width: 100%;
-    padding: 0.8rem 1rem;
+    padding: 1.1rem 1rem; /* altura maior */
     border: none;
-    border-radius: 6px;
-    font-size: 1rem;
-    font-weight: 600;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
     color: white;
     background-color: var(--primary-color);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, transform 0.05s;
+}
+/* botão principal do modal play (Agendar Implantação) com altura ligeiramente maior */
+#playModal .submit-button {
+    padding: 1.2rem 1rem;
+    font-size: 1.06rem;
+    border-radius: 10px;
 }
 
 .deip-button:hover, .submit-button:hover {
@@ -1156,4 +1162,66 @@ body.kanban-page {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Estilos para o modal de "Iniciar Implantação" */
+#playModal .modal-body {
+    padding: 2rem; /* Aumenta o padding geral do corpo do modal */
+}
+
+#playModal .form-grid-play {
+    display: grid;
+    gap: 1.5rem; /* Espaço entre as seções (Datas e Implantadores) */
+}
+
+#playModal .implantadores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Duas colunas de largura igual */
+    gap: 1.5rem; /* Espaço entre as colunas dos implantadores */
+}
+
+#playModal .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem; /* Espaço entre o label e o select/input */
+}
+
+#playModal label {
+    font-weight: 600; /* Deixa o label mais forte */
+    color: #374151; /* Cor do texto do label */
+}
+
+#playModal input[type="date"],
+#playModal select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db; /* Borda cinza claro */
+    border-radius: 8px; /* Bordas mais arredondadas */
+    background-color: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+#playModal .date-container {
+    max-width: 250px; /* Limita a largura do campo de data */
+}
+
+#playModal .modal-header div {
+    display: flex;
+    flex-direction: column;
+}
+
+#playModal .modal-header h2 {
+    margin: 0;
+}
+
+#playModal #play-modal-project-name {
+    font-size: 0.9rem;
+    color: #555;
+    margin-top: 4px;
+}
+
+#playModal legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
