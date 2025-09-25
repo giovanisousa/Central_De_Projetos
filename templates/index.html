@@ -16,10 +16,10 @@
             <div class="controls">
                 <div class="control-group">
                     <label for="gpSelect">Selecionar GP:</label>
-                    <select id="gpSelect">
+                    <select id="gpSelect" {% if user_name %}disabled{% endif %}>
                         <option value="">Escolha um GP...</option>
                         {% for gp in gps %}
-                        <option value="{{ gp }}">{{ gp }}</option>
+                        <option value="{{ gp }}" {% if gp == user_name %}selected{% endif %}>{{ gp }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -32,15 +32,8 @@
                     <i class="fas fa-plus"></i>
                 </button>
 
-                {% if logged_in %}
-                    <span class="user">{{ user_email }}</span>
-                    <a class="auth-link" href="{{ url_for('main.logout') }}">Sair</a>
-                {% else %}
-                    <a class="auth-link google-login" href="{{ url_for('main.login') }}">
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" class="google-icon" />
-                        Entrar com Google
-                    </a>
-                {% endif %}
+                <span class="user">{{ user_email }}</span>
+                <a class="auth-link" href="{{ url_for('main.logout') }}">Sair</a>
                 
                 <div class="status">
                     <span id="statusText">Pronto.</span>
@@ -140,7 +133,7 @@
                             <select id="produto" name="produto">
                                 <option>netRIS</option>
                                 <option>AnimatiPACS</option>
-                                <option>netRIS e AnimatiPACS</option>
+                                <option>AnimatiPACS/netRIS</option>
                             </select>
 
                             <label for="gp_selecionado">Gerente de Projeto (GP):</label>
@@ -179,9 +172,9 @@
                             <input type="text" id="integracao_nome" name="integracao_nome" placeholder="Qual a ferramenta de integração?">
                             <div class="checkbox-group">
                                 <input type="checkbox" id="integ_worklist" name="integ_worklist" value="1"><label for="integ_worklist">Worklist</label>
-                                <input type="checkbox" id="integ_laudos" name="integ_laudos" value="1"><label for="integ_laudos">Retorno de Laudos</label>
-                                <input type="checkbox" id="integ_docs" name="integ_docs" value="1"><label for="integ_docs">Documentos</label>
+                                <input type="checkbox" id="integ_laudos" name="integ_laudos" value="1"><label for="integ_laudos">Retorno de Laudo</label>
                                 <input type="checkbox" id="integ_lab" name="integ_lab" value="1"><label for="integ_lab">Laboratório</label>
+                                <input type="checkbox" id="integ_teleradiologia" name="integ_teleradiologia" value="1"><label for="integ_teleradiologia">Teleradiologia</label>
                                 <input type="checkbox" id="integ_outros" name="integ_outros" value="1"><label for="integ_outros">Outros</label>
                             </div>
                         </div>
@@ -1059,6 +1052,12 @@
             window.addEventListener('dragover', function(e) {
                 lastMouseX = e.clientX;
             });
+
+            // Carregar projetos automaticamente se um GP estiver selecionado
+            const gpSelect = document.getElementById('gpSelect');
+            if (gpSelect.value) {
+                carregarProjetos();
+            }
         });
 
         // Prevenir comportamento padrão de drop em toda a página
@@ -1187,11 +1186,12 @@
                 });
                 const text = await r.text();
                 let data = null; try { data = JSON.parse(text); } catch(_) {}
-                if (r.ok && data && data.sucesso) {
-                    if (window.mostrarToast) window.mostrarToast('Comentário adicionado com sucesso.', 'success');
+                if (r.ok && data && (data.sucesso || data.status === 'success')) {
+                    const okMsg = (data.mensagem || data.message || 'Comentário adicionado');
+                    if (window.mostrarToast) window.mostrarToast(okMsg, 'success'); else alert(okMsg);
                     fecharModalComentario();
                 } else {
-                    const msg = (data && (data.erro || data.mensagem)) || ('Falha ao comentar. HTTP ' + r.status);
+                    const msg = (data && (data.erro || data.mensagem || data.message)) || ('Falha ao comentar. HTTP ' + r.status);
                     if (window.mostrarToast) window.mostrarToast(msg, 'error'); else alert(msg);
                 }
             } catch (e) {

@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, session, redirect, url_for, request
+from flask import Blueprint, render_template, session, redirect, url_for, request, flash
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from config import CREDENTIALS_PATH, SCOPES_GOOGLE, DONOS_PROJETO
+from database import get_user_by_email
 import json
 import os
 
@@ -19,11 +20,17 @@ def carregar_implantadores():
 
 @main_bp.route('/')
 def index():
+    if 'credentials' not in session:
+        return redirect(url_for('main.login_page'))
+
     implantadores_ris, implantadores_pacs = carregar_implantadores()
     
+    user_info = session.get('user_info')
+
     template_vars = {
         "logged_in": 'credentials' in session,
-        "user_email": session.get('user_email'),
+        "user_email": user_info.get('email') if user_info else None,
+        "user_name": user_info.get('name') if user_info else None,
         "gps": list(DONOS_PROJETO.keys()),
         "implantadores_ris": implantadores_ris,
         "implantadores_pacs": implantadores_pacs,
@@ -44,7 +51,11 @@ def index():
     return render_template('index.html', **template_vars)
 
 @main_bp.route('/login')
-def login():
+def login_page():
+    return render_template('login.html')
+
+@main_bp.route('/google_login')
+def google_login():
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_PATH,
         scopes=SCOPES_GOOGLE,
@@ -72,21 +83,10 @@ def oauth2callback():
     authorization_response = request.url
     flow.fetch_token(authorization_response=authorization_response)
     credentials = flow.credentials
-    # Preserva refresh_token já existente se o Google não retornar um novo
-    prev_refresh = (session.get('credentials') or {}).get('refresh_token') if isinstance(session.get('credentials'), dict) else None
-    refresh_token = credentials.refresh_token or prev_refresh
-    session['credentials'] = {
-        # Evita guardar token de acesso em sessão (curta duração); manteremos refresh_token e metadados
-        'refresh_token': refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes,
-    }
-    # Reconstrói Credentials temporárias só para buscar userinfo
+
     temp_creds = Credentials(
         token=credentials.token,
-        refresh_token=refresh_token,
+        refresh_token=credentials.refresh_token,
         token_uri=credentials.token_uri,
         client_id=credentials.client_id,
         client_secret=credentials.client_secret,
@@ -94,10 +94,28 @@ def oauth2callback():
     )
     user_info_service = build('oauth2', 'v2', credentials=temp_creds)
     user_info = user_info_service.userinfo().get().execute()
-    session['user_email'] = user_info.get('email')
-    return redirect(url_for('main.index'))
+    
+    user_email = user_info.get('email')
+    user_from_db = get_user_by_email(user_email)
+
+    if user_from_db:
+        session['credentials'] = {
+            'refresh_token': credentials.refresh_token or (session.get('credentials') or {}).get('refresh_token'),
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes,
+        }
+        session['user_info'] = {
+            'email': user_from_db['email'],
+            'name': user_from_db['nome']
+        }
+        return redirect(url_for('main.index'))
+    else:
+        flash('Você não possui acesso ao sistema.', 'danger')
+        return redirect(url_for('main.login_page'))
 
 @main_bp.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('main.index'))
+    return redirect(url_for('main.login_page'))

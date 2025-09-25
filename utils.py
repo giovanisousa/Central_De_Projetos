@@ -284,6 +284,106 @@ def _compose_tasklist_web_url(base_web: str, project_id: str, tasklist_id: str, 
         )
     return f"{base_web}#myprojects/{project_id}/tasklists/{tasklist_id}"
 
+def _parse_date_any(s: str | None):
+    if not s:
+        return None
+    s = str(s).strip()
+    if not s:
+        return None
+    try:
+        # ISO formats with Z or offset
+        if 'T' in s:
+            iso = s.replace('Z', '+00:00')
+            return datetime.fromisoformat(iso).date()
+        # YYYY-MM-DD
+        if len(s) == 10 and s[4] == '-' and s[7] == '-':
+            return datetime.strptime(s, '%Y-%m-%d').date()
+        # Try dd/mm/yyyy
+        if '/' in s and len(s) >= 10:
+            return datetime.strptime(s[:10], '%d/%m/%Y').date()
+    except Exception:
+        return None
+    return None
+
+
+def _fmt_dias(qtd: int | None) -> str:
+    if qtd is None:
+        return 'N/D'
+    d = max(0, int(qtd))
+    return f"{d} dia" if d == 1 else f"{d} dias"
+
+
+def calcular_dias_total_projeto(start_date: str | None, created_time: str | None) -> str:
+    base = _parse_date_any(start_date) or _parse_date_any(created_time)
+    if not base:
+        return 'N/D'
+    today = date.today()
+    return _fmt_dias((today - base).days)
+
+
+def calcular_dias_na_fase(info_min: dict | None, coluna_hint: str | None = None) -> str:
+    info_min = info_min or {}
+    # Escolhe a melhor data conforme a coluna quando disponível
+    cand = None
+    h = (coluna_hint or '').strip().lower()
+    if h == 'em homologação':
+        cand = _parse_date_any(info_min.get('data_homologacao'))
+    elif h == 'em virada':
+        cand = _parse_date_any(info_min.get('data_virada'))
+    elif h == 'em operação assistida':
+        cand = _parse_date_any(info_min.get('data_inicio_oa'))
+    elif h == 'em andamento' or h == 'em andamento - implantação':
+        cand = _parse_date_any(info_min.get('data_inicio_implantacao')) or _parse_date_any(info_min.get('data_inicio'))
+    elif h == 'aguardando encerramento':
+        cand = _parse_date_any(info_min.get('data_homologacao'))
+    elif h == 'falta liberar servidor infra' or h == 'aguardando onboarding':
+        cand = _parse_date_any(info_min.get('data_criacao'))
+
+    # Fallback genérico
+    if not cand:
+        cand = _parse_date_any(info_min.get('data_inicio')) or _parse_date_any(info_min.get('data_criacao'))
+    if not cand:
+        return 'N/D'
+    today = date.today()
+    return _fmt_dias((today - cand).days)
+
+
+def determinar_coluna_projeto(projeto: dict) -> str:
+    try:
+        status_id = str(((projeto or {}).get('status') or {}).get('id') or '')
+        status_nm = str(((projeto or {}).get('status') or {}).get('name') or '').strip().lower()
+        tags = [str(t.get('id') or '') for t in (projeto.get('tags') or [])]
+
+        # Estados finais primeiro
+        if status_id == STATUS_CANCELADO_ID or status_nm == 'cancelado':
+            return 'Cancelado'
+        if status_id == STATUS_FINALIZADO_ID or status_nm == 'finalizado' or (projeto.get('is_completed') is True):
+            return 'Finalizado'
+
+        # Tags de controle de fase
+        if TAG_PARADO_ID in tags:
+            return 'Projeto Parado'
+        if TAG_AGUARDANDO_ENCERRAMENTO_ID in tags:
+            return 'Aguardando Encerramento'
+        if status_id == STATUS_OPERACAO_ASSISTIDA_ID:
+            return 'Em Operação Assistida'
+        if TAG_EM_VIRADA_ID in tags:
+            return 'Em Virada'
+        if TAG_EM_HOMOLOGACAO_ID in tags:
+            return 'Em Homologação'
+        if TAG_AGUARDANDO_INFRA_ID in tags:
+            return 'Falta Liberar Servidor Infra'
+        if TAG_AGUARDANDO_ONBOARDING_ID in tags:
+            return 'Aguardando Onboarding'
+
+        # Status padrão
+        if status_id in {STATUS_EM_ANDAMENTO_ID, STATUS_ABERTO_ID} or status_nm in {'em andamento', 'aberto'}:
+            return 'Em Andamento'
+    except Exception:
+        pass
+    return 'Status Desconhecido'
+
+
 def obter_access_token() -> str:
     if not os.path.exists(ZOHO_TOKEN_PATH):
         raise FileNotFoundError(f"Arquivo de refresh token não encontrado: {ZOHO_TOKEN_PATH}")
@@ -315,6 +415,11 @@ def obter_access_token() -> str:
     if not token:
         raise RuntimeError(f"Resposta sem access_token: {data}")
     return token
+
+
+def obter_access_token_zoho() -> str:
+    # Alias compatível com chamadas existentes
+    return obter_access_token()
 
 def criar_estrutura_no_drive(drive_service, dados):
     try:
@@ -408,13 +513,19 @@ def atualizar_planilha_principal(sheets_service, dados, url_pasta_drive):
             integracao_texto = dados.get('integracao_nome') or 'Possui'
         else:
             integracao_texto = 'Não possui'
+
+        # Ajuste do valor exibido na coluna Produtos mantendo o dropdown: usar o texto "AnimatiPACS/netRIS" quando houver ambos
+        produtos_display = dados.get('produto')
+        if produtos_display == 'netRIS e AnimatiPACS':
+            produtos_display = 'AnimatiPACS/netRIS'
+
         dados_para_inserir = {
             "Cliente": dados['codigo_contrato_numero'] + ' - ' + dados['nome_cliente'],
             "Cidade": dados['cidade'],
             "Estado": dados['estado'],
             "Link": f'=HYPERLINK("{url_pasta_drive}"; "DOC")',
             "GP": primeiro_nome_gp,
-            "Produtos": dados['produto'],
+            "Produtos": produtos_display,
             "Projetos": "Cliente Novo",
             "Status Principal": "Aguardando Onboarding",
             "Rec. DEIP": data_selecionada_formatada,
@@ -470,7 +581,12 @@ def obter_access_token_zoho():
     return obter_access_token()
 
 def construir_titulo_projeto(dados):
-    sufixo_map = {"netRIS": "NR", "AnimatiPACS": "AP", "netRIS e AnimatiPACS": "NR/AP"}
+    sufixo_map = {
+        "netRIS": "NR",
+        "AnimatiPACS": "AP",
+        "netRIS e AnimatiPACS": "NR/AP",
+        "AnimatiPACS/netRIS": "NR/AP",
+    }
     sufixo = sufixo_map.get(dados['produto'], "")
     return f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']} - {sufixo}"
 
@@ -481,8 +597,12 @@ def construir_descricao(dados):
     importacao_sim = "(X)" if dados['importacao'] == 's' else "( )"; importacao_nao = "( )" if dados['importacao'] == 's' else "(X)"
     detalhes_integracao = ""
     if dados['integracao_status'] == 's':
-        worklist_check = "[X]" if dados['integ_worklist'] else "[ ]"; laudos_check = "[X]" if dados['integ_laudos'] else "[ ]"; docs_check = "[X]" if dados['integ_docs'] else "[ ]"; lab_check = "[X]" if dados['integ_lab'] else "[ ]"; outros_check = "[X]" if dados['integ_outros'] else "[ ]"
-        detalhes_integracao = f"<p><b>Se Sim, selecione as integrações:</b></p><ul><li>{worklist_check} Worklist</li><li>{laudos_check} Retorno de Laudos</li><li>{docs_check} Documentos</li><li>{lab_check} Laboratório</li><li>{outros_check} Outros</li></ul>"
+        worklist_check = "[X]" if dados['integ_worklist'] else "[ ]";
+        laudos_check = "[X]" if dados['integ_laudos'] else "[ ]";
+        lab_check = "[X]" if dados['integ_lab'] else "[ ]";
+        telerad_check = "[X]" if dados.get('integ_teleradiologia') else "[ ]";
+        outros_check = "[X]" if dados['integ_outros'] else "[ ]";
+        detalhes_integracao = f"<p><b>Se Sim, selecione as integrações:</b></p><ul><li>{worklist_check} Worklist</li><li>{laudos_check} Retorno de Laudo</li><li>{lab_check} Laboratório</li><li>{telerad_check} Teleradiologia</li><li>{outros_check} Outros</li></ul>"
     detalhes_importacao = ""
     if dados['importacao'] == 's':
         cadastros_check = "[X]" if dados['import_cadastros'] else "[ ]"; prontuarios_check = "[X]" if dados['import_prontuarios'] else "[ ]"; laudos_check = "[X]" if dados['import_laudos'] else "[ ]"; imagens_check = "[X]" if dados['import_imagens'] else "[ ]"
@@ -506,7 +626,7 @@ def escolher_template_zoho(dados):
         if importacao and not integracao: return MODELOS_ZOHO.get("Implantação PACS (COM importação e SEM integração) - UNIFICADO FINAL")
         if not importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS (COM integração e SEM importação) - Unificado FINAL")
         return MODELOS_ZOHO.get("Implantação PACS (SEM importação e SEM integração) - UNIFICADO FINAL")
-    if produto == 'netRIS e AnimatiPACS':
+    if produto in ('netRIS e AnimatiPACS', 'AnimatiPACS/netRIS'):
         if importacao: return MODELOS_ZOHO.get("Implantação RIS + PACS (COM importação) - UNIFICADO Final")
         return MODELOS_ZOHO.get("Implantação RIS + PACS (SEM importação ) - UNIFICADO FINAL")
     print("AVISO: Nenhum modelo Zoho para este cenário.")
@@ -515,32 +635,117 @@ def escolher_template_zoho(dados):
 def criar_projeto_no_zoho(access_token, dados, template_id):
     print(f"INFO: Criando projeto Zoho para '{dados['nome_cliente']}'...")
     url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects"
-    headers = {"Authorization": f"Bearer {access_token}"}
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+    # Converte a data de início para o formato da API
     try:
         start_date_obj = datetime.strptime(dados['start_date'], '%d-%m-%Y')
         start_date_api_format = start_date_obj.strftime('%Y-%m-%d')
     except ValueError:
         start_date_api_format = date.today().strftime("%Y-%m-%d")
+
+    # Mapeia soluções contratadas para o texto esperado
+    produto = dados.get('produto', '')
+    if produto in ('netRIS e AnimatiPACS', 'AnimatiPACS/netRIS'):
+        solucoes_contratadas = 'AnimatiPACS/netRIS'
+    elif produto == 'netRIS':
+        solucoes_contratadas = 'netRIS'
+    elif produto == 'AnimatiPACS':
+        solucoes_contratadas = 'AnimatiPACS'
+    else:
+        solucoes_contratadas = str(produto or '')
+
+    # Monta lista de importações selecionadas (multi-select)
+    importacoes_list = []
+    if dados.get('import_imagens'):
+        importacoes_list.append({"id": "2376502000005584872", "value": "Imagens"})
+    if dados.get('import_prontuarios'):
+        importacoes_list.append({"id": "2376502000005584866", "value": "Prontuários"})
+    if dados.get('import_cadastros'):
+        importacoes_list.append({"id": "2376502000005584868", "value": "Cadastros"})
+    if dados.get('import_laudos'):
+        importacoes_list.append({"id": "2376502000005584870", "value": "Laudos"})
+
+    # Converte data de virada (se informada no formulário)
+    data_virada_fmt = None
+    raw_virada = dados.get('data_de_virada') or dados.get('data_virada')
+    if raw_virada:
+        for fmt in ('%d-%m-%Y', '%Y-%m-%d', '%d/%m/%Y'):
+            try:
+                data_vir = datetime.strptime(raw_virada, fmt)
+                data_virada_fmt = data_vir.strftime('%Y-%m-%d')
+                break
+            except Exception:
+                continue
+
+    # Campos customizados do projeto
+    custom_fields = {
+        "havera_integracao": bool(dados.get('integracao_status') == 's'),
+        "solucoes_contratadas": solucoes_contratadas,
+        "link_do_google": dados.get('link_google') or dados.get('link_google_drive') or dados.get('link'),
+        "importacoes": importacoes_list,
+        "havera_importacao": "Sim" if dados.get('importacao') == 's' else "Não",
+    }
+    if data_virada_fmt:
+        custom_fields["data_de_virada"] = data_virada_fmt
+
+    # Integrações (multi-select)
+    if dados.get('integracao_status') == 's':
+        integracoes_list = []
+        if dados.get('integ_worklist'):
+            integracoes_list.append({"id": "2376502000005584852", "value": "Worklist"})
+        if dados.get('integ_laudos'):
+            integracoes_list.append({"id": "2376502000005584854", "value": "Retorno de Laudo"})
+        if dados.get('integ_lab'):
+            integracoes_list.append({"id": "2376502000005584856", "value": "Laboratório"})
+        if dados.get('integ_teleradiologia'):
+            integracoes_list.append({"id": "2376502000005584858", "value": "Teleradiologia"})
+        if dados.get('integ_outros'):
+            integracoes_list.append({"id": "2376502000005584860", "value": "Outros"})
+        custom_fields["integracoes"] = integracoes_list
+
     payload = {
-        "name": construir_titulo_projeto(dados), "description": construir_descricao(dados),
-        "start_date": start_date_api_format, "copy_from": str(template_id),
-        "project_type": "active", "project_group": {"id": GRUPOS_ZOHO.get("Hibrido" if "e" in dados['produto'] else ("RIS" if "RIS" in dados['produto'] else "PACS"))},
+        "name": construir_titulo_projeto(dados),
+        "description": construir_descricao(dados),
+        "start_date": start_date_api_format,
+        "copy_from": str(template_id),
+        "project_type": "active",
+        "project_group": {
+            "id": GRUPOS_ZOHO.get(
+                "Hibrido" if ("e" in dados.get('produto', '') or dados.get('produto') == 'AnimatiPACS/netRIS') else ("RIS" if "RIS" in dados.get('produto', '') else "PACS")
+            )
+        },
+        "layout": {"id": "2376502000005584766"},
         "owner": {"zpuid": DONOS_PROJETO[dados['gp_selecionado']]},
         "is_rollup_project": True,
-        "tags": [{"id": 2376502000001291513}]
+        "tags": [{"id": 2376502000001291513}],
+        "custom_fields": custom_fields,
     }
+
     try:
+        # 1) Cria o projeto já com campos customizados
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        projeto_criado = response.json()
+        projeto_criado = response.json() if response.text else {}
         id_do_projeto = projeto_criado.get('id')
         if not id_do_projeto:
             raise Exception(f"Resposta do Zoho OK, mas sem ID do projeto: {projeto_criado}")
         print(f"INFO: Projeto Zoho '{projeto_criado.get('name')}' criado!")
-        # A aplicação de tags será garantida posteriormente via ensure_project_tags
+
+        # 2) Reforço: aplica/atualiza custom fields via PATCH (alguns tenants exigem update separado)
+        try:
+            url_patch = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{id_do_projeto}"
+            patch_payload = {"custom_fields": custom_fields}
+            resp_patch = requests.patch(url_patch, headers=headers, json=patch_payload, timeout=30)
+            if resp_patch.status_code not in (200, 201):
+                print(f"AVISO: PATCH de custom_fields retornou {resp_patch.status_code}: {resp_patch.text[:500]}")
+        except Exception as e:
+            print(f"AVISO: Falha no PATCH de custom_fields: {e}")
+
+        # A aplicação de tags complementares será garantida posteriormente via ensure_project_tags
         return id_do_projeto
     except requests.exceptions.RequestException as e:
-        raise Exception(f"Erro da API Zoho: {e.response.text}")
+        raise Exception(f"Erro da API Zoho: {e.response.text if e.response else e}")
 
 def processar_tarefas_iniciais(access_token, project_id, gp_zpuid):
     """
