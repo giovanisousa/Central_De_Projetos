@@ -921,7 +921,1302 @@ body.kanban-page {
 
 
 /* Cores das colunas */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg-color: #242424;
+    --surface-color: #2E2E2E;
+    --primary-color: #3B82F6;
+    --primary-hover-color: #2563EB;
+    --text-color: #E0E0E0;
+    --label-color: #A0A0A0;
+    --border-color: #4A4A4A;
+    --success-color: #22C55E;
+    --error-color: #EF4444;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 700px;
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.logo {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+h2 {
+    text-align: center;
+    color: var(--text-color);
+    font-weight: 600;
+    margin-bottom: 2rem;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+fieldset {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 2rem;
+    margin: 0;
+}
+
+legend {
+    color: var(--primary-color);
+    font-weight: 600;
+    padding: 0 0.5rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 1rem;
+    align-items: center;
+}
+
+label {
+    font-size: 0.9rem;
+    color: var(--label-color);
+    font-weight: 500;
+}
+
+input[type="text"],
+select,
+textarea {
+    width: 100%;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="text"]:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+.date-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.5fr;
+    gap: 0.5rem;
+}
+
+.radio-group, .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.radio-group > div {
+    display: flex;
+    gap: 1rem;
+}
+
+input[type="radio"], input[type="checkbox"] {
+    margin-right: 0.25rem;
+}
+
+.hidden {
+    display: none;
+}
+
+.deip-button, .submit-button {
+    width: 100%;
+    padding: 1.1rem 1rem; /* altura maior */
+    border: none;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: white;
+    background-color: var(--primary-color);
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.05s;
+}
+/* botão principal do modal play (Agendar Implantação) com altura ligeiramente maior */
+#playModal .submit-button {
+    padding: 1.2rem 1rem;
+    font-size: 1.06rem;
+    border-radius: 10px;
+}
+
+.deip-button:hover, .submit-button:hover {
+    background-color: var(--primary-hover-color);
+}
+
+.submit-button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+}
+
+.filename-display {
+    font-size: 0.8rem;
+    color: var(--label-color);
+    margin-top: -1rem;
+    display: block;
+}
+
+.status-label {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-weight: 500;
+    min-height: 24px;
+}
+
+/* Indicador de impeditivos no card */
+.project-card .impediment-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 800;
+    font-family: monospace;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background: transparent;
+    z-index: 2; /* acima do conteúdo do card para cliques */
+}
+.project-card .impediment-indicator .imp-count { font-weight: 700; }
+.project-card .impediment-indicator.neutral {
+    background: #e5e7eb; /* cinza claro */
+    color: #6b7280; /* cinza médio */
+    border-color: #d1d5db;
+}
+.project-card .impediment-indicator.inactive {
+    background: #f3f4f6; /* cinza bem claro */
+    color: #9ca3af; /* cinza */
+    border-color: #e5e7eb;
+}
+.project-card .impediment-indicator.active {
+    background: #fee2e2; /* vermelho claro */
+    color: #b91c1c; /* vermelho escuro */
+    border-color: #fecaca;
+}
+
+/* ======================== */
+/* Kanban Dashboard (scoped) */
+/* ======================== */
+
+/* Reset aplicado apenas na página Kanban */
+.kanban-page * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Botão de adicionar comentário no card */
+.add-comment-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid #d0d7de;
+    background: #ecf0f1;
+    color: #2c3e50;
+    font-weight: 800;
+    cursor: pointer;
+}
+.add-comment-btn:hover {
+    background: #e2e8f0;
+}
+
+/* Estilo base da página Kanban */
+body.kanban-page {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+    padding: 0; /* remove padding global da outra página */
+    display: block; /* remove layout flex da outra página */
+}
+
+/* ===== Kanban SLA de dias na fase ===== */
+/* Estilo do contêiner do contador (stage-days) */
+.kanban-page .day-counter.stage-days {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    background-color: #df8888; /* fallback padrão pedido */
+    color: #ffffff; /* ícone e texto brancos */
+}
+.kanban-page .day-counter.stage-days i { color: #ffffff; }
+
+/* Dentro do prazo: usar a cor da coluna (regras específicas) */
+.kanban-column.falta-liberar-servidor .day-counter.stage-days:not(.overdue) { background-color: #f59e0b; }
+.kanban-column.em-andamento .day-counter.stage-days:not(.overdue) { background-color: #22c55e; }
+
+/* Atrasado: vermelho, texto branco */
+.kanban-page .day-counter.stage-days.overdue { background-color: #ef4444 !important; color: #ffffff !important; }
+
+/* O número em si não tem fundo próprio; usa o fundo do contêiner */
+.day-counter.stage-days .dias-na-fase { background: transparent !important; padding: 0; color: #ffffff; font-weight: 700; }
+
+/* ===== Modal (Kanban) ===== */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.65); /* overlay claro */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal.hidden { display: none; }
+.modal .modal-content {
+    width: 95%;
+    max-width: 520px;
+    background: #f3f4f6; /* cinza claro para o corpo do modal */
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+    overflow: hidden;
+    animation: modal-pop 0.2s ease-out;
+}
+/* modal específico para comentários, com largura 600px */
+.modal .modal-content.comment-modal { max-width: 600px; }
+
+/* modal específico para novo projeto: mais largo e com mesma paleta do comment modal */
+.modal .modal-content.project-modal {
+    width: 95%;
+    max-width: 820px; /* mais largo */
+    height: 80vh;     /* alto, mas responsivo */
+    background: #f3f4f6; /* cinza claro como o modal de comentário */
+    display: flex;
+    flex-direction: column;
+}
+.modal .modal-content.project-modal .modal-header {
+    background: #dbeafe; /* azul claro no cabeçalho */
+    color: #000;         /* texto preto para ótima leitura */
+    border-bottom: 1px solid #bfdbfe;
+}
+.modal .modal-content.project-modal .modal-header h2 { color: #000 !important; }
+.modal .modal-content.project-modal .modal-body { flex: 1; overflow: auto; }
+
+/* inputs internos do modal de projeto: fundo branco, texto escuro e borda destacada */
+#projectModal input[type="text"],
+#projectModal select,
+#projectModal textarea {
+    background: #ffffff;
+    color: #111827;
+    border: 2px solid #cbd5e1;
+}
+#projectModal input[type="text"]:focus,
+#projectModal select:focus,
+#projectModal textarea:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 4px rgba(96,165,250,0.25);
+}
+
+/* Força paleta e largura do modal de Novo Projeto, evitando sobrescritas */
+#projectModal .modal-content {
+    width: 95% !important;
+    max-width: 900px !important; /* mais largo */
+    height: 80vh !important;
+    background: #f3f4f6 !important; /* cinza claro, igual ao de comentários */
+    display: flex !important;
+    flex-direction: column !important;
+}
+#projectModal .modal-header {
+    background: #dbeafe !important; /* azul claro */
+    color: #000 !important;         /* texto preto */
+    border-bottom: 1px solid #bfdbfe !important;
+}
+#projectModal .modal-header h2 { color: #000 !important; }
+#projectModal .modal-body { flex: 1; overflow: auto; background: #f3f4f6 !important; }
+#projectModal fieldset { background: #ffffff; border-color: #cbd5e1; }
+.modal .modal-header {
+    padding: 16px 20px;
+    background: #dbeafe; /* azul claro no cabeçalho */
+    color: #000000; /* texto preto para melhor contraste */
+    border-bottom: 1px solid #bfdbfe;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.modal .modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #000000 !important; /* força preto, evitando herança do h2 global */
+}
+.modal .modal-close {
+    background: transparent;
+    border: none;
+    color: #111827;
+    font-size: 22px;
+    cursor: pointer;
+}
+.modal .modal-body { padding: 16px 20px; }
+/* altura maior para o modal de comentário */
+.modal .modal-content.comment-modal { max-width: 600px; height: 600px; display: flex; flex-direction: column; }
+.modal .modal-content.comment-modal .modal-body { flex: 1; display: flex; }
+/* textarea do comentário com fundo branco, texto preto e borda destacada */
+#commentText {
+    width: 100%;
+    background: #ffffff;
+    color: #111827;
+    border: 2px solid #cbd5e1; /* cinza claro */
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    resize: vertical;
+}
+#commentText:focus {
+    outline: none;
+    border-color: #60a5fa; /* azul mais vivo no foco */
+    box-shadow: 0 0 0 4px rgba(96,165,250,0.25);
+}
+.modal .modal-footer { padding: 16px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+
+.btn-primary {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+}
+.btn-primary:hover { filter: brightness(1.05); }
+
+.btn-secondary {
+    background: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #d0d7de;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.confirm-move-box {
+    display: flex; align-items: center; gap: 12px;
+    background: #eef6ff; /* azul muito claro para destacar do branco */
+    border: 2px solid #bfdbfe; /* borda azul clara */
+    padding: 12px; border-radius: 12px;
+}
+.confirm-move-box .arrow { font-size: 20px; color: #1d4ed8; }
+.confirm-move-box .from, .confirm-move-box .to { color: #1f2937; font-weight: 600; }
+
+@keyframes modal-pop {
+    from { transform: translateY(10px); opacity: 0.8; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.kanban-page .container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.kanban-page .header {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 20px 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    text-align: initial; /* neutraliza estilo global */
+}
+
+.kanban-page .header h1 {
+    color: #2c3e50;
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.kanban-page .controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.kanban-page .control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.kanban-page .control-group label {
+    font-weight: 600;
+    color: #34495e;
+}
+
+/* Botão de login Google estilizado (verde claro) */
+.auth-link.google-login {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #86efac; /* verde claro */
+    color: #064e3b; /* texto verde escuro para contraste */
+    border: 1px solid #6ee7b7; /* borda verde suave */
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-weight: 600;
+    text-decoration: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: all 0.2s ease;
+}
+.auth-link.google-login:hover {
+    background: #34d399; /* um tom mais forte no hover */
+    color: #ffffff;
+    border-color: #10b981;
+}
+.auth-link.google-login .google-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* Chip do e-mail logado (pill verde claro) */
+.user {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #dcfce7; /* verde bem claro */
+    color: #065f46; /* verde escuro */
+    border: 1px solid #bbf7d0; /* borda suave */
+    padding: 8px 12px;
+    border-radius: 9999px; /* pill */
+    font-weight: 600;
+}
+
+/* Estilos de controles do topo (não afetam botões dos cards ou modais) */
+.kanban-page select,
+.kanban-page .controls button {
+    padding: 10px 20px;
+    border: 2px solid #3498db;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.kanban-page select {
+    background: white;
+    color: #2c3e50;
+    min-width: 180px;
+}
+
+.kanban-page select:focus {
+    outline: none;
+    border-color: #2980b9;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.kanban-page .controls button {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    cursor: pointer;
+    min-width: 140px;
+}
+
+.kanban-page .controls button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2980b9, #3498db);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+}
+
+.kanban-page .controls button:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.kanban-page .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.kanban-page .loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Toasts ===== */
+.toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.toast {
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #ffffff; /* fundo branco para melhor leitura */
+    color: #111827; /* texto escuro */
+    border: 2px solid #e5e7eb; /* borda neutra padrão */
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: toast-slide-in 0.25s ease-out;
+}
+.toast.success { border-color: #22c55e; }
+.toast.error { border-color: #ef4444; }
+.toast .icon { font-size: 18px; }
+.toast.success .icon { color: #16a34a; }
+.toast.error .icon { color: #dc2626; }
+
+@keyframes toast-slide-in {
+    from { transform: translateY(-8px); opacity: 0.7; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.kanban-page .kanban-board {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 20px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.kanban-page .kanban-columns {
+    display: flex;
+    gap: 20px;
+    height: 100%;
+    min-width: max-content;
+}
+
+.kanban-page .kanban-column {
+    min-width: 320px;
+    max-width: 350px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.kanban-page .kanban-column.drag-over {
+    border-color: #3498db;
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(52, 152, 219, 0.3);
+}
+
+.kanban-page .column-header {
+    padding: 20px;
+    border-radius: 12px 12px 0 0;
+    color: white;
+    font-weight: 700;
+    font-size: 16px;
+    text-align: center;
+    position: relative;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.kanban-page .column-count {
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.kanban-page .column-cards {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 15px 20px;
+    gap: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.kanban-page .project-card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    cursor: grab;
+    border-left: 4px solid #3498db;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 180px; /* Ajuste para layout flexível */
+}
+
+/* Destaque visual para novo projeto inserido */
+.kanban-page .project-card.newly-added {
+    animation: pulse-new 1.8s ease-out 1;
+}
+
+@keyframes pulse-new {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); transform: scale(0.98); }
+    40% { box-shadow: 0 0 0 12px rgba(34,197,94,0); transform: scale(1.02); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); transform: scale(1); }
+}
+
+.kanban-page .project-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.kanban-page .project-card.dragging {
+    opacity: 0.8;
+    transform: rotate(5deg) scale(1.05);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+.kanban-page .project-card:active {
+    cursor: grabbing;
+}
+
+.kanban-page .project-name {
+    font-weight: 700;
+    font-size: 15px;
+    color: #2c3e50;
+    margin-bottom: 8px;
+    line-height: 1.3;
+    /* Força uma única linha com reticências para não empurrar o restante do conteúdo */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Reserva espaço para o indicador de impedimento no canto direito, evitando sobreposição */
+    padding-right: 36px;
+    position: relative;
+}
+
+/* Tooltip estilizado para o título do projeto */
+.kanban-page .project-name[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    max-width: 280px;
+    background: rgba(17, 24, 39, 0.95); /* quase preto */
+    color: #fff;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+    white-space: normal; /* permite quebra dentro do tooltip */
+    z-index: 5;
+}
+.kanban-page .project-name[data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity .15s ease, transform .15s ease;
+}
+
+.kanban-page .project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kanban-page .project-detail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #7f8c8d;
+}
+
+.kanban-page .project-detail .icon {
+    font-size: 14px;
+    width: 16px;
+    text-align: center;
+}
+
+.kanban-page .project-footer {
+    display: flex;
+    justify-content: flex-start; /* Alterado para alinhar à esquerda */
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #ecf0f1;
+    gap: 8px; /* Espaço entre os contadores */
+}
+
+.kanban-page .project-date {
+    font-size: 12px;
+    color: #95a5a6;
+}
+
+/* Estilo antigo .project-days foi substituído pelos novos contadores */
+.kanban-page .project-days {
+   display: none; /* Oculta o contador antigo para evitar duplicidade */
+}
+
+/* ===================================== */
+/* === NOVOS ESTILOS PARA O CARD === */
+/* ===================================== */
+
+/* Indicador de Impedimento (Canto Superior Direito) */
+.kanban-page .impediment-indicator {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    color: #b91c1c; /* cor padrão (ativo) */
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    width: auto;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-weight: 800;
+    font-family: monospace;
+    font-size: 12px;
+    box-shadow: none;
+    z-index: 2;
+    cursor: pointer;
+}
+.kanban-page .impediment-indicator.neutral { color: #6b7280; }
+.kanban-page .impediment-indicator.inactive { color: #9ca3af; }
+.kanban-page .impediment-indicator.active { color: #b91c1c; }
+
+/* Botão de Adicionar Comentário (Canto Inferior Direito) */
+.kanban-page .add-comment-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    /* Cinza do Aguardando Onboarding */
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 300;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    z-index: 2;
+}
+
+.kanban-page .add-comment-btn:hover {
+    background-color: #5a6268; /* hover um tom abaixo */
+    transform: scale(1.1);
+}
+
+/* Variação de cor do botão "+" conforme a coluna do card */
+.kanban-page .aguardando-onboarding .project-card .add-comment-btn { background-color: #6c757d; }
+.kanban-page .aguardando-onboarding .project-card .add-comment-btn:hover { background-color: #5a6268; }
+
+.kanban-page .falta-liberar-servidor .project-card .add-comment-btn { background-color: #E67E22; }
+.kanban-page .falta-liberar-servidor .project-card .add-comment-btn:hover { background-color: #d68910; }
+
+.kanban-page .em-andamento .project-card .add-comment-btn { background-color: #2ECC71; }
+.kanban-page .em-andamento .project-card .add-comment-btn:hover { background-color: #27ae60; }
+
+.kanban-page .em-homologacao .project-card .add-comment-btn { background-color: #1ABC9C; }
+.kanban-page .em-homologacao .project-card .add-comment-btn:hover { background-color: #16a085; }
+
+.kanban-page .em-virada .project-card .add-comment-btn { background-color: #1ABC9C; }
+.kanban-page .em-virada .project-card .add-comment-btn:hover { background-color: #16a085; }
+
+.kanban-page .em-operacao .project-card .add-comment-btn { background-color: #3498DB; }
+.kanban-page .em-operacao .project-card .add-comment-btn:hover { background-color: #2980b9; }
+
+.kanban-page .finalizado .project-card .add-comment-btn { background-color: #27AE60; }
+.kanban-page .finalizado .project-card .add-comment-btn:hover { background-color: #229954; }
+
+.kanban-page .parado .project-card .add-comment-btn { background-color: #DC143C; }
+.kanban-page .parado .project-card .add-comment-btn:hover { background-color: #b91c3c; }
+
+.kanban-page .status-desconhecido .project-card .add-comment-btn { background-color: #95A5A6; }
+.kanban-page .status-desconhecido .project-card .add-comment-btn:hover { background-color: #7f8c8d; }
+
+.kanban-page .cancelado .project-card .add-comment-btn { background-color: #b5b5b5; color: #111827; }
+.kanban-page .cancelado .project-card .add-comment-btn:hover { background-color: #9aa0a6; }
+
+.kanban-page .aguardando-encerramento .project-card .add-comment-btn { background-color: #8B5CF6; }
+.kanban-page .aguardando-encerramento .project-card .add-comment-btn:hover { background-color: #7C3AED; }
+
+/* Contadores de Dias (Canto Inferior Esquerdo) */
+.kanban-page .day-counter {
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Cor para dias na etapa */
+.kanban-page .day-counter.stage-days {
+    background-color: #5DADE2;
+}
+
+/* Cor para dias totais do projeto */
+.kanban-page .day-counter.total-days {
+    background-color: #526D82;
+}
+
+
+/* Cores das colunas */
 .kanban-page .column-header.aguardando-onboarding { background: linear-gradient(135deg, #6c757d, #5a6268); }
+.kanban-page .column-header.falta-liberar-servidor { background: linear-gradient(135deg, #E67E22, #d68910); }
+.kanban-page .column-header.em-andamento { background: linear-gradient(135deg, #2ECC71, #27ae60); }
+.kanban-page .column-header.em-homologacao { background: linear-gradient(135deg, #1ABC9C, #16a085); }
+.kanban-page .column-header.em-virada { background: linear-gradient(135deg, #1ABC9C, #16a085); }
+.kanban-page .column-header.em-operacao { background: linear-gradient(135deg, #3498DB, #2980b9); }
+.kanban-page .column-header.finalizado { background: linear-gradient(135deg, #27AE60, #229954); }
+.kanban-page .column-header.parado { background: linear-gradient(135deg, #DC143C, #b91c3c); }
+.kanban-page .column-header.status-desconhecido { background: linear-gradient(135deg, #95A5A6, #7f8c8d); }
+/* Cancelado: cinza claro com texto preto */
+.kanban-page .column-header.cancelado {
+    background: #b5b5b5; /* cinza claro */
+    color: #111827; /* texto preto/escuro */
+    text-shadow: none;
+}
+.kanban-page .cancelado .project-card { border-left-color: #929498; }
+
+/* Bordas dos cards baseadas na coluna */
+.kanban-page .aguardando-onboarding .project-card { border-left-color: #6c757d; }
+.kanban-page .falta-liberar-servidor .project-card { border-left-color: #E67E22; }
+.kanban-page .em-andamento .project-card { border-left-color: #2ECC71; }
+.kanban-page .em-homologacao .project-card { border-left-color: #1ABC9C; }
+.kanban-page .em-virada .project-card { border-left-color: #1ABC9C; }
+.kanban-page .em-operacao .project-card { border-left-color: #3498DB; }
+.kanban-page .finalizado .project-card { border-left-color: #27AE60; }
+.kanban-page .parado .project-card { border-left-color: #DC143C; }
+.kanban-page .status-desconhecido .project-card { border-left-color: #95A5A6; }
+/* Aguardando Encerramento (roxo/lilás) */
+.kanban-page .column-header.aguardando-encerramento { background: linear-gradient(135deg, #8B5CF6, #7C3AED); }
+.kanban-page .aguardando-encerramento .project-card { border-left-color: #8B5CF6; }
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .kanban-page .header {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+
+    .kanban-page .controls {
+        justify-content: center;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .kanban-page .control-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .kanban-page .kanban-column {
+        min-width: 280px;
+        max-width: 300px;
+    }
+
+    .kanban-page .project-card {
+        padding: 12px;
+    }
+}
+
+/* Scrollbar personalizada */
+.kanban-page .column-cards::-webkit-scrollbar {
+    width: 6px;
+}
+
+.kanban-page .column-cards::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.kanban-page .column-cards::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.kanban-page .column-cards::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.kanban-page .project-card {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.kanban-page .empty-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: #bdc3c7;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+/* ======================== */
+/* Estilos Gerais para Modais */
+/* ======================== */
+.kanban-page .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 2000;
+}
+
+.kanban-page .modal.hidden { display: none; }
+
+.kanban-page .modal-content {
+    background: #ffffff;
+    color: #111827;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Garante que o conteúdo não transborde as bordas arredondadas */
+}
+
+.kanban-page .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.kanban-page .modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.kanban-page .modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6b7280; /* Cinza para contraste */
+}
+
+.kanban-page .modal-body {
+    padding: 1.25rem;
+}
+
+/* ===================================== */
+/* Modal Específico: Adicionar Projeto   */
+/* ===================================== */
+#projectModal .modal-content {
+    width: 600px; /* Largura fixa */
+    max-width: 95vw;
+    background: #3a3a3a; /* Fundo cinza escuro */
+    color: #ffffff; /* Texto branco */
+}
+
+#projectModal .modal-header {
+    background: #2c2c2c; /* Cabeçalho um pouco mais escuro */
+    border-bottom: 1px solid #4a4a4a;
+}
+
+#projectModal .modal-header h2 {
+    color: #ffffff;
+}
+
+#projectModal .modal-close {
+    color: #e0e0e0;
+}
+
+#projectModal .modal-body {
+    overflow-y: auto; /* Adiciona rolagem APENAS se o conteúdo exceder a altura */
+    overflow-x: hidden; /* Previne rolagem horizontal */
+    max-height: 80vh; /* Limita a altura máxima para evitar que o modal seja muito alto */
+}
+
+/* Campos de formulário dentro do modal de projeto */
+#projectModal input[type="text"],
+#projectModal select,
+#projectModal textarea {
+    background-color: #ffffff; /* Fundo branco */
+    color: #000000; /* Texto preto */
+    border: 1px solid #cccccc;
+    padding: 0.6rem;
+    border-radius: 5px;
+}
+
+#projectModal .form-grid {
+    grid-template-columns: 1fr 2fr; /* Layout de grid mais flexível */
+}
+
+#projectModal legend {
+    color: #3b82f6; /* Cor primária para legendas */
+}
+
+
+/* ===================================== */
+/* Modal Específico: Confirmação         */
+/* ===================================== */
+#confirmMoveModal .modal-content {
+    width: 480px; /* Um tamanho menor para confirmação */
+    max-width: 90vw;
+}
+
+.play-btn-container {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0px; /* Add some padding to align with the content */
+}
+
+/* Botão de Play para registrar atividade */
+.project-card .play-btn {
+    background: none;
+    border: none;
+    color: #27ae60; /* Verde, combinando com a coluna "Em Andamento" */
+    font-size: 20px; /* Tamanho do ícone reduzido */
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 0; /* Remove padding to avoid extra space */
+}
+
+.project-card .play-btn:hover {
+    color: #229954; /* Verde mais escuro no hover */
+}
+
+.kanban-page .controls button#loadButton,
+.kanban-page .controls button#openProjectModal {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 18px;
+    padding: 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Estilos para o modal de "Iniciar Implantação" */
+#playModal .modal-body {
+    padding: 2rem; /* Aumenta o padding geral do corpo do modal */
+}
+
+#playModal .form-grid-play {
+    display: grid;
+    gap: 1.5rem; /* Espaço entre as seções (Datas e Implantadores) */
+}
+
+#playModal .implantadores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Duas colunas de largura igual */
+    gap: 1.5rem; /* Espaço entre as colunas dos implantadores */
+}
+
+#playModal .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem; /* Espaço entre o label e o select/input */
+}
+
+#playModal label {
+    font-weight: 600; /* Deixa o label mais forte */
+    color: #374151; /* Cor do texto do label */
+}
+
+#playModal input[type="date"],
+#playModal select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db; /* Borda cinza claro */
+    border-radius: 8px; /* Bordas mais arredondadas */
+    background-color: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+#playModal .date-container {
+    max-width: 250px; /* Limita a largura do campo de data */
+}
+
+#playModal .modal-header div {
+    display: flex;
+    flex-direction: column;
+}
+
+#playModal .modal-header h2 {
+    margin: 0;
+}
+
+#playModal #play-modal-project-name {
+    font-size: 0.9rem;
+    color: #555;
+    margin-top: 4px;
+}
+
+#playModal legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ======================== */
+/* Login Page Styles        */
+/* ======================== */
+
+body.login-page {
+    background-image: url('../images/plano-de-fundo.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+}
+
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.login-box {
+    position: relative;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 3rem 4rem;
+    border-radius: 25px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    z-index: 1;
+    overflow: hidden; /* This is important */
+}
+
+.login-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    margin: -5px; /* This is the border width */
+    border-radius: inherit; /* This will follow the parent's border-radius */
+    background: linear-gradient(135deg, #667eea, #ff006a);
+}
+
+.login-box h1 {
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.login-box p {
+    color: white;
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+}
+
+/* Adjusting the Google login button for the new page */
+.login-box .auth-link.google-login {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    border-radius: 8px;
+}
+
 .kanban-page .column-header.falta-liberar-servidor { background: linear-gradient(135deg, #E67E22, #d68910); }
 .kanban-page .column-header.em-andamento { background: linear-gradient(135deg, #2ECC71, #27ae60); }
 .kanban-page .column-header.em-homologacao { background: linear-gradient(135deg, #1ABC9C, #16a085); }
