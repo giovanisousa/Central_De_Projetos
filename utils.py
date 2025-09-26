@@ -580,6 +580,81 @@ def atualizar_planilha_secundaria(sheets_service, dados):
 def obter_access_token_zoho():
     return obter_access_token()
 
+def sincronizar_projeto_individual(access_token: str, project_id: str) -> dict | None:
+    """Busca um projeto específico no Zoho e aplica o mesmo formato usado no Kanban."""
+    if not project_id:
+        return None
+
+    try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+        params = {
+            "fields": "id,name,owner,client_company,client,start_date,created_time,status,tags"
+        }
+        resp = requests.get(url, headers=_zp_headers(access_token), params=params, timeout=25)
+        resp.raise_for_status()
+        projeto = resp.json() if resp.text else {}
+    except requests.exceptions.RequestException as e:
+        print(f"ERRO: Falha ao buscar projeto {project_id}: {e.response.text if e.response else e}")
+        return None
+    except Exception as e:
+        print(f"ERRO inesperado ao sincronizar projeto {project_id}: {e}")
+        return None
+
+    if not isinstance(projeto, dict) or not projeto.get('id'):
+        print(f"AVISO: Resposta do Zoho sem dados válidos para o projeto {project_id}: {projeto}")
+        return None
+
+    cliente = (
+        (projeto.get('client_company') or {}).get('name')
+        or (projeto.get('client') or {}).get('name')
+        or projeto.get('client_name')
+        or "Cliente não informado"
+    )
+
+    status_kanban = determinar_coluna_projeto(projeto)
+    nome_projeto = projeto.get('name', '')
+    produto_info = ''
+    if ' - NR/AP' in nome_projeto:
+        produto_info = 'netRIS e AnimatiPACS'
+    elif ' - NR' in nome_projeto:
+        produto_info = 'netRIS'
+    elif ' - AP' in nome_projeto:
+        produto_info = 'AnimatiPACS'
+
+    info_projeto = {
+        'id': str(projeto.get('id')) if projeto.get('id') is not None else None,
+        'nome': nome_projeto,
+        'cliente': cliente,
+        'gp': (projeto.get('owner') or {}).get('name', 'GP não informado'),
+        'data_inicio': projeto.get('start_date', ''),
+        'data_criacao': projeto.get('created_time', ''),
+        'data_inicio_formatada': projeto.get('start_date', ''),
+        'dias_total': calcular_dias_total_projeto(projeto.get('start_date', ''), projeto.get('created_time', '')),
+        'status_atual': status_kanban,
+        'produto': produto_info
+    }
+
+    # Calcula dias na fase usando os mesmos critérios do carregamento completo
+    try:
+        info_projeto['dias_na_fase'] = calcular_dias_na_fase(
+            info_projeto,
+            status_kanban,
+            project_id=project_id,
+            access_token=access_token
+        )
+    except TypeError:
+        # Compatibilidade com versões anteriores que usavam uma assinatura menor
+        try:
+            info_projeto['dias_na_fase'] = calcular_dias_na_fase(info_projeto, status_kanban)
+        except Exception as e:
+            print(f"AVISO: Falha ao calcular dias na fase para {project_id}: {e}")
+            info_projeto['dias_na_fase'] = 'N/D'
+    except Exception as e:
+        print(f"AVISO: Falha ao calcular dias na fase para {project_id}: {e}")
+        info_projeto['dias_na_fase'] = 'N/D'
+
+    return info_projeto
+
 def construir_titulo_projeto(dados):
     sufixo_map = {
         "netRIS": "NR",

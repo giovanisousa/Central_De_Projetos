@@ -13,6 +13,21 @@ from database import (
 from utils import obter_access_token as obter_access_token_zoho, _zp_base, _zp_headers
 
 
+def _extract_project_from_response(data, project_id):
+    """Normaliza a resposta da API de projetos do Zoho."""
+    if isinstance(data, dict):
+        if str(data.get('id')) == str(project_id):
+            return data
+        if 'project' in data and isinstance(data['project'], dict):
+            if str(data['project'].get('id')) == str(project_id):
+                return data['project']
+        if 'projects' in data and data['projects']:
+            for item in data['projects']:
+                if str(item.get('id')) == str(project_id):
+                    return item
+    return None
+
+
 def sync_fases(projeto_id, access_token):
     """Busca a lista de fases e, em seguida, busca o detalhe de cada uma para obter o percentual de conclusão."""
     try:
@@ -98,6 +113,44 @@ def sync_listas_e_tarefas(projeto_id, access_token, id_fase_impeditivos):
 
     except requests.exceptions.RequestException as e:
         print(f"    - ERRO ao buscar listas de tarefas do projeto {projeto_id}: {e}")
+
+
+def synchronize_single_project(project_id: str, access_token: str | None = None):
+    """Sincroniza apenas um projeto específico (e seus detalhes) com o banco local."""
+    if not project_id:
+        return None
+
+    try:
+        token = access_token or obter_access_token_zoho()
+        headers = _zp_headers(token)
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+        response = requests.get(url, headers=headers, timeout=45)
+        response.raise_for_status()
+        project = _extract_project_from_response(response.json(), project_id)
+        if not project:
+            print(f"WARN: Projeto {project_id} não encontrado na resposta do Zoho.")
+            return None
+
+        upsert_project(project)
+        print(f"  -> Sincronizado projeto individual: {project.get('name')} (ID: {project.get('id')})")
+
+        fases_do_projeto = sync_fases(project_id, token)
+        id_fase_impeditivos = None
+        for fase in fases_do_projeto:
+            if fase.get('name') == "00 - Itens impeditivos de virada":
+                id_fase_impeditivos = fase.get('id')
+                break
+        sync_listas_e_tarefas(project_id, token, id_fase_impeditivos)
+
+        return project
+    except requests.exceptions.RequestException as e:
+        print(f"ERRO: Falha ao sincronizar projeto {project_id}: {e}")
+        if e.response is not None:
+            print(f"Detalhes: {e.response.text[:400]}")
+        return None
+    except Exception as e:
+        print(f"ERRO inesperado no sync individual do projeto {project_id}: {e}")
+        return None
 
 
 def synchronize_projects():
