@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import re
+import os
 from datetime import datetime, timezone
 
 DB_FILE = 'zoho_cache.db'
@@ -8,6 +9,7 @@ DB_FILE = 'zoho_cache.db'
 def get_db_connection():
     """Cria e retorna uma conexão com o banco de dados."""
     conn = sqlite3.connect(DB_FILE)
+    _ensure_sqlite_path(conn)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -195,6 +197,15 @@ def parse_description(description):
         "integracao_escopo": json.dumps(integracao_escopo) if integracao_escopo else None,
         "link_google": link_google,
     }
+
+def _ensure_sqlite_path(conn):
+    """Normaliza o caminho do DB para executáveis locais que esperam arquivo absoluto."""
+    try:
+        if not os.path.isabs(DB_FILE):
+            conn.execute(f"ATTACH DATABASE '{os.path.abspath(DB_FILE)}' AS main")
+    except Exception:
+        pass
+
 
 def upsert_project(project_data):
     """

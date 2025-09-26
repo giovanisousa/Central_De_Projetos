@@ -457,17 +457,59 @@ def api_criar_projeto():
         novo_projeto = None
         if id_do_novo_projeto:
             try:
-                novo_projeto = {
-                    "id": str(id_do_novo_projeto),
-                    "nome": utils.construir_titulo_projeto(dados),
-                    "cliente": f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']}",
-                    "gp": dados['gp_selecionado'],
-                    "data_inicio_formatada": dados.get('start_date', '').replace('-', '/'),
-                    "dias_na_fase": "0 dias",
-                    "status_atual": "Aguardando Onboarding"
-                }
-            except Exception:
-                pass
+                from sync_zoho import synchronize_single_project
+
+                token_para_sync = access_token if 'access_token' in locals() and access_token else utils.obter_access_token()
+                projeto_json = synchronize_single_project(str(id_do_novo_projeto), token_para_sync)
+                if projeto_json:
+                    # Recarrega do banco para garantir consistência com o cache
+                    registro_db = database.get_project_by_id(str(id_do_novo_projeto))
+                    if registro_db and registro_db['full_data_json']:
+                        dados_zoho = json.loads(registro_db['full_data_json'])
+                        nome_projeto = dados_zoho.get('name', utils.construir_titulo_projeto(dados))
+                        cliente = (
+                            (dados_zoho.get('client_company') or {}).get('name')
+                            or (dados_zoho.get('client') or {}).get('name')
+                            or dados_zoho.get('client_name')
+                            or "Cliente não informado"
+                        )
+                        gp_nome = (dados_zoho.get('owner') or {}).get('name', 'GP não informado')
+                        produto_info = ''
+                        if ' - NR/AP' in nome_projeto:
+                            produto_info = 'netRIS e AnimatiPACS'
+                        elif ' - NR' in nome_projeto:
+                            produto_info = 'netRIS'
+                        elif ' - AP' in nome_projeto:
+                            produto_info = 'AnimatiPACS'
+                        novo_projeto = {
+                            "id": str(registro_db['id']),
+                            "nome": nome_projeto,
+                            "cliente": cliente,
+                            "gp": gp_nome,
+                            "data_inicio": dados_zoho.get('start_date', ''),
+                            "data_criacao": dados_zoho.get('created_time', ''),
+                            "data_inicio_formatada": (dados_zoho.get('start_date') or '').replace('-', '/'),
+                            "dias_na_fase": registro_db.get('dias_na_fase') or utils.calcular_dias_na_fase(dados_zoho, utils.determinar_coluna_projeto(dados_zoho)),
+                            "dias_total": registro_db.get('dias_total') or utils.calcular_dias_total_projeto(dados_zoho.get('start_date'), dados_zoho.get('created_time')),
+                            "status_atual": utils.determinar_coluna_projeto(dados_zoho),
+                            "produto": produto_info
+                        }
+            except Exception as sync_error:
+                print(f"WARN: Falha ao sincronizar projeto recém-criado {id_do_novo_projeto}: {sync_error}")
+                novo_projeto = None
+            if not novo_projeto:
+                try:
+                    novo_projeto = {
+                        "id": str(id_do_novo_projeto),
+                        "nome": utils.construir_titulo_projeto(dados),
+                        "cliente": f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']}",
+                        "gp": dados.get('gp_selecionado', 'GP não informado'),
+                        "data_inicio_formatada": dados.get('start_date', '').replace('-', '/'),
+                        "dias_na_fase": "0 dias",
+                        "status_atual": "Aguardando Onboarding"
+                    }
+                except Exception:
+                    novo_projeto = None
         return jsonify({"status": "success", "message": "Processo finalizado com sucesso!", "novo_projeto": novo_projeto})
 
     except Exception as e:
