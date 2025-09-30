@@ -157,10 +157,10 @@ def synchronize_projects():
     """
     Sincroniza os projetos do Zoho com o banco de dados local, incluindo fases, listas e tarefas.
     """
-    DEBUG_PROJECT_ID = "2376502000002326783"
+    '''DEBUG_PROJECT_ID = "2376502000002326783"'''
     NOME_FASE_IMPEDITIVOS = "00 - Itens impeditivos de virada"
 
-    if DEBUG_PROJECT_ID:
+    '''if DEBUG_PROJECT_ID:
         print(f"--- MODO DE DEBUG: Sincronizando apenas o projeto ID: {DEBUG_PROJECT_ID} ---")
         try:
             access_token = obter_access_token_zoho()
@@ -199,7 +199,7 @@ def synchronize_projects():
 
         except Exception as e:
             print(f"\nERRO INESPERADO no modo de debug: {e}")
-        return
+        return'''
 
     print("--- Iniciando sincronização completa do Zoho ---")
     try:

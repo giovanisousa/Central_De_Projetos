@@ -26,7 +26,7 @@ PROJECT_ID = "2376502000005564224"
 
 # Valores solicitados para inserção
 BASE_FIELDS: Dict[str, Any] = {
-    "havera_integracao": False,
+    "havera_integracao": True,
     "solucoes_contratadas": "AnimatiPACS/netRIS",
     "link_do_google": "https://drive.google.com/drive/folders/1aWyEeRMoCN9zC_RkFTFgrFTxVOS02-49",
     "importacoes": [

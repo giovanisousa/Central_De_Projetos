@@ -1,10 +1,77 @@
 import os
 import json
 import time
+import threading
 import traceback
 import urllib.parse
 from datetime import date, datetime, timedelta
+from functools import lru_cache
+from typing import Any, Dict, List, Tuple
+
 from flask import session, jsonify, request, current_app
+import requests
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+
+
+class ZohoTokenError(RuntimeError):
+    """Erros relacionados à obtenção do token de acesso Zoho."""
+
+
+def obter_access_token(force_refresh: bool = False) -> str:
+    """Obtém o access token do Zoho Projects com cache in-memory."""
+    global _ZOHO_TOKEN_CACHE
+    now = time.time()
+
+    if not force_refresh and _ZOHO_TOKEN_CACHE:
+        token = _ZOHO_TOKEN_CACHE.get("token")
+        expiry = _ZOHO_TOKEN_CACHE.get("expiry", 0)
+        if token and expiry > now + 30:
+            return token
+
+    with _ZOHO_TOKEN_CACHE_LOCK:
+        cache_data = _ZOHO_TOKEN_CACHE
+        now_inside = time.time()
+        if not force_refresh and cache_data:
+            token = cache_data.get("token")
+            expiry = cache_data.get("expiry", 0)
+            if token and expiry > now_inside + 30:
+                return token
+
+        refresh_token = _ler_refresh_token()
+        domain = _zoho_domain()
+        token_host = f"https://accounts.zoho.{domain}" if domain != "com" else "https://accounts.zoho.com"
+        token_url = f"{token_host}/oauth/v2/token"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        payload = {
+            "refresh_token": refresh_token,
+            "client_id": ZOHO_CLIENT_ID,
+            "client_secret": ZOHO_CLIENT_SECRET,
+            "grant_type": "refresh_token",
+        }
+        resp = requests.post(
+            token_url,
+            headers=headers,
+            data=payload,
+            timeout=30,
+        )
+        if not resp.ok:
+            raise ZohoTokenError(
+                f"Falha ao obter access token Zoho: {resp.status_code} {resp.text[:300]}"
+            )
+        data = resp.json() or {}
+        access_token = data.get("access_token")
+        expires_in = data.get("expires_in")
+        if not access_token:
+            raise ZohoTokenError("Resposta do Zoho sem access_token")
+        try:
+            expires_in_int = int(expires_in)
+        except Exception:
+            expires_in_int = 3600
+        expiry_ts = now_inside + max(60, expires_in_int)
+        _ZOHO_TOKEN_CACHE = {"token": access_token, "expiry": expiry_ts}
+        return access_token
 import requests
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -15,7 +82,30 @@ import docx
 import io
 import re
 from config import *
+
+_ZOHO_TOKEN_CACHE: dict | None = None
+_ZOHO_TOKEN_CACHE_LOCK = threading.Lock()
+
 _MAPPINGS_CACHE = None
+
+
+@lru_cache(maxsize=1)
+def carregar_mapeamento_colunas() -> Dict[str, Dict[str, Any]]:
+    """Carrega o arquivo JSON de mapeamento de colunas com cache em memória."""
+    caminho = os.path.join(BASE_DIR, "mapeamento_colunas.json")
+    if not os.path.exists(caminho):
+        raise FileNotFoundError(f"Arquivo de mapeamento não encontrado: {caminho}")
+
+    try:
+        with open(caminho, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Arquivo de mapeamento inválido: {exc}")
+
+    if not isinstance(dados, dict):
+        raise ValueError("Estrutura do mapeamento deve ser um objeto JSON")
+
+    return dados
 
 # ====== UTILITÁRIOS: Atualização tolerante de planilha por coluna ======
 def _get_sheet_headers(sheets_service, spreadsheet_id: str, sheet_name: str, header_row: int = 1):
@@ -384,6 +474,183 @@ def determinar_coluna_projeto(projeto: dict) -> str:
     return 'Status Desconhecido'
 
 
+def _zp_project_url(project_id: str) -> str:
+    return f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+
+
+def _zp_project_custom_fields_url(project_id: str) -> str:
+    return f"{_zp_project_url(project_id)}/customfields"
+
+
+def _zp_project_tags_url(project_id: str) -> str:
+    return f"{_zp_project_url(project_id)}/tags"
+
+
+def set_project_status(project_id: str, status_id: str, access_token: str) -> bool:
+    if not project_id or not status_id:
+        raise ValueError("project_id e status_id são obrigatórios")
+    url = _zp_project_url(project_id)
+    payload = {"custom_status": status_id}
+    headers = _zp_headers(access_token)
+    headers["Content-Type"] = "application/json"
+    try:
+        resp = requests.patch(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code in (200, 201):
+            print(f"INFO: Status do projeto {project_id} atualizado para {status_id}")
+            return True
+        print(f"WARN: Falha ao atualizar status do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao atualizar status do projeto {project_id}: {exc}")
+    return False
+
+
+def set_project_custom_fields(project_id: str, custom_fields: Dict[str, Any], access_token: str) -> bool:
+    if not project_id or not custom_fields:
+        return True
+    url = _zp_project_custom_fields_url(project_id)
+    headers = _zp_headers(access_token)
+    headers["Content-Type"] = "application/json"
+    payload = {"custom_fields": custom_fields}
+    try:
+        resp = requests.put(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code in (200, 201):
+            print(f"INFO: Custom fields do projeto {project_id} atualizados: {list(custom_fields.keys())}")
+            return True
+        print(f"WARN: Falha ao atualizar custom fields do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao atualizar custom fields do projeto {project_id}: {exc}")
+    return False
+
+
+def set_project_tags_exact(project_id: str, tags_to_add: List[str], access_token: str) -> bool:
+    tags_to_add = [str(t).strip() for t in (tags_to_add or []) if str(t).strip()]
+    url = _zp_project_tags_url(project_id)
+    headers = _zp_headers(access_token)
+    headers["Content-Type"] = "application/json"
+    payload = {"tags": tags_to_add}
+    try:
+        resp = requests.put(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code in (200, 201):
+            print(f"INFO: Tags do projeto {project_id} definidas como: {tags_to_add}")
+            return True
+        print(f"WARN: Falha ao definir tags do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao definir tags do projeto {project_id}: {exc}")
+    return False
+
+
+def sync_project_tags_delta(project_id: str, tags_to_add: List[str], tags_to_remove: List[str], access_token: str) -> bool:
+    add = [str(t).strip() for t in (tags_to_add or []) if str(t).strip()]
+    remove = [str(t).strip() for t in (tags_to_remove or []) if str(t).strip()]
+    if not add and not remove:
+        return True
+    url = _zp_project_tags_url(project_id)
+    headers = _zp_headers(access_token)
+    headers["Content-Type"] = "application/json"
+    payload = {"tags_to_add": add, "tags_to_remove": remove}
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code in (200, 201):
+            print(f"INFO: Tags do projeto {project_id} atualizadas (add={add}, remove={remove})")
+            return True
+        print(f"WARN: Falha ao atualizar tags do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao atualizar tags do projeto {project_id}: {exc}")
+    return False
+
+
+def post_project_comment(project_id: str, message: str, access_token: str) -> bool:
+    if not project_id or not message:
+        return False
+    url = f"{_zp_project_url(project_id)}/comments"
+    headers = _zp_headers(access_token)
+    headers.update({"Content-Type": "application/json", "Accept": "application/json"})
+    payload = {"content": str(message)}
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code in (200, 201):
+            print(f"INFO: Comentário de projeto criado para {project_id}")
+            return True
+        print(f"WARN: Falha ao comentar projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao comentar projeto {project_id}: {exc}")
+    return False
+
+
+def post_task_comment(project_id: str, task_id: str, message: str, access_token: str) -> bool:
+    if not project_id or not task_id or not message:
+        return False
+    base = _zp_project_url(project_id)
+    url = f"{base}/tasks/{task_id}/comments"
+    headers = _zp_headers(access_token)
+    headers.update({"Content-Type": "application/json", "Accept": "application/json"})
+    payload = {"content": str(message)}
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code in (200, 201):
+            print(f"INFO: Comentário adicionado na tarefa {task_id} do projeto {project_id}")
+            return True
+        print(f"WARN: Falha ao comentar tarefa {task_id} do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao comentar tarefa {task_id} do projeto {project_id}: {exc}")
+    return False
+
+
+def disparar_workflow(project_id: str, workflow_name: str, payload: dict | None, access_token: str) -> bool:
+    if not project_id or not workflow_name:
+        return False
+    url = f"{_zp_project_url(project_id)}/workflows/{workflow_name}/trigger"
+    headers = _zp_headers(access_token)
+    headers["Content-Type"] = "application/json"
+    try:
+        resp = requests.post(url, headers=headers, json=payload or {}, timeout=30)
+        if resp.status_code in (200, 201, 202):
+            print(f"INFO: Workflow '{workflow_name}' disparado para projeto {project_id}")
+            return True
+        print(f"WARN: Falha ao disparar workflow '{workflow_name}' no projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+    except Exception as exc:
+        print(f"ERROR: Exceção ao disparar workflow '{workflow_name}' no projeto {project_id}: {exc}")
+    return False
+
+
+def obter_task_id_por_nome(project_id: str, task_name: str, access_token: str) -> str | None:
+    if not project_id or not task_name:
+        return None
+    url = f"{_zp_project_url(project_id)}/tasks"
+    headers = _zp_headers(access_token)
+    params = {
+        "status": "all",
+        "range": "1-200",
+        "sort_column": "created_time",
+        "sort_order": "ascending",
+    }
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        tasks = data.get("tasks") if isinstance(data, dict) else []
+        normalized_target = _normalize_task_name(task_name)
+        for task in tasks or []:
+            nome = (task.get("name") or "").strip()
+            if not nome:
+                continue
+            if _normalize_task_name(nome) == normalized_target:
+                return str(task.get("id")) if task.get("id") is not None else None
+    except Exception as exc:
+        print(f"WARN: Falha ao localizar task '{task_name}' no projeto {project_id}: {exc}")
+    return None
+
+
+def _normalize_task_name(name: str) -> str:
+    try:
+        base = (name or "").strip().lower()
+        base = re.sub(r"^\s*\d+(?:\.\d+)*\s*-\s*", "", base)
+        base = " ".join(base.split())
+        return base
+    except Exception:
+        return name or ""
+
+
 def obter_access_token() -> str:
     if not os.path.exists(ZOHO_TOKEN_PATH):
         raise FileNotFoundError(f"Arquivo de refresh token não encontrado: {ZOHO_TOKEN_PATH}")
@@ -420,6 +687,19 @@ def obter_access_token() -> str:
 def obter_access_token_zoho() -> str:
     # Alias compatível com chamadas existentes
     return obter_access_token()
+
+
+def avaliar_campos_personalizados(info_dest: dict | None) -> dict:
+    """Resolve marcadores especiais como CURRENT_DATE antes de enviar ao Zoho."""
+    resolved: dict[str, Any] = {}
+    for chave, valor in (info_dest or {}).items():
+        if not chave:
+            continue
+        if isinstance(valor, str) and valor.upper() == "CURRENT_DATE":
+            resolved[chave] = date.today().strftime("%Y-%m-%d")
+        else:
+            resolved[chave] = valor
+    return resolved
 
 def criar_estrutura_no_drive(drive_service, dados):
     try:
@@ -1640,6 +1920,21 @@ def _update_status_planilha_principal(sheets_service, cliente_key: str, novo_sta
         body=body
     ).execute()
     return True
+
+def extrair_cliente_planilha(nome_projeto: str) -> str:
+    """Normaliza o nome do cliente removendo sufixos padrão da planilha."""
+    if not nome_projeto:
+        return ""
+    valor = (nome_projeto or "").strip()
+    # remove " - AP" ou " - NR" (case-insensitive) no final
+    for sufixo in (" - AP", " - NR"):
+        if valor.upper().endswith(sufixo):
+            valor = valor[: -len(sufixo)].strip()
+    # remove " - NR/AP" (variação antiga)
+    if valor.upper().endswith(" - NR/AP"):
+        valor = valor[: -len(" - NR/AP")].strip()
+    return valor
+
 
 def update_col_value_by_cliente_tolerant(sheets_service, cliente_full: str, col_name: str, value: str) -> bool:
     headers_range = f"{NOME_ABA_PLANILHA}!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
