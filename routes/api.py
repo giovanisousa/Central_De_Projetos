@@ -19,15 +19,18 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from datetime import datetime, date
+from typing import Any
 import json
 import re
 import requests
+import sqlite3
 
 # Imports para o cache de banco de dados e sincronização
 import database
-from sync_zoho import synchronize_projects
+from sync_zoho import synchronize_projects, synchronize_single_project
 # Coletor robusto de tarefas (paginação e status)
 from buscar_tarefas import listar_tarefas_do_projeto
+from datetime import date
 
 # Coletor rápido para uso no fluxo do app (baixa latência)
 # Busca até ~400 tarefas com status=all em poucas chamadas, com 1 retry breve
@@ -698,9 +701,10 @@ def api_dias_na_fase(project_id):
 
 @api_bp.route('/mover_projeto', methods=['POST'])
 def api_mover_projeto():
+    """Orquestra a movimentação do projeto entre colunas (Zoho + Sheets + DB)."""
     try:
         if 'credentials' not in session:
-            return jsonify({"sucesso": False, "erro": "Usuário não autenticado."}),
+            return jsonify({"sucesso": False, "erro": "Usuário não autenticado."}), 401
 
         payload = request.get_json(force=True) or {}
         projeto_id = str(payload.get('projeto_id') or '').strip()
@@ -711,14 +715,10 @@ def api_mover_projeto():
         if not projeto_id or not coluna_destino:
             return jsonify({"sucesso": False, "erro": "Parâmetros inválidos."}), 400
 
-        msg_operacoes = []
-        
         project_row = database.get_project_by_id(projeto_id)
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {projeto_id} não encontrado no cache."}), 404
-        detalhes_zoho = json.loads(project_row['full_data_json'])
 
-        # Valida refresh_token antes de usar Google Sheets
         try:
             creds_in_session = session.get('credentials') if isinstance(session.get('credentials'), dict) else None
             if not creds_in_session or not creds_in_session.get('refresh_token'):
@@ -730,83 +730,610 @@ def api_mover_projeto():
         except Exception:
             pass
 
-        # Aplica regras gerais via mapeamento JSON conforme a coluna de destino
-        try:
-            mapping_path = os.path.join(BASE_DIR, 'mapeamento_colunas.json')
-            with open(mapping_path, 'r', encoding='utf-8') as f:
-                colmap = json.load(f)
-        except Exception as e:
-            print(f"[/api/mover_projeto] Falha ao ler mapeamento_colunas.json: {e}")
-            colmap = {}
-
+        full_data_json = project_row['full_data_json'] if 'full_data_json' in project_row.keys() else None
+        detalhes_zoho = json.loads(full_data_json) if full_data_json else {}
+        colmap = utils.carregar_mapeamento_colunas()
         info_dest = colmap.get(coluna_destino) or {}
         if not info_dest:
-            msg_operacoes.append('Coluna destino sem mapeamento; nenhuma atualização aplicada.')
-        else:
-            # 1) Tokens/serviços
-            access_token = utils.obter_access_token_zoho()
-            sheets_service = build('sheets', 'v4', credentials=utils.build_google_credentials_from_session())
+            return jsonify({
+                "sucesso": False,
+                "erro": f"Coluna destino '{coluna_destino}' não possui mapeamento configurado."
+            }), 400
 
-            # 2) Descobrir valor do cliente ("codigo - nome") a partir do nome do projeto no Zoho
-            nome_projeto_zoho = (detalhes_zoho or {}).get('name', '')
-            valor_cliente = nome_projeto_zoho.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
-            description = (detalhes_zoho or {}).get('description', '')
-            match = re.search(r'/folders/([a-zA-Z0-9_-]+)', description)
-            google_drive_folder_id = match.group(1) if match else None
+        try:
+            access_token = utils.obter_access_token()
+        except Exception as exc:
+            _log_move_error("[MOVE][AUTH]", projeto_id, coluna_destino, f"Falha ao obter access token: {exc}")
+            return jsonify({"sucesso": False, "erro": "Falha na autenticação Zoho."}), 502
 
-            # 3) Atualizar planilha: Status Principal por valor exato da coluna "Cliente"
-            try:
-                novo_status_sheet = info_dest.get('sheetStatus')
-                _cli_raw = (cliente_sheet or '').strip()
-                if _cli_raw.lower().startswith('cliente não informado') or _cli_raw.lower() in {'', 'n/a', 'na', 'null', 'none'}:
-                    cliente_lookup = (valor_cliente or '').strip()
-                else:
-                    cliente_lookup = _cli_raw
-                
-                codigo_lookup = None
-                try:
-                    parte = (cliente_lookup or valor_cliente or '').split(' - ')[0].strip()
-                    m = re.match(r'^\d+', parte.replace('.', ''))
-                    if m:
-                        codigo_lookup = m.group(0)
-                except Exception:
-                    codigo_lookup = None
+        msg_operacoes: list[str] = []
 
-                if sheets_service and (cliente_lookup or codigo_lookup) and novo_status_sheet:
-                    try:
-                        utils._update_status_planilha_principal(sheets_service, cliente_lookup or valor_cliente or codigo_lookup, novo_status_sheet)
-                        msg_operacoes.append('Planilha principal: Status Principal atualizado')
-                    except Exception as e_upd1:
-                        try:
-                            chave_alt = valor_cliente or cliente_lookup or ''
-                            utils._update_status_planilha_principal(sheets_service, chave_alt, novo_status_sheet)
-                            msg_operacoes.append('Planilha principal: Status Principal atualizado (fallback)')
-                        except Exception as e_upd2:
-                            msg_operacoes.append(f'Falha ao atualizar planilha (Status Principal): {e_upd2}')
-                else:
-                    msg_operacoes.append('Planilha não atualizada (serviço/cliente/status indisponível)')
-            except Exception as e:
-                msg_operacoes.append(f'Falha ao atualizar planilha: {e}')
+        try:
+            _atualizar_zoho(
+                projeto_id=projeto_id,
+                coluna_destino=coluna_destino,
+                info_dest=info_dest,
+                access_token=access_token,
+                detalhes_zoho=detalhes_zoho,
+                coletor_mensagens=msg_operacoes,
+                coluna_origem=coluna_origem
+            )
+        except Exception:
+            _log_move_error("[MOVE][ZOHO]", projeto_id, coluna_destino, "Falha durante atualização Zoho.", coluna_origem)
+            raise
 
-            # 4) Atualizar status do projeto no Zoho (se mapeado)
-            try:
-                zoho_status_id = (info_dest.get('zohoStatusId') or '').strip() if isinstance(info_dest.get('zohoStatusId'), str) else info_dest.get('zohoStatusId')
-                if access_token and zoho_status_id:
-                    url = f"{utils._zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
-                    payload = {"status": {"id": zoho_status_id}}
-                    r = requests.patch(url, headers=utils._zp_headers(access_token), json=payload, timeout=30)
-                    if r.status_code in (200, 201):
-                        msg_operacoes.append('Status do projeto atualizado no Zoho')
-                    else:
-                        msg_operacoes.append(f'Falha ao atualizar status no Zoho: HTTP {r.status_code}')
-            except Exception as e:
-                msg_operacoes.append(f'Erro ao atualizar status no Zoho: {e}')
+        try:
+            _atualizar_planilha(
+                projeto_id=projeto_id,
+                coluna_destino=coluna_destino,
+                info_dest=info_dest,
+                cliente_sheet=cliente_sheet,
+                detalhes_zoho=detalhes_zoho,
+                coletor_mensagens=msg_operacoes,
+                project_row=project_row
+            )
+        except Exception:
+            _log_move_error("[MOVE][SHEET]", projeto_id, coluna_destino, "Falha durante atualização da planilha.", coluna_origem)
+            raise
 
-        return jsonify({"sucesso": True, "mensagem": "; ".join(msg_operacoes) or 'Movimentação registrada.'})
+        try:
+            _sincronizar_db_local(
+                projeto_id=projeto_id,
+                access_token=access_token,
+                coletor_mensagens=msg_operacoes
+            )
+        except Exception:
+            _log_move_error("[MOVE][DB]", projeto_id, coluna_destino, "Falha durante sincronização do banco local.", coluna_origem)
+            raise
 
-    except Exception as e:
+        return jsonify({
+            "sucesso": True,
+            "mensagem": "; ".join(msg_operacoes) or 'Movimentação registrada.'
+        })
+
+    except Exception as exc:
         traceback.print_exc()
-        return jsonify({"sucesso": False, "erro": str(e)}), 500
+        context_project = locals().get('projeto_id', '<indefinido>')
+        context_dest = locals().get('coluna_destino', '<indefinida>')
+        context_origin = locals().get('coluna_origem', '<indefinida>')
+        _log_move_error("[MOVE][UNHANDLED]", context_project, context_dest, str(exc), context_origin)
+        return jsonify({"sucesso": False, "erro": str(exc)}), 500
+
+
+def _log_move_error(prefix: str, projeto_id: str | None, coluna_destino: str | None, mensagem: str, coluna_origem: str | None = None, extra: dict | None = None) -> None:
+    """Centraliza logs de erro do fluxo de movimentação com contexto estruturado."""
+    try:
+        payload = {
+            "projeto_id": projeto_id,
+            "coluna_destino": coluna_destino,
+            "coluna_origem": coluna_origem,
+            "mensagem": mensagem,
+            "extra": extra or {}
+        }
+        print(f"{prefix} {json.dumps(payload, ensure_ascii=False)}")
+    except Exception as log_exc:
+        print(f"[MOVE][LOG][FALLBACK] prefix={prefix} projeto={projeto_id} destino={coluna_destino} erro={mensagem} fallback={log_exc}")
+
+
+def _log_move_info(prefix: str, projeto_id: str, coluna_destino: str, detalhe: str, coluna_origem: str | None = None, extra: dict | None = None) -> None:
+    """Log informativo padronizado para o fluxo de movimentação."""
+    try:
+        payload = {
+            "projeto_id": projeto_id,
+            "coluna_destino": coluna_destino,
+            "coluna_origem": coluna_origem,
+            "detalhe": detalhe,
+            "extra": extra or {}
+        }
+        print(f"{prefix} {json.dumps(payload, ensure_ascii=False)}")
+    except Exception as log_exc:
+        print(f"[MOVE][LOG][INFO-FALLBACK] prefix={prefix} projeto={projeto_id} destino={coluna_destino} detalhe={detalhe} fallback={log_exc}")
+
+
+def _validar_planilha_move(info_dest: dict, cliente_sheet: str) -> None:
+    sheet_target = (info_dest or {}).get('sheetStatus')
+    exige_cliente = bool(sheet_target)
+    if exige_cliente and not cliente_sheet:
+        raise ValueError("Cliente da planilha não informado para atualização do status")
+
+
+def _atualizar_zoho(
+    projeto_id: str,
+    coluna_destino: str,
+    info_dest: dict,
+    access_token: str,
+    detalhes_zoho: dict,
+    coletor_mensagens: list,
+    coluna_origem: str | None = None
+) -> None:
+    """Atualiza o projeto no Zoho conforme o mapeamento da coluna destino."""
+    headers = {
+        "Authorization": f"Zoho-oauthtoken {access_token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    base_url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
+
+    # 1) Atualiza status e campos customizados
+    payload_patch: dict = {}
+    status_id = info_dest.get("zohoStatusId")
+    if status_id:
+        payload_patch["status"] = {"id": status_id}
+
+    custom_fields = info_dest.get("zohoCustomFields", {}) or {}
+
+    if custom_fields:
+        payload_patch["custom_fields"] = _resolver_custom_fields(custom_fields)
+
+    if payload_patch:
+        response_patch = requests.patch(base_url, headers=headers, json=payload_patch, timeout=45)
+        if response_patch.status_code not in (200, 201):
+            raise RuntimeError(
+                f"Falha ao atualizar projeto no Zoho (status/custom): {response_patch.status_code} - {response_patch.text[:400]}"
+            )
+
+        # Fallback para tenants que exigem campos customizados no topo do payload
+        if custom_fields:
+            try:
+                response_data = response_patch.json()
+            except Exception:
+                response_data = None
+
+            resolved_values = _resolver_custom_fields(custom_fields)
+            updated_ok = _verificar_campos_customizados(response_data, resolved_values)
+
+            if not updated_ok:
+                inline_payload = _resolver_custom_fields(custom_fields)
+                response_inline = requests.patch(base_url, headers=headers, json=inline_payload, timeout=45)
+                if response_inline.status_code not in (200, 201):
+                    raise RuntimeError(
+                        f"Falha ao atualizar projeto no Zoho (fallback custom): {response_inline.status_code} - {response_inline.text[:400]}"
+                    )
+
+                try:
+                    inline_response_data = response_inline.json()
+                except Exception:
+                    inline_response_data = None
+
+                if not _verificar_campos_customizados(inline_response_data, inline_payload):
+                    try:
+                        project_id_hint = base_url.rstrip('/').split('/')[-1]
+                        print(
+                            f"[MOVE][ZOHO][WARN] Campos customizados não confirmados após fallback; prosseguindo. projeto={project_id_hint} payload={inline_payload} response={inline_response_data}"
+                        )
+                    except Exception:
+                        pass
+
+    # 2) Ajuste de tags
+    _ajustar_tags_projeto(base_url, headers, info_dest, detalhes_zoho)
+
+    # 3) Disparo de triggers configurados
+    triggers = info_dest.get("triggers", []) or []
+    if triggers:
+        _executar_triggers(
+            triggers=triggers,
+            projeto_id=projeto_id,
+            coluna_destino=coluna_destino,
+            detalhes_zoho=detalhes_zoho,
+            headers=headers,
+            access_token=access_token
+        )
+
+    mensagem = f"Projeto atualizado no Zoho para '{coluna_destino}'."
+    coletor_mensagens.append(mensagem)
+    _log_move_info("[MOVE][ZOHO]", projeto_id, coluna_destino, mensagem, coluna_origem)
+
+
+def _resolver_custom_fields(custom_fields: dict) -> dict:
+    """Resolve placeholders e converte campos especiais antes de enviar ao Zoho."""
+    resolved = {}
+    for chave, valor in (custom_fields or {}).items():
+        if isinstance(valor, str) and valor.upper() == "CURRENT_DATE":
+            resolved[chave] = date.today().strftime("%Y-%m-%d")
+        else:
+            resolved[chave] = valor
+    return resolved
+
+
+def _verificar_campos_customizados(response_data: dict | None, valores_esperados: dict) -> bool:
+    """Confere se os valores esperados aparecem em possíveis estruturas retornadas pelo Zoho."""
+    if not isinstance(response_data, dict):
+        return False
+
+    def _collect_candidates(obj: dict) -> list[dict]:
+        candidatos: list[dict] = []
+        stack: list[dict] = [obj]
+        while stack:
+            atual = stack.pop()
+            if not isinstance(atual, dict):
+                continue
+            candidatos.append(atual)
+            nested_project = atual.get("project")
+            if isinstance(nested_project, dict):
+                stack.append(nested_project)
+            nested_projects = atual.get("projects")
+            if isinstance(nested_projects, list):
+                for item in nested_projects:
+                    if isinstance(item, dict):
+                        stack.append(item)
+        return candidatos
+
+    def _match_valor(esperado: Any, atual: Any) -> bool:
+        if esperado == atual:
+            return True
+        if isinstance(esperado, str) and isinstance(atual, str):
+            return esperado.strip().lower() == atual.strip().lower()
+        return False
+
+    candidatos = _collect_candidates(response_data)
+    if not candidatos:
+        return False
+
+    for chave, esperado in (valores_esperados or {}).items():
+        chave_norm = (chave or "").strip().lower()
+        encontrado = False
+
+        for candidato in candidatos:
+            custom_fields = candidato.get("custom_fields")
+            if isinstance(custom_fields, dict):
+                for nome, valor in custom_fields.items():
+                    if (nome or "").strip().lower() == chave_norm and _match_valor(esperado, valor):
+                        encontrado = True
+                        break
+                if encontrado:
+                    break
+            elif isinstance(custom_fields, list):
+                for item in custom_fields:
+                    if not isinstance(item, dict):
+                        continue
+                    nomes_possiveis = [
+                        (item.get("column_name") or "").strip().lower(),
+                        (item.get("api_name") or "").strip().lower(),
+                        (item.get("link_name") or "").strip().lower(),
+                        (item.get("name") or "").strip().lower(),
+                    ]
+                    if chave_norm in nomes_possiveis and _match_valor(esperado, item.get("value")):
+                        encontrado = True
+                        break
+                if encontrado:
+                    break
+
+            valor_direto = candidato.get(chave)
+            if valor_direto is not None and _match_valor(esperado, valor_direto):
+                encontrado = True
+                break
+
+            valor_cf_prefixed = candidato.get(f"cf_{chave}")
+            if valor_cf_prefixed is not None and _match_valor(esperado, valor_cf_prefixed):
+                encontrado = True
+                break
+
+        if not encontrado:
+            return False
+
+    return True
+
+
+def _carregar_tags_atuais(base_url: str, headers: dict, detalhes_zoho: dict | None) -> list[dict]:
+    """Retorna a lista atual de tags do projeto, priorizando dados frescos da API."""
+    def _extrair_tags(origem: dict | None) -> list[dict] | None:
+        if isinstance(origem, dict):
+            bruto = origem.get("tags")
+            if isinstance(bruto, list):
+                return [tag for tag in bruto if isinstance(tag, dict)]
+        return None
+
+    tags_existentes = _extrair_tags(detalhes_zoho) or []
+
+    try:
+        response = requests.get(base_url, headers=headers, timeout=30)
+        if response.status_code in (200, 201):
+            try:
+                data = response.json()
+            except Exception:
+                data = None
+
+            projeto = None
+            if isinstance(data, dict):
+                if isinstance(data.get("project"), dict):
+                    projeto = data["project"]
+                elif data.get("id"):
+                    projeto = data
+                elif isinstance(data.get("projects"), list) and data["projects"]:
+                    projeto = data["projects"][0]
+
+            tags_api = _extrair_tags(projeto)
+            if tags_api is not None:
+                tags_existentes = tags_api
+        else:
+            try:
+                print(
+                    f"[MOVE][ZOHO][WARN] Falha ao buscar tags atuais (HTTP {response.status_code}): {response.text[:200]}"
+                )
+            except Exception:
+                pass
+    except Exception as exc:
+        try:
+            project_id_hint = base_url.rstrip('/').split('/')[-1]
+            print(f"[MOVE][ZOHO][WARN] Erro ao consultar tags do projeto {project_id_hint}: {exc}")
+        except Exception:
+            pass
+
+    return tags_existentes
+
+
+def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhes_zoho: dict) -> None:
+    """Reconstrói a lista de tags do projeto no Zoho com base nas informações atuais."""
+    add_tags = info_dest.get("zohoTagsToAdd", []) or []
+    remove_tags = info_dest.get("zohoTagsToRemove", []) or []
+    if not add_tags and not remove_tags:
+        return
+
+    def _normalize_tag(tag_val):
+        if isinstance(tag_val, dict):
+            cleaned = {}
+            for k in ("id", "name"):
+                if k in tag_val and tag_val[k] not in (None, ""):
+                    cleaned[k] = str(tag_val[k]).strip()
+            return cleaned or None
+        tag_str = str(tag_val).strip()
+        if not tag_str:
+            return None
+        if tag_str.isdigit():
+            return {"id": tag_str}
+        return {"name": tag_str}
+
+    atuais = _carregar_tags_atuais(base_url, headers, detalhes_zoho)
+
+    def _tag_key(entry: dict) -> tuple[str, str]:
+        value = entry.get("id")
+        if value:
+            return ("id", str(value))
+        return ("name", str(entry.get("name", "")).strip().lower())
+
+    tags_por_chave: dict[tuple[str, str], dict] = {}
+    for tag in atuais:
+        normalizada = _normalize_tag(tag)
+        if not normalizada:
+            continue
+        tags_por_chave[_tag_key(normalizada)] = normalizada
+
+    for tag in remove_tags:
+        normalizada = _normalize_tag(tag)
+        if not normalizada:
+            continue
+        tags_por_chave.pop(_tag_key(normalizada), None)
+
+    for tag in add_tags:
+        normalizada = _normalize_tag(tag)
+        if not normalizada:
+            continue
+        tags_por_chave[_tag_key(normalizada)] = normalizada
+
+    novas_tags = list(tags_por_chave.values())
+    payload_tags = {"tags": novas_tags}
+    response_tags = requests.patch(base_url, headers=headers, json=payload_tags, timeout=45)
+    if response_tags.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Falha ao ajustar tags: {response_tags.status_code} - {response_tags.text[:400]}"
+        )
+
+
+def _executar_triggers(
+    triggers: list,
+    projeto_id: str,
+    coluna_destino: str,
+    detalhes_zoho: dict,
+    headers: dict,
+    access_token: str
+) -> None:
+    """Executa os gatilhos associados à coluna destino."""
+    for trigger in triggers:
+        if not isinstance(trigger, dict):
+            continue
+        tipo = trigger.get("type")
+        if tipo == "projectComment":
+            _postar_comentario_projeto(projeto_id, headers, trigger.get("template", ""))
+        elif tipo == "taskComment":
+            _postar_comentario_tarefa(
+                projeto_id=projeto_id,
+                headers=headers,
+                detalhes_zoho=detalhes_zoho,
+                trigger=trigger
+            )
+        elif tipo == "workflow":
+            nome_workflow = trigger.get("name")
+            if nome_workflow:
+                try:
+                    synchronize_single_project.trigger_workflow  # type: ignore[attr-defined]
+                except AttributeError:
+                    from sync_zoho import trigger_workflow
+                    trigger_workflow(projeto_id, nome_workflow, access_token)
+                else:
+                    from sync_zoho import trigger_workflow
+                    trigger_workflow(projeto_id, nome_workflow, access_token)
+
+
+def _postar_comentario_projeto(projeto_id: str, headers: dict, template: str) -> None:
+    if not template:
+        return
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/comments"
+    response = requests.post(url, headers=headers, json={"content": template}, timeout=30)
+    if response.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Falha ao postar comentário de projeto: {response.status_code} - {response.text[:400]}"
+        )
+
+
+def _postar_comentario_tarefa(projeto_id: str, headers: dict, detalhes_zoho: dict, trigger: dict) -> None:
+    task_name = (trigger or {}).get("taskName")
+    template = (trigger or {}).get("template")
+    if not task_name or not template:
+        return
+
+    tarefas = _listar_tarefas_quick(projeto_id, headers)
+    alvo = None
+    task_name_norm = (task_name or "").strip().casefold()
+
+    for tarefa in tarefas:
+        nome_tarefa = (tarefa.get("name") or "").strip()
+        if not nome_tarefa:
+            continue
+        nome_norm = nome_tarefa.casefold()
+        if nome_norm == task_name_norm or nome_norm.startswith(task_name_norm) or task_name_norm in nome_norm:
+            alvo = tarefa
+            break
+
+    if not alvo:
+        exemplos = ", ".join((t.get("name") or "<sem nome>") for t in tarefas[:10])
+        raise RuntimeError(
+            f"Tarefa '{task_name}' não encontrada para comentário. Encontradas: {exemplos}"
+        )
+
+    mentions_text = utils.zoho_mentions(["Giovani Sousa"])
+    comentario = (
+        f"Bom dia {mentions_text}, tudo bem? Realizada reunião de onboarding com o cliente. "
+        "Sendo assim, podemos dar inicio as atividades de infra. Vamos iniciar os grupos. "
+        "Os detalhes do projeto se encontram na descrição do mesmo. Att"
+    )
+
+    task_id = alvo.get("id")
+    url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/tasks/{task_id}/comments"
+    payload = {"comment": comentario, "content": comentario}
+    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    if response.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Falha ao postar comentário na tarefa '{task_name}': {response.status_code} - {response.text[:400]}"
+        )
+
+
+def _render_template_mencoes(template: str, mentions: list) -> str:
+    if not mentions:
+        return template
+    partes = []
+    for mention in mentions:
+        info = ZOHO_MENTION_USERS.get(mention)
+        if not info:
+            continue
+        partes.append(f"<@{info['usernum']}:{info['name']}>")
+    bloco_mentions = ", ".join(partes)
+    return template.replace("{mentions}", bloco_mentions or "")
+
+
+def _atualizar_planilha(
+    projeto_id: str,
+    coluna_destino: str,
+    info_dest: dict,
+    cliente_sheet: str,
+    detalhes_zoho: dict,
+    coletor_mensagens: list,
+    project_row: sqlite3.Row | dict | None = None
+) -> None:
+    """Atualiza a planilha principal conforme o novo status."""
+    _validar_planilha_move(info_dest, cliente_sheet)
+
+    sheet_status = (info_dest or {}).get("sheetStatus")
+    if not sheet_status:
+        return
+
+    creds = utils.build_google_credentials_from_session()
+    sheets_service = build('sheets', 'v4', credentials=creds)
+
+    def _sanitizar_cliente(valor: str) -> str:
+        texto = (valor or "").strip()
+        if not texto:
+            return ""
+        if texto.casefold() in {"cliente não informado", "cliente nao informado"}:
+            return ""
+        return texto
+
+    cliente_sheet = _sanitizar_cliente(cliente_sheet)
+    chave_busca = cliente_sheet
+    fonte_chave = "payload"
+
+    if not chave_busca and project_row is not None:
+        try:
+            candidato = project_row["cliente"] if isinstance(project_row, sqlite3.Row) else project_row.get("cliente")
+        except Exception:
+            candidato = None
+        chave_busca = _sanitizar_cliente(candidato)
+        if chave_busca:
+            fonte_chave = "db"
+
+    if not chave_busca:
+        chave_busca = _sanitizar_cliente(utils.extrair_cliente_planilha((detalhes_zoho or {}).get("name", "")))
+        if chave_busca:
+            fonte_chave = "zoho:name"
+
+    if not chave_busca:
+        chave_busca = _sanitizar_cliente(utils.extrair_cliente_planilha((detalhes_zoho or {}).get("project_name", "")))
+        if chave_busca:
+            fonte_chave = "zoho:project_name"
+
+    if not chave_busca:
+        chave_busca = _sanitizar_cliente(utils.extrair_cliente_planilha((detalhes_zoho or {}).get("project", {}).get("name", "")))
+        if chave_busca:
+            fonte_chave = "zoho:project.name"
+
+    if not chave_busca:
+        raise ValueError("Cliente não localizado para atualização da planilha")
+
+    try:
+        print(f"[DEBUG][SHEET] Cliente para planilha: '{chave_busca}' (fonte: {fonte_chave})")
+    except Exception:
+        pass
+
+    status_col_candidatos = [
+        "Status",
+        "Status Principal",
+        "STATUS",
+        "STATUS PRINCIPAL"
+    ]
+    coluna_utilizada = None
+    ultimo_erro_coluna = None
+    for nome_coluna in status_col_candidatos:
+        try:
+            utils.update_col_value_by_cliente_tolerant(
+                sheets_service,
+                chave_busca,
+                nome_coluna,
+                sheet_status
+            )
+            coluna_utilizada = nome_coluna
+            break
+        except RuntimeError as exc:
+            if "não encontrada no cabeçalho" in str(exc):
+                ultimo_erro_coluna = exc
+                continue
+            raise
+
+    if not coluna_utilizada:
+        raise RuntimeError(
+            "Nenhuma coluna de status conhecida encontrada na planilha principal. "
+            f"Tentativas: {', '.join(status_col_candidatos)}. Erro original: {ultimo_erro_coluna}"
+        )
+
+    mensagem = (
+        f"Planilha atualizada na coluna '{coluna_utilizada}' para '{sheet_status}'."
+    )
+    coletor_mensagens.append(mensagem)
+    _log_move_info("[MOVE][SHEET]", projeto_id, coluna_destino, mensagem)
+
+
+def _sincronizar_db_local(
+    projeto_id: str,
+    access_token: str,
+    coletor_mensagens: list
+) -> None:
+    """Sincroniza o projeto movido com o banco de dados local."""
+    resultado = synchronize_single_project(projeto_id, access_token)
+    if not resultado:
+        raise RuntimeError("Sincronização do projeto não retornou dados.")
+
+    mensagem = "Cache local sincronizado com sucesso."
+    coletor_mensagens.append(mensagem)
+    _log_move_info("[MOVE][DB]", projeto_id, "<sync>", mensagem)
+
 
 @api_bp.route('/iniciar_implantacao', methods=['POST'])
 def iniciar_implantacao():
