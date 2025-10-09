@@ -4,30 +4,42 @@
     "zohoStatusId": "2376502000000020089",
     "zohoTagsToAdd": ["2376502000001291513"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Aguardando Onboarding"
-    },
+    "zohoCustomFields": {},
     "triggers": [
       {
         "type": "projectComment",
         "template": "Projeto movido para Aguardando Onboarding."
       }
-    ]
+    ],
+    "onExit": {
+      "zohoCustomFields": {
+        "data_de_onboarding": "CURRENT_DATE"
+      }
+    }
   },
   "Falta Liberar Servidor Infra": {
     "sheetStatus": "Falta Liberar Servidor Infra",
     "zohoStatusId": "2376502000000020089",
     "zohoTagsToAdd": ["2376502000000958355"],
     "zohoTagsToRemove": ["2376502000001291513"],
-    "zohoCustomFields": {
-      "cf_status_geral": "Falta Liberar Servidor Infra",
-      "data_de_onboarding": "CURRENT_DATE"
-    },
+    "zohoCustomFields": {},
     "triggers": [
       {
         "type": "taskComment",
         "taskName": "Validação do DEIP",
         "template": "Projeto movido para 'Falta Liberar Servidor Infra'. Onboarding realizado."
+      },
+      {
+        "type": "taskComment",
+        "taskName": "Contato inicial com o cliente",
+        "template": "Bom dia @{Giovani Sousa}, tudo bem? Apenas para informar que o servidor se encontra liberado.\n\nSendo assim, podemos dar inicio as atividades de Importação. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
+        "optional": true
+      },
+      {
+        "type": "taskComment",
+        "taskName": "Solicitar dados ao RIS/HIS para integração de worklist",
+        "template": "Bom dia @{Giovani Sousa}, tudo bem? Apenas para informar que o servidor se encontra liberado.\n\nSendo assim, podemos dar inicio as atividades de Integração. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
+        "optional": true
       }
     ]
   },
@@ -35,20 +47,25 @@
     "sheetStatus": "Em Andamento",
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": [],
-    "zohoTagsToRemove": [],
+    "zohoTagsToRemove": ["2376502000000958355"],
     "zohoCustomFields": {
-      "cf_status_geral": "Em Andamento"
+      "data_liberacao_servidor": "CURRENT_DATE"
     },
-    "triggers": []
+    "triggers": [],
+    "onTransition": {
+      "from_Falta_Liberar_Servidor_Infra": {
+        "sheetColumns": {
+          "Lib.Servidor": "CURRENT_DATE_DDMMYYYY"
+        }
+      }
+    }
   },
   "Em Andamento - Implantação": {
     "sheetStatus": "Em Andamento",
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000000188201"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Em Andamento"
-    },
+    "zohoCustomFields": {},
     "triggers": []
   },
   "Em Homologação": {
@@ -56,9 +73,7 @@
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000000983053"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Em Homologação"
-    },
+    "zohoCustomFields": {},
     "triggers": [
       {
         "type": "taskComment",
@@ -77,9 +92,7 @@
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000001228741"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Em Virada"
-    },
+    "zohoCustomFields": {},
     "triggers": []
   },
   "Em Operação Assistida": {
@@ -87,9 +100,7 @@
     "zohoStatusId": "2376502000000020119",
     "zohoTagsToAdd": [],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Em Operação Assistida"
-    },
+    "zohoCustomFields": {},
     "triggers": []
   },
   "Aguardando Encerramento": {
@@ -97,9 +108,7 @@
     "zohoStatusId": "2376502000000020119",
     "zohoTagsToAdd": ["2376502000005304184"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Aguardando Encerramento"
-    },
+    "zohoCustomFields": {},
     "triggers": []
   },
   "Finalizado": {
@@ -107,9 +116,7 @@
     "zohoStatusId": "2376502000000020116",
     "zohoTagsToAdd": [],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Finalizado"
-    },
+    "zohoCustomFields": {},
     "triggers": [
       {
         "type": "workflow",
@@ -126,9 +133,7 @@
     "zohoStatusId": "2376502000000020104",
     "zohoTagsToAdd": ["2376502000000983125"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Projeto Parado"
-    },
+    "zohoCustomFields": {},
     "triggers": []
   },
   "Cancelado": {
@@ -136,9 +141,7 @@
     "zohoStatusId": "2376502000000020110",
     "zohoTagsToAdd": [],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {
-      "cf_status_geral": "Cancelado"
-    },
+    "zohoCustomFields": {},
     "triggers": []
   }
 }

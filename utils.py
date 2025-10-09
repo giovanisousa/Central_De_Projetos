@@ -1314,6 +1314,70 @@ def atualizar_status_principal_planilha_por_cliente(sheets_service, valor_client
     print("[atualizar_planilha] Atualização concluída")
     return True
 
+def atualizar_coluna_planilha_por_cliente(sheets_service, valor_cliente, coluna_nome, novo_valor):
+    range_cabecalho = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+    cabecalhos = sheets_service.spreadsheets().values().get(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=range_cabecalho
+    ).execute().get('values', [[]])[0]
+    mapa_colunas = {cabecalho: i for i, cabecalho in enumerate(cabecalhos)}
+    if 'Cliente' not in mapa_colunas or coluna_nome not in mapa_colunas:
+        raise Exception(f"Colunas necessárias não encontradas na planilha: Cliente ou {coluna_nome}")
+
+    def _norm(s):
+        import unicodedata
+        if not isinstance(s, str):
+            s = '' if s is None else str(s)
+        s = unicodedata.normalize('NFD', s)
+        s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+        s = s.strip().lower().replace('–', '-').replace('—', '-')
+        s = ' '.join(s.split())
+        return s
+
+    letra_cliente = indice_para_letra_coluna(mapa_colunas['Cliente'])
+    letra_coluna = indice_para_letra_coluna(mapa_colunas[coluna_nome])
+    range_coluna_cliente = f"'{NOME_ABA_PLANILHA}'!{letra_cliente}{LINHA_CABECALHO+1}:{letra_cliente}"
+    valores = sheets_service.spreadsheets().values().get(
+        spreadsheetId=ID_PLANILHA_PROJETOS, range=range_coluna_cliente
+    ).execute().get('values', [])
+
+    alvo_norm = _norm(valor_cliente)
+    print(f"[atualizar_planilha] Procurando cliente: '{valor_cliente}' (norm='{alvo_norm}')")
+    linha_encontrada = None
+
+    for idx, row in enumerate(valores):
+        cel = (row[0] if row else '')
+        if _norm(cel) == alvo_norm:
+            linha_encontrada = LINHA_CABECALHO + 1 + idx
+            print(f"[atualizar_planilha] Match exato na linha {linha_encontrada}: '{cel}'")
+            break
+
+    if not linha_encontrada:
+        try:
+            partes = valor_cliente.split(' - ', 1)
+            nome_parte = _norm(partes[1] if len(partes) > 1 else valor_cliente)
+        except Exception:
+            nome_parte = alvo_norm
+        for idx, row in enumerate(valores):
+            cel = (row[0] if row else '')
+            if nome_parte and nome_parte in _norm(cel):
+                linha_encontrada = LINHA_CABECALHO + 1 + idx
+                print(f"[atualizar_planilha] Match parcial na linha {linha_encontrada}: '{cel}'")
+                break
+
+    if not linha_encontrada:
+        raise Exception("Linha do cliente não encontrada na planilha")
+
+    range_cell = f"'{NOME_ABA_PLANILHA}'!{letra_coluna}{linha_encontrada}"
+    print(f"[atualizar_planilha] Atualizando célula {range_cell} para '{novo_valor}'")
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=ID_PLANILHA_PROJETOS,
+        range=range_cell,
+        valueInputOption='USER_ENTERED',
+        body={"values": [[novo_valor]]}
+    ).execute()
+    print("[atualizar_planilha] Atualização concluída")
+    return True
+
 def determinar_coluna_projeto(projeto):
     status = projeto.get('status', {})
     status_id = str(status.get('id', ''))
@@ -1357,6 +1421,17 @@ def formatar_data_brasileira(data_str):
     except Exception as e:
         print(f"Erro na formatação de data: {e}")
         return "N/D"
+
+def atualizar_custom_field_projeto(access_token, project_id, field_key, field_value):
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    try:
+        payload = {"custom_fields": {field_key: field_value}}
+        r_patch = requests.patch(url, headers=headers, json=payload)
+        r_patch.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        raise Exception(e.response.text if e.response else str(e))
 
 def obter_data_ultima_mudanca_status_ou_tag(project_id, access_token):
     try:
@@ -1811,6 +1886,93 @@ def calcular_dias_total_projeto(data_inicio_str: str, data_criacao_str: str) -> 
         return f"{dias}d"
     except Exception:
         return "N/D"
+
+def atualizar_status_principal_planilha_por_cliente(sheets_service, cliente_sheet, novo_status):
+    """Alias para _update_status_planilha_principal"""
+    return _update_status_planilha_principal(sheets_service, cliente_sheet, novo_status)
+
+def atualizar_coluna_planilha_por_cliente(sheets_service, cliente_sheet, coluna, valor):
+    """Alias para update_col_value_by_cliente_tolerant"""
+    return update_col_value_by_cliente_tolerant(sheets_service, cliente_sheet, coluna, valor)
+
+def obter_custom_fields_projeto(access_token, project_id):
+    """Obtém os custom fields definidos no layout do projeto no Zoho."""
+    # Primeiro, obter o layout_id do projeto
+    project_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    resp = requests.get(project_url, headers=headers, timeout=30)
+    resp.raise_for_status()
+    project_data = resp.json()
+    # Verificar se é nested ou direto
+    if 'project' in project_data:
+        project = project_data['project']
+    else:
+        project = project_data
+    layout_id = project.get('layout', {}).get('id')
+    if not layout_id:
+        print("[WARN] Layout ID não encontrado no projeto, retornando lista vazia")
+        return []
+
+    # Tentar diferentes endpoints para obter custom fields
+    possible_urls = [
+        f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/layouts/{layout_id}/customfields",
+        f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/layouts/{layout_id}/fields",
+        f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/customfields?layout_id={layout_id}",
+    ]
+
+    for url in possible_urls:
+        try:
+            print(f"[DEBUG] Tentando obter custom fields de: {url}")
+            resp = requests.get(url, headers=headers, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                custom_fields = data.get('customfields', []) or data.get('fields', [])
+                print(f"[DEBUG] Sucesso com {len(custom_fields)} campos encontrados")
+                return custom_fields
+            else:
+                print(f"[DEBUG] URL {url} falhou: {resp.status_code}")
+        except Exception as e:
+            print(f"[DEBUG] Erro com URL {url}: {e}")
+
+    print("[WARN] Não foi possível obter custom fields do layout")
+    return []
+
+def atualizar_custom_field_projeto(access_token, project_id, field_label, value):
+    """Atualiza um custom field de um projeto no Zoho."""
+    url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+    headers = _zp_headers(access_token)
+    # Tentar diferentes formatos de payload
+    payloads = [
+        {"custom_fields": {field_label: value}},  # Formato nested
+        {field_label: value},  # Formato direto
+    ]
+
+    for payload in payloads:
+        try:
+            print(f"[DEBUG] Tentando payload: {payload}")
+            resp = requests.patch(url, headers=headers, json=payload, timeout=30)
+            if resp.status_code in (200, 201, 204):
+                response_data = resp.json() if resp.text else {}
+                # Verificar se o campo foi realmente atualizado (aparece na resposta)
+                field_updated = False
+                if isinstance(response_data, dict):
+                    # Verificar se o campo aparece diretamente ou em custom_fields
+                    if field_label in response_data:
+                        field_updated = True
+                    elif 'custom_fields' in response_data and field_label in response_data['custom_fields']:
+                        field_updated = True
+
+                if field_updated:
+                    print(f"[DEBUG] Campo customizado '{field_label}' REALMENTE atualizado para '{value}' no projeto {project_id}")
+                else:
+                    print(f"[WARN] Campo '{field_label}' NÃO foi atualizado (não aparece na resposta da API)")
+                return response_data
+            else:
+                print(f"[DEBUG] Payload {payload} falhou: {resp.status_code} - {resp.text[:200]}")
+        except Exception as e:
+            print(f"[DEBUG] Erro com payload {payload}: {e}")
+
+    raise Exception(f"Falha ao atualizar campo customizado '{field_label}'")
 
 _DIAS_FASE_CACHE = {}
 _CACHE_TTL_SECONDS = 90
@@ -2468,3 +2630,188 @@ def listar_todos_projetos_ativos(access_token):
         if (is_completed not in [True, "true", "True"] and status not in ["completed", "completo"] and status_id != STATUS_CANCELADO_ID):
             projetos_filtrados.append(projeto)
     return projetos_filtrados
+
+
+def calcular_dias_total_projeto(start_date: str | None, created_time: str | None) -> int | None:
+    """
+    Calcula o total de dias desde o início do projeto até hoje.
+    Prioriza start_date, usa created_time como fallback.
+    """
+    from datetime import datetime, date
+    
+    data_referencia = start_date or created_time
+    if not data_referencia:
+        return None
+    
+    try:
+        # Tenta diferentes formatos de data
+        for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S', '%d/%m/%Y']:
+            try:
+                if isinstance(data_referencia, str):
+                    data_inicio = datetime.strptime(data_referencia.split(' ')[0], fmt).date()
+                else:
+                    data_inicio = data_referencia
+                break
+            except ValueError:
+                continue
+        else:
+            return None
+        
+        hoje = date.today()
+        delta = hoje - data_inicio
+        return max(0, delta.days)
+    except Exception:
+        return None
+
+
+def calcular_dias_na_fase(info_projeto: dict, coluna_atual: str | None) -> int | None:
+    """
+    Calcula quantos dias o projeto está na fase atual.
+    Usa data_ultima_mudanca se disponível, senão usa a data mais apropriada baseada na coluna.
+    """
+    from datetime import datetime, date
+    
+    if not coluna_atual:
+        return None
+    
+    # Mapeamento de colunas para campos de data relevantes
+    mapeamento_datas = {
+        'Aguardando Onboarding': 'data_criacao',
+        'Falta Liberar Servidor Infra': 'data_de_onboarding',
+        'Aguardando Liberação Servidor': 'data_liberacao_servidor',
+        'Aguardando Início Implantação': 'data_inicio_implantacao',
+        'Em Implantação': 'data_inicio_implantacao',
+        'Aguardando Homologação': 'data_homologacao',
+        'Em Homologação': 'data_homologacao',
+        'Aguardando Virada': 'data_virada',
+        'Aguardando Início OA': 'data_inicio_oa',
+        'Em OA': 'data_inicio_oa'
+    }
+    
+    # Primeiro tenta usar data_ultima_mudanca se disponível
+    data_mudanca = info_projeto.get('data_ultima_mudanca')
+    if data_mudanca:
+        try:
+            if isinstance(data_mudanca, str):
+                # Remove timezone info se presente
+                data_mudanca = data_mudanca.split('+')[0].split('T')[0]
+                data_ref = datetime.strptime(data_mudanca, '%Y-%m-%d').date()
+            else:
+                data_ref = data_mudanca
+            
+            hoje = date.today()
+            delta = hoje - data_ref
+            return max(0, delta.days)
+        except Exception:
+            pass
+    
+    # Fallback: usa a data específica da fase
+    campo_data = mapeamento_datas.get(coluna_atual)
+    if campo_data:
+        data_fase = info_projeto.get(campo_data)
+        if data_fase:
+            try:
+                if isinstance(data_fase, str):
+                    # Remove timezone info se presente
+                    data_fase = data_fase.split('+')[0].split('T')[0]
+                    data_ref = datetime.strptime(data_fase, '%Y-%m-%d').date()
+                else:
+                    data_ref = data_fase
+                
+                hoje = date.today()
+                delta = hoje - data_ref
+                return max(0, delta.days)
+            except Exception:
+                pass
+    
+    # Último fallback: usa data de criação
+    data_criacao = info_projeto.get('data_criacao') or info_projeto.get('data_inicio')
+    if data_criacao:
+        try:
+            if isinstance(data_criacao, str):
+                data_criacao = data_criacao.split('+')[0].split('T')[0]
+                data_ref = datetime.strptime(data_criacao, '%Y-%m-%d').date()
+            else:
+                data_ref = data_criacao
+            
+            hoje = date.today()
+            delta = hoje - data_ref
+            return max(0, delta.days)
+        except Exception:
+            pass
+    
+    return None
+
+
+def determinar_coluna_projeto(project_data: dict) -> str:
+    """
+    Determina a coluna atual do projeto baseado no status e tags usando o mapeamento_colunas.json.
+    """
+    if not project_data:
+        return 'Status Desconhecido'
+    
+    # Carrega o mapeamento de colunas
+    import json
+    import os
+    
+    try:
+        mapeamento_path = os.path.join(os.path.dirname(__file__), 'mapeamento_colunas.json')
+        with open(mapeamento_path, 'r', encoding='utf-8') as f:
+            mapeamento = json.load(f)
+    except Exception as e:
+        print(f"Erro ao carregar mapeamento_colunas.json: {e}")
+        return 'Status Desconhecido'
+    
+    # Obtém status e tags do projeto
+    status_id = str(project_data.get('status', {}).get('id', ''))
+    status_name = project_data.get('status', {}).get('name', '').strip()
+    tags = project_data.get('tags', [])
+    tag_ids = [str(tag.get('id', '')) for tag in tags if isinstance(tag, dict)]
+    
+    # Verifica se o projeto está concluído ou cancelado
+    if project_data.get('is_completed') or status_name.lower() in ('completed', 'finalizado'):
+        return 'Finalizado'
+    if status_name.lower() in ('cancelled', 'cancelado'):
+        return 'Cancelado'
+    
+    # Procura por correspondência exata no mapeamento
+    # Primeiro, verifica combinações específicas de status + tags
+    matches_with_tags = []
+    matches_without_tags = []
+    
+    for coluna, config in mapeamento.items():
+        # Verifica se o status ID corresponde
+        if config.get('zohoStatusId') == status_id:
+            tags_to_add = config.get('zohoTagsToAdd', [])
+            if tags_to_add:
+                # Verifica se pelo menos uma das tags necessárias está presente
+                if any(tag_id in tag_ids for tag_id in tags_to_add):
+                    matches_with_tags.append(coluna)
+            else:
+                # Configuração sem tags específicas
+                matches_without_tags.append(coluna)
+    
+    # Prioriza matches com tags específicas
+    if matches_with_tags:
+        # Se há múltiplas correspondências com tags, usa a primeira
+        return matches_with_tags[0]
+    elif matches_without_tags:
+        # Se não há matches com tags, usa o match sem tags
+        return matches_without_tags[0]
+    
+    # Mapeamento de fallback baseado no status
+    status_fallback = {
+        '2376502000000020089': 'Aguardando Onboarding',  # Aberto
+        '2376502000000020092': 'Em Andamento',            # Em Andamento
+        '2376502000000020104': 'Projeto Parado',          # Pendência
+        '2376502000000020119': 'Em Operação Assistida',   # Em Operação Assistida
+        '2376502000000020116': 'Finalizado',              # Completed
+        '2376502000000020110': 'Cancelado'                # Cancelled
+    }
+    
+    coluna_fallback = status_fallback.get(status_id)
+    if coluna_fallback:
+        return coluna_fallback
+    
+    # Se nada corresponder, retorna status desconhecido
+    return 'Status Desconhecido'

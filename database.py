@@ -18,6 +18,9 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Executa migrações necessárias
+    _migrate_database(cursor)
+    
     # Tabela de Projetos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS projects (
@@ -37,6 +40,7 @@ def init_db():
             data_homologacao TEXT,
             data_virada TEXT,
             data_inicio_oa TEXT,
+            data_de_onboarding TEXT,
             status_atual TEXT,
             dias_na_fase TEXT,
             dias_total TEXT,
@@ -243,7 +247,10 @@ def upsert_project(project_data):
     # Escopo da Importação: Prioriza, normaliza e usa fallback
     importacoes_list = project_data.get('importacoes')
     if importacoes_list and isinstance(importacoes_list, list):
-        importacao_escopo = json.dumps([item['value'] for item in importacoes_list])
+        valores = [item['value'] for item in importacoes_list]
+        # Correção específica: "Prontuários" -> "Prontuário"
+        valores_corrigidos = [v.replace('Prontuários', 'Prontuário') for v in valores]
+        importacao_escopo = json.dumps(valores_corrigidos)
     else:
         importacao_escopo = desc_data['importacao_escopo']
 
@@ -286,11 +293,25 @@ def upsert_project(project_data):
     dias_na_fase_calc = utils.calcular_dias_na_fase(info_min, coluna_hint)
 
     # 3. Monta o dicionário final de parâmetros
+    # Cliente: codigo contrato - nome
+    name = project_data.get('name', '')
+    parts = name.split(' - ')
+    if len(parts) >= 2:
+        cliente_formatado = f"{parts[0].strip()} - {parts[1].strip()}"
+    else:
+        cliente_formatado = name or "Cliente não informado"
+
+    # GP: nome e sobrenome do owner
+    owner = project_data.get('owner', {})
+    gp_nome = owner.get('first_name', '')
+    gp_sobrenome = owner.get('last_name', '')
+    gp_valor = f"{gp_nome} {gp_sobrenome}".strip() if gp_nome or gp_sobrenome else owner.get('name', '') or _get_custom_field(project_data, 'GP')
+
     params = {
         'id': project_id,
         'nome': project_data.get('name', 'N/A'),
-        'cliente': project_data.get('owner_name'),
-        'gp': _get_custom_field(project_data, 'GP'),
+        'cliente': cliente_formatado,
+        'gp': gp_valor,
         'produtos_contratados': produtos_contratados,
         'tem_importacao': tem_importacao,
         'tem_integracao': tem_integracao,
@@ -303,6 +324,7 @@ def upsert_project(project_data):
         'data_homologacao': data_homologacao,
         'data_virada': data_virada, # Campo estruturado
         'data_inicio_oa': data_inicio_oa,
+        'data_de_onboarding': _get_custom_field(project_data, 'Data de Onboarding'),
         'status_atual': project_data.get('status', {}).get('name'),
         'dias_na_fase': dias_na_fase_calc,
         'dias_total': dias_total_calc,
@@ -444,6 +466,21 @@ def get_any_impediments_tasklist_id(projeto_id: str) -> str | None:
     row = cursor.fetchone()
     conn.close()
     return row[0] if row and row[0] else None
+
+
+def _migrate_database(cursor):
+    """Executa migrações necessárias no banco de dados."""
+    try:
+        # Migração 1: Adicionar coluna data_de_onboarding se não existir
+        cursor.execute("PRAGMA table_info(projects)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'data_de_onboarding' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN data_de_onboarding TEXT")
+            print("Migração: Coluna 'data_de_onboarding' adicionada à tabela projects")
+            
+    except Exception as e:
+        print(f"Erro durante migração do banco de dados: {e}")
 
 
 # Inicializa o DB na importação do módulo

@@ -873,6 +873,9 @@ body.kanban-page {
 .kanban-page .em-andamento .project-card .add-comment-btn { background-color: #2ECC71; }
 .kanban-page .em-andamento .project-card .add-comment-btn:hover { background-color: #27ae60; }
 
+.kanban-page .em-andamento-implantacao .project-card .add-comment-btn { background-color: #17a2b8; }
+.kanban-page .em-andamento-implantacao .project-card .add-comment-btn:hover { background-color: #138496; }
+
 .kanban-page .em-homologacao .project-card .add-comment-btn { background-color: #1ABC9C; }
 .kanban-page .em-homologacao .project-card .add-comment-btn:hover { background-color: #16a085; }
 
@@ -1796,6 +1799,9 @@ body.kanban-page {
 .kanban-page .em-andamento .project-card .add-comment-btn { background-color: #2ECC71; }
 .kanban-page .em-andamento .project-card .add-comment-btn:hover { background-color: #27ae60; }
 
+.kanban-page .em-andamento-implantacao .project-card .add-comment-btn { background-color: #17a2b8; }
+.kanban-page .em-andamento-implantacao .project-card .add-comment-btn:hover { background-color: #138496; }
+
 .kanban-page .em-homologacao .project-card .add-comment-btn { background-color: #1ABC9C; }
 .kanban-page .em-homologacao .project-card .add-comment-btn:hover { background-color: #16a085; }
 
@@ -1847,6 +1853,7 @@ body.kanban-page {
 .kanban-page .column-header.aguardando-onboarding { background: linear-gradient(135deg, #6c757d, #5a6268); }
 .kanban-page .column-header.falta-liberar-servidor { background: linear-gradient(135deg, #E67E22, #d68910); }
 .kanban-page .column-header.em-andamento { background: linear-gradient(135deg, #2ECC71, #27ae60); }
+.kanban-page .column-header.em-andamento-implantacao { background: linear-gradient(135deg, #17a2b8, #138496); }
 .kanban-page .column-header.em-homologacao { background: linear-gradient(135deg, #1ABC9C, #16a085); }
 .kanban-page .column-header.em-virada { background: linear-gradient(135deg, #1ABC9C, #16a085); }
 .kanban-page .column-header.em-operacao { background: linear-gradient(135deg, #3498DB, #2980b9); }
@@ -1865,6 +1872,7 @@ body.kanban-page {
 .kanban-page .aguardando-onboarding .project-card { border-left-color: #6c757d; }
 .kanban-page .falta-liberar-servidor .project-card { border-left-color: #E67E22; }
 .kanban-page .em-andamento .project-card { border-left-color: #2ECC71; }
+.kanban-page .em-andamento-implantacao .project-card { border-left-color: #17a2b8; }
 .kanban-page .em-homologacao .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-virada .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-operacao .project-card { border-left-color: #3498DB; }
@@ -2237,6 +2245,7 @@ body.login-page {
 .kanban-page .aguardando-onboarding .project-card { border-left-color: #6c757d; }
 .kanban-page .falta-liberar-servidor .project-card { border-left-color: #E67E22; }
 .kanban-page .em-andamento .project-card { border-left-color: #2ECC71; }
+.kanban-page .em-andamento-implantacao .project-card { border-left-color: #17a2b8; }
 .kanban-page .em-homologacao .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-virada .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-operacao .project-card { border-left-color: #3498DB; }

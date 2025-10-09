@@ -115,42 +115,7 @@ def sync_listas_e_tarefas(projeto_id, access_token, id_fase_impeditivos):
         print(f"    - ERRO ao buscar listas de tarefas do projeto {projeto_id}: {e}")
 
 
-def synchronize_single_project(project_id: str, access_token: str | None = None):
-    """Sincroniza apenas um projeto específico (e seus detalhes) com o banco local."""
-    if not project_id:
-        return None
 
-    try:
-        token = access_token or obter_access_token_zoho()
-        headers = _zp_headers(token)
-        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
-        response = requests.get(url, headers=headers, timeout=45)
-        response.raise_for_status()
-        project = _extract_project_from_response(response.json(), project_id)
-        if not project:
-            print(f"WARN: Projeto {project_id} não encontrado na resposta do Zoho.")
-            return None
-
-        upsert_project(project)
-        print(f"  -> Sincronizado projeto individual: {project.get('name')} (ID: {project.get('id')})")
-
-        fases_do_projeto = sync_fases(project_id, token)
-        id_fase_impeditivos = None
-        for fase in fases_do_projeto:
-            if fase.get('name') == "00 - Itens impeditivos de virada":
-                id_fase_impeditivos = fase.get('id')
-                break
-        sync_listas_e_tarefas(project_id, token, id_fase_impeditivos)
-
-        return project
-    except requests.exceptions.RequestException as e:
-        print(f"ERRO: Falha ao sincronizar projeto {project_id}: {e}")
-        if e.response is not None:
-            print(f"Detalhes: {e.response.text[:400]}")
-        return None
-    except Exception as e:
-        print(f"ERRO inesperado no sync individual do projeto {project_id}: {e}")
-        return None
 
 
 def synchronize_projects():
@@ -253,6 +218,35 @@ def synchronize_projects():
             print(f"Detalhes: {e.response.text}")
     except Exception as e:
         print(f"\nERRO INESPERADO: Ocorreu um erro durante a sincronização: {e}")
+
+
+def synchronize_single_project(project_id, access_token):
+    """
+    Sincroniza um projeto específico do Zoho Projects para o banco local.
+    Retorna True se o projeto foi encontrado e sincronizado, False caso contrário.
+    """
+    try:
+        url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+        headers = _zp_headers(access_token)
+        response = requests.get(url, headers=headers, timeout=45)
+        response.raise_for_status()
+        data = response.json()
+
+        project = _extract_project_from_response(data, project_id)
+        if project:
+            upsert_project(project)
+            print(f"Sincronizado projeto único: {project.get('name')} (ID: {project.get('id')})")
+            return True
+        else:
+            print(f"Projeto {project_id} não encontrado na resposta da API")
+            return False
+
+    except requests.exceptions.RequestException as e:
+        print(f"Erro ao sincronizar projeto único {project_id}: {e}")
+        return False
+    except Exception as e:
+        print(f"Erro inesperado ao sincronizar projeto único {project_id}: {e}")
+        return False
 
 
 if __name__ == "__main__":

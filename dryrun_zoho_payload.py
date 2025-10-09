@@ -78,6 +78,8 @@ def montar_payload_com_ids_descobertos(dados, integracoes_options=None, importac
         "havera_importacao": "Sim" if dados.get('importacao') == 's' else "Não",
         "projects_cf_0001": "Sim" if dados.get('integracao_status') == 's' else "Não",
         "link_do_google": dados.get('link_google') or dados.get('link_google_drive') or dados.get('link'),
+        "GP": dados.get('gp_selecionado', ''),
+        "Código Cliente": dados.get('codigo_contrato_numero', ''),
     }
     
     if importacoes_list:
