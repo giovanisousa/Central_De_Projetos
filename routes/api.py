@@ -9,7 +9,21 @@ from config import (
     TAREFAS_PARA_CONCLUIR,
     TEMPO_RELATO,
     STATUS_CONCLUIDO_ID,
+    STATUS_EM_ANDAMENTO_ID,
+    STATUS_OPERACAO_ASSISTIDA_ID,
+    STATUS_AGUARDANDO_CLIENTE_ID,
+    STATUS_FINALIZADO_ID,
+    STATUS_CANCELADO_ID,
+    TAG_AGUARDANDO_ONBOARDING_ID,
+    TAG_AGUARDANDO_INFRA_ID,
+    TAG_EM_HOMOLOGACAO_ID,
+    TAG_EM_VIRADA_ID,
+    TAG_PARADO_ID,
+    TAG_AGUARDANDO_ENCERRAMENTO_ID,
 )
+
+# Variável para custom view de tarefas (pode ser None se não configurada)
+DEFAULT_TASKS_CUSTOM_VIEW_ID = None
 import traceback
 import os
 from werkzeug.utils import secure_filename
@@ -553,9 +567,9 @@ def carregar_projetos():
         projetos_por_status = {}
         colunas_validas = {
             "Aguardando Onboarding", "Falta Liberar Servidor Infra", "Em Andamento",
-            "Em Homologação", "Em Virada", "Em Operação Assistida",
-            "Aguardando Encerramento", "Projeto Parado", "Finalizado",
-            "Cancelado", "Status Desconhecido"
+            "Em Andamento - Implantação", "Em Homologação", "Em Virada", 
+            "Em Operação Assistida", "Aguardando Encerramento", "Projeto Parado", 
+            "Finalizado", "Cancelado", "Status Desconhecido"
         }
         projetos_nao_mapeados = []
 
@@ -748,6 +762,34 @@ def api_mover_projeto():
 
         msg_operacoes: list[str] = []
 
+        if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
+            data_atual = date.today().strftime('%Y-%m-%d')
+            conn = database.get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "UPDATE projects SET data_liberacao_servidor = ? WHERE id = ?",
+                    (data_atual, projeto_id)
+                )
+                cursor.execute(
+                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
+                    (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), projeto_id)
+                )
+                conn.commit()
+                msg_operacoes.append("Banco de dados: campos data_liberacao_servidor e data_ultima_mudanca atualizados")
+            except Exception as e:
+                msg_operacoes.append(f"Erro ao atualizar banco de dados: {str(e)}")
+            finally:
+                conn.close()
+
+            # Atualizar campo customizado data_liberacao_servidor no Zoho
+            try:
+                access_token = utils.obter_access_token()
+                utils.atualizar_custom_field_projeto(access_token, projeto_id, "data_liberacao_servidor", data_atual)
+                msg_operacoes.append("Zoho: campo customizado data_liberacao_servidor atualizado com data de liberação do servidor")
+            except Exception as e:
+                msg_operacoes.append(f"Erro ao atualizar campo customizado no Zoho: {str(e)}")
+
         try:
             _atualizar_zoho(
                 projeto_id=projeto_id,
@@ -770,7 +812,8 @@ def api_mover_projeto():
                 cliente_sheet=cliente_sheet,
                 detalhes_zoho=detalhes_zoho,
                 coletor_mensagens=msg_operacoes,
-                project_row=project_row
+                project_row=project_row,
+                coluna_origem=coluna_origem
             )
         except Exception:
             _log_move_error("[MOVE][SHEET]", projeto_id, coluna_destino, "Falha durante atualização da planilha.", coluna_origem)
@@ -852,6 +895,7 @@ def _atualizar_zoho(
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
+
     base_url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
 
     # 1) Atualiza status e campos customizados
@@ -860,13 +904,30 @@ def _atualizar_zoho(
     if status_id:
         payload_patch["status"] = {"id": status_id}
 
+    # Processa campos customizados do destino
     custom_fields = info_dest.get("zohoCustomFields", {}) or {}
+    
+    # Processa campos customizados do evento onExit da coluna de origem
+    if coluna_origem:
+        from utils import carregar_mapeamento_colunas
+        mapeamento = carregar_mapeamento_colunas()
+        config_origem = mapeamento.get(coluna_origem, {})
+        on_exit = config_origem.get("onExit", {})
+        exit_custom_fields = on_exit.get("zohoCustomFields", {})
+        if exit_custom_fields:
+            custom_fields.update(exit_custom_fields)
 
     if custom_fields:
         payload_patch["custom_fields"] = _resolver_custom_fields(custom_fields)
 
     if payload_patch:
+        print(f"[DEBUG] Enviando PATCH para {base_url}")
+        print(f"[DEBUG] Headers: {headers}")
+        print(f"[DEBUG] Payload: {payload_patch}")
         response_patch = requests.patch(base_url, headers=headers, json=payload_patch, timeout=45)
+        print(f"[DEBUG] Status code: {response_patch.status_code}")
+        print(f"[DEBUG] Resposta: {response_patch.text[:1000]}")
+        
         if response_patch.status_code not in (200, 201):
             raise RuntimeError(
                 f"Falha ao atualizar projeto no Zoho (status/custom): {response_patch.status_code} - {response_patch.text[:400]}"
@@ -905,7 +966,7 @@ def _atualizar_zoho(
                         pass
 
     # 2) Ajuste de tags
-    _ajustar_tags_projeto(base_url, headers, info_dest, detalhes_zoho)
+    _ajustar_tags_projeto(base_url, headers, info_dest, detalhes_zoho, coluna_destino)
 
     # 3) Disparo de triggers configurados
     triggers = info_dest.get("triggers", []) or []
@@ -926,18 +987,29 @@ def _atualizar_zoho(
 
 def _resolver_custom_fields(custom_fields: dict) -> dict:
     """Resolve placeholders e converte campos especiais antes de enviar ao Zoho."""
+    print("[DEBUG] Resolvendo campos customizados...")
+    print(f"[DEBUG] Campos recebidos: {custom_fields}")
     resolved = {}
     for chave, valor in (custom_fields or {}).items():
+        print(f"[DEBUG] Processando campo: {chave} = {valor}")
         if isinstance(valor, str) and valor.upper() == "CURRENT_DATE":
             resolved[chave] = date.today().strftime("%Y-%m-%d")
+            print(f"[DEBUG] Campo {chave} resolvido para: {resolved[chave]}")
         else:
             resolved[chave] = valor
+            print(f"[DEBUG] Campo {chave} mantido como: {resolved[chave]}")
+    print(f"[DEBUG] Campos resolvidos: {resolved}")
     return resolved
 
 
 def _verificar_campos_customizados(response_data: dict | None, valores_esperados: dict) -> bool:
     """Confere se os valores esperados aparecem em possíveis estruturas retornadas pelo Zoho."""
+    print(f"[DEBUG] Verificando campos customizados na resposta...")
+    print(f"[DEBUG] Resposta da API: {response_data}")
+    print(f"[DEBUG] Valores esperados: {valores_esperados}")
+    
     if not isinstance(response_data, dict):
+        print("[DEBUG] Resposta não é um dicionário")
         return False
 
     def _collect_candidates(obj: dict) -> list[dict]:
@@ -1062,10 +1134,21 @@ def _carregar_tags_atuais(base_url: str, headers: dict, detalhes_zoho: dict | No
     return tags_existentes
 
 
-def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhes_zoho: dict) -> None:
+def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhes_zoho: dict, coluna_destino: str) -> None:
     """Reconstrói a lista de tags do projeto no Zoho com base nas informações atuais."""
     add_tags = info_dest.get("zohoTagsToAdd", []) or []
     remove_tags = info_dest.get("zohoTagsToRemove", []) or []
+
+    if coluna_destino == "Em Andamento":
+        # Remove all tags
+        payload_tags = {"tags": []}
+        response_tags = requests.patch(base_url, headers=headers, json=payload_tags, timeout=45)
+        if response_tags.status_code not in (200, 201):
+            raise RuntimeError(
+                f"Falha ao remover tags: {response_tags.status_code} - {response_tags.text[:400]}"
+            )
+        return
+
     if not add_tags and not remove_tags:
         return
 
@@ -1168,6 +1251,8 @@ def _postar_comentario_projeto(projeto_id: str, headers: dict, template: str) ->
 def _postar_comentario_tarefa(projeto_id: str, headers: dict, detalhes_zoho: dict, trigger: dict) -> None:
     task_name = (trigger or {}).get("taskName")
     template = (trigger or {}).get("template")
+    is_optional = (trigger or {}).get("optional", False)
+    
     if not task_name or not template:
         return
 
@@ -1186,20 +1271,23 @@ def _postar_comentario_tarefa(projeto_id: str, headers: dict, detalhes_zoho: dic
 
     if not alvo:
         exemplos = ", ".join((t.get("name") or "<sem nome>") for t in tarefas[:10])
-        raise RuntimeError(
-            f"Tarefa '{task_name}' não encontrada para comentário. Encontradas: {exemplos}"
-        )
+        if is_optional:
+            print(f"[DEBUG] Tarefa opcional '{task_name}' não encontrada para comentário - pulando")
+            return  # Retorna sem erro para tarefas opcionais
+        else:
+            print(f"[DEBUG] Tarefa obrigatória '{task_name}' não encontrada para comentário. Tarefas disponíveis: {exemplos}")
+            raise RuntimeError(
+                f"Tarefa obrigatória '{task_name}' não encontrada para comentário. Encontradas: {exemplos}"
+            )
 
     mentions_text = utils.zoho_mentions(["Giovani Sousa"])
-    comentario = (
-        f"Bom dia {mentions_text}, tudo bem? Realizada reunião de onboarding com o cliente. "
-        "Sendo assim, podemos dar inicio as atividades de infra. Vamos iniciar os grupos. "
-        "Os detalhes do projeto se encontram na descrição do mesmo. Att"
-    )
-
+    
+    # Processar o template substituindo as menções
+    comentario_template = template.replace("@{Giovani Sousa}", mentions_text)
+    
     task_id = alvo.get("id")
     url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/tasks/{task_id}/comments"
-    payload = {"comment": comentario, "content": comentario}
+    payload = {"comment": comentario_template, "content": comentario_template}
     response = requests.post(url, headers=headers, json=payload, timeout=30)
     if response.status_code not in (200, 201):
         raise RuntimeError(
@@ -1227,16 +1315,21 @@ def _atualizar_planilha(
     cliente_sheet: str,
     detalhes_zoho: dict,
     coletor_mensagens: list,
-    project_row: sqlite3.Row | dict | None = None
+    project_row: sqlite3.Row | dict | None = None,
+    coluna_origem: str | None = None
 ) -> None:
     """Atualiza a planilha principal conforme o novo status."""
     _validar_planilha_move(info_dest, cliente_sheet)
 
     sheet_status = (info_dest or {}).get("sheetStatus")
+    print(f"[DEBUG][SHEET] sheet_status obtido: '{sheet_status}'")
+    print(f"[DEBUG][SHEET] info_dest: {info_dest}")
     if not sheet_status:
+        print("[DEBUG][SHEET] sheet_status vazio, retornando sem atualizar")
         return
 
     creds = utils.build_google_credentials_from_session()
+    from googleapiclient.discovery import build
     sheets_service = build('sheets', 'v4', credentials=creds)
 
     def _sanitizar_cliente(valor: str) -> str:
@@ -1318,6 +1411,85 @@ def _atualizar_planilha(
     )
     coletor_mensagens.append(mensagem)
     _log_move_info("[MOVE][SHEET]", projeto_id, coluna_destino, mensagem)
+
+    # Atualizações específicas por transição após descobrir o cliente correto
+    if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
+        hoje_ddmmyyyy = datetime.now().strftime('%d/%m/%Y')
+        print(f"[DEBUG][SHEET] Atualizando Lib.Servidor para cliente '{chave_busca}' com data '{hoje_ddmmyyyy}'")
+        try:
+            utils.update_col_value_by_cliente_tolerant(sheets_service, chave_busca, "Lib.Servidor", hoje_ddmmyyyy)
+            coletor_mensagens.append('Planilha principal: Coluna "Lib.Servidor" atualizada.')
+            print(f"[DEBUG][SHEET] Lib.Servidor atualizada com sucesso")
+        except Exception as e:
+            print(f"[DEBUG][SHEET] Erro ao atualizar Lib.Servidor: {e}")
+            coletor_mensagens.append(f'Falha ao atualizar a coluna "Lib.Servidor": {e}')
+        
+        # Buscar e atualizar campo VPN
+        try:
+            print(f"[DEBUG][SHEET] Buscando informações VPN para cliente '{chave_busca}'")
+            
+            # Buscar ID da pasta do cliente no banco de dados (coluna link_google)
+            pasta_cliente_id = None
+            
+            # Primeiro, tentar obter o link do Google Drive do banco de dados
+            link_google = None
+            if project_row:
+                try:
+                    if isinstance(project_row, sqlite3.Row):
+                        link_google = project_row.get('link_google')
+                    elif isinstance(project_row, dict):
+                        link_google = project_row.get('link_google')
+                except Exception:
+                    link_google = None
+            
+            # Se não encontrou no project_row, buscar diretamente no banco
+            if not link_google:
+                try:
+                    conn = database.get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT link_google FROM projects WHERE id = ?", (projeto_id,))
+                    row = cursor.fetchone()
+                    if row and row[0]:
+                        link_google = row[0]
+                    conn.close()
+                except Exception as e:
+                    print(f"[DEBUG][SHEET] Erro ao buscar link_google no banco: {e}")
+                    
+            if link_google:
+                # Extrair ID da pasta do link do Google Drive
+                import re
+                match = re.search(r'https://drive\.google\.com/drive/folders/([a-zA-Z0-9_-]+)', link_google)
+                if match:
+                    pasta_cliente_id = match.group(1)
+                    print(f"[DEBUG][SHEET] ID da pasta do cliente encontrado no banco: {pasta_cliente_id}")
+                else:
+                    print(f"[DEBUG][SHEET] Link Google Drive inválido no banco: {link_google}")
+            else:
+                print(f"[DEBUG][SHEET] Link Google Drive não encontrado no banco para projeto {projeto_id}")
+            
+            if pasta_cliente_id:
+                from googleapiclient.discovery import build
+                drive_service = build('drive', 'v3', credentials=utils.build_google_credentials_from_session())
+                
+                # Buscar IPv6 na pasta Infraestrutura
+                ipv6_vpn = utils.buscar_ipv6_por_pasta(drive_service, pasta_cliente_id)
+                
+                if ipv6_vpn:
+                    print(f"[DEBUG][SHEET] IPv6 VPN encontrado: {ipv6_vpn}")
+                    # Atualizar coluna VPN na planilha
+                    utils.update_col_value_by_cliente_tolerant(sheets_service, chave_busca, "VPN", ipv6_vpn)
+                    coletor_mensagens.append(f'Planilha principal: Coluna "VPN" atualizada com {ipv6_vpn}.')
+                    print(f"[DEBUG][SHEET] Coluna VPN atualizada com sucesso")
+                else:
+                    print(f"[DEBUG][SHEET] IPv6 VPN não encontrado na pasta Infraestrutura")
+                    coletor_mensagens.append('Aviso: IPv6 VPN não encontrado na pasta Infraestrutura.')
+            else:
+                print(f"[DEBUG][SHEET] ID da pasta do cliente não encontrado nos detalhes do projeto")
+                coletor_mensagens.append('Aviso: Pasta do cliente no Drive não encontrada para buscar VPN.')
+                
+        except Exception as e:
+            print(f"[DEBUG][SHEET] Erro ao buscar/atualizar VPN: {e}")
+            coletor_mensagens.append(f'Falha ao atualizar a coluna "VPN": {e}')
 
 
 def _sincronizar_db_local(
@@ -1417,3 +1589,384 @@ def iniciar_implantacao():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+
+def _sincronizar_db_local(projeto_id: str, access_token: str, coletor_mensagens: list) -> None:
+    """
+    Sincroniza o projeto específico com o banco local após movimentação.
+    Atualiza campos como dias_na_fase e data_ultima_mudanca.
+    """
+    try:
+        from sync_zoho import synchronize_single_project
+        
+        # Sincroniza o projeto específico
+        project_updated = synchronize_single_project(projeto_id, access_token)
+        
+        if project_updated:
+            coletor_mensagens.append("Banco local sincronizado com sucesso")
+            _log_move_info("[MOVE][DB]", projeto_id, "", "Sincronização do banco local concluída")
+        else:
+            coletor_mensagens.append("Aviso: Projeto não encontrado durante sincronização")
+            _log_move_info("[MOVE][DB]", projeto_id, "", "Projeto não encontrado durante sincronização")
+            
+    except Exception as exc:
+        error_msg = f"Erro na sincronização do banco local: {exc}"
+        coletor_mensagens.append(error_msg)
+        _log_move_error("[MOVE][DB]", projeto_id, "", error_msg)
+        raise
+
+
+
+
+
+@api_bp.route('/mover_projeto', methods=['POST'])
+def mover_projeto():
+    """Move projeto entre colunas do Kanban, atualizando status/tag no Zoho e sincronizando DB local."""
+    if 'credentials' not in session:
+        return jsonify({"sucesso": False, "mensagem": "Usuário não autenticado."}), 401
+
+    try:
+        data = request.get_json(silent=True) or {}
+        projeto_id = data.get('projeto_id')
+        coluna_origem = data.get('coluna_origem')
+        coluna_destino = data.get('coluna_destino')
+        cliente_sheet = data.get('cliente_sheet')
+
+        # Obter access token
+        access_token = utils.obter_access_token()
+        if not access_token:
+            print("[ERROR] Não foi possível obter o access token")
+            return jsonify({"sucesso": False, "mensagem": "Erro de autenticação"}), 401
+
+        # Mapeamento de colunas para tags/status IDs
+        mapeamento_colunas = {
+            "Aguardando Onboarding": {"tag_id": TAG_AGUARDANDO_ONBOARDING_ID},
+            "Falta Liberar Servidor Infra": {"tag_id": TAG_AGUARDANDO_INFRA_ID},
+            "Em Andamento": {"status_id": STATUS_EM_ANDAMENTO_ID},
+            "Em Homologação": {"tag_id": TAG_EM_HOMOLOGACAO_ID},
+            "Em Virada": {"tag_id": TAG_EM_VIRADA_ID},
+            "Em Operação Assistida": {"status_id": STATUS_OPERACAO_ASSISTIDA_ID},
+            "Aguardando Encerramento": {"status_id": STATUS_AGUARDANDO_CLIENTE_ID},
+            "Finalizado": {"status_id": STATUS_FINALIZADO_ID},
+            "Projeto Parado": {"tag_id": TAG_PARADO_ID},
+            "Cancelado": {"status_id": STATUS_CANCELADO_ID}
+        }
+        
+        print(f"[DEBUG] Movendo projeto {projeto_id} de '{coluna_origem}' para '{coluna_destino}'")
+
+        config_destino = mapeamento_colunas.get(coluna_destino)
+        if not config_destino:
+            return jsonify({"sucesso": False, "mensagem": f"Coluna destino '{coluna_destino}' não reconhecida."}), 400
+
+        config_origem = mapeamento_colunas.get(coluna_origem) if coluna_origem else None
+
+        mensagens = []
+
+        # Remover tags antigas e atualizar status
+        try:
+            headers = {
+                "Authorization": f"Zoho-oauthtoken {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # 1. Se movendo para Em Andamento, remover TODAS as tags primeiro
+            if coluna_destino == "Em Andamento":
+                print(f"[DEBUG] Obtendo tags atuais do projeto {projeto_id}")
+                tags_resp = requests.get(tags_url, headers=headers, timeout=30)
+                if tags_resp.status_code == 200:
+                    tags = tags_resp.json().get('tags', [])
+                    print(f"[DEBUG] Tags encontradas: {tags}")
+                    for tag in tags:
+                        tag_id = tag.get('id')
+                        if tag_id:
+                            print(f"[DEBUG] Removendo tag {tag_id}")
+                            del_resp = requests.delete(del_url, headers=headers, timeout=30)
+                            print(f"[DEBUG] Resposta remoção tag {tag_id}: {del_resp.status_code}")
+                            if del_resp.status_code in (200, 204):
+                                mensagens.append(f"Tag {tag.get('name', tag_id)} removida do Zoho")
+                            else:
+                                mensagens.append(f"Aviso: Falha ao remover tag {tag.get('name', tag_id)} ({del_resp.status_code})")
+                else:
+                    print(f"[WARNING] Falha ao obter tags: {tags_resp.status_code}")
+
+            # 2. Atualizar status do projeto
+            print(f"[DEBUG] Atualizando status do projeto para {coluna_destino}")
+            status_payload = {
+                "status": {"id": STATUS_EM_ANDAMENTO_ID}
+            }
+            status_resp = requests.patch(status_url, headers=headers, json=status_payload, timeout=30)
+            print(f"[DEBUG] Resposta atualização status: {status_resp.status_code}")
+            if status_resp.status_code in (200, 201):
+                mensagens.append("Status atualizado para Em Andamento no Zoho")
+            else:
+                print(f"[ERROR] Falha ao atualizar status: {status_resp.text}")
+                mensagens.append(f"Aviso: Falha ao atualizar status ({status_resp.status_code})")
+
+        except Exception as e:
+            print(f"[ERROR] Erro ao manipular projeto no Zoho: {str(e)}")
+            traceback.print_exc()
+            mensagens.append(f"Erro ao manipular projeto no Zoho: {str(e)}")
+
+        # Atualizar status/tag no Zoho
+        if 'status_id' in config_destino:
+            status_id = config_destino['status_id']
+            # PATCH project status
+            headers = {
+                "Authorization": f"Zoho-oauthtoken {access_token}",
+                "Content-Type": "application/json"
+            }
+            payload = {"status": {"id": status_id}}
+            resp = requests.put(url, headers=headers, json=payload, timeout=30)
+            if resp.status_code not in (200, 201):
+                mensagens.append(f"Aviso: Falha ao atualizar status ({resp.status_code})")
+            else:
+                mensagens.append("Status atualizado no Zoho")
+
+        if 'tag_id' in config_destino:
+            tag_id = config_destino['tag_id']
+            # Adicionar tag ao projeto
+            headers = {
+                "Authorization": f"Zoho-oauthtoken {access_token}",
+                "Content-Type": "application/json"
+            }
+            resp = requests.post(url, headers=headers, timeout=30)
+            if resp.status_code not in (200, 201):
+                mensagens.append(f"Aviso: Falha ao adicionar tag ({resp.status_code})")
+            else:
+                mensagens.append("Tag adicionada no Zoho")
+
+        # Sincronizar projeto específico
+        _sincronizar_db_local(projeto_id, access_token, mensagens)
+
+        # Obter data da última mudança do feed de atividades
+        data_ultima_mudanca = _obter_data_ultima_mudanca(projeto_id, access_token)
+
+        if data_ultima_mudanca:
+            # Atualizar no banco de dados
+            conn = database.get_db_connection()
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
+                    (data_ultima_mudanca, projeto_id)
+                )
+                conn.commit()
+                mensagens.append(f"Data última mudança atualizada: {data_ultima_mudanca}")
+            except Exception as e:
+                mensagens.append(f"Aviso: Falha ao atualizar data_ultima_mudanca: {e}")
+            finally:
+                conn.close()
+        else:
+            mensagens.append("Aviso: Não foi possível obter data da última mudança")
+
+        # Ações especiais para transição de Falta Liberar Servidor Infra para Em Andamento
+        print(f"[DEBUG] Verificando transição especial: origem={coluna_origem}, destino={coluna_destino}")
+        if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
+            print("[DEBUG] Executando ações especiais para liberação de servidor")
+            from datetime import date, datetime
+            data_atual = date.today().strftime('%Y-%m-%d')
+            data_atual_ddmmyyyy = datetime.now().strftime('%d/%m/%Y')
+
+            # 1. Atualizar campo customizado no Zoho
+            try:
+                print("[DEBUG] Iniciando atualização do campo Data Liberação Servidor")
+                
+                # Usar o label identificado: UDF_DATE4
+                target_label = "UDF_DATE4"
+
+                utils.atualizar_custom_field_projeto(access_token, projeto_id, target_label, data_atual)
+                mensagens.append(f"Campo customizado '{target_label}' atualizado no Zoho")
+                    
+            except Exception as e:
+                print(f"[ERROR] Erro ao atualizar campo customizado: {str(e)}")
+                traceback.print_exc()
+                mensagens.append(f"Aviso: Falha ao atualizar campo customizado: {e}")
+
+            # 2. Atualizar planilha principal (Status Principal e Lib.Servidor)
+            if cliente_sheet:
+                try:
+                    print(f"[DEBUG] Atualizando planilha principal para cliente: {cliente_sheet}")
+                    sheets_service = build('sheets', 'v4', credentials=utils.build_google_credentials_from_session())
+                    
+                    # Buscar cabeçalhos
+                    range_cab = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+                    print(f"[DEBUG] Buscando cabeçalhos: {range_cab}")
+                    result = sheets_service.spreadsheets().values().get(
+                        spreadsheetId=ID_PLANILHA_PROJETOS,
+                        range=range_cab
+                    ).execute()
+                    cabecalhos = result.get('values', [[]])[0]
+                    print(f"[DEBUG] Cabeçalhos encontrados: {cabecalhos}")
+                    
+                    lower_map = {str(c).strip().lower(): i for i, c in enumerate(cabecalhos)}
+
+                    # Encontrar índices das colunas
+                    col_cliente_idx = lower_map.get('cliente')
+                    col_libservidor_idx = lower_map.get('lib.servidor') or lower_map.get('lib servidor')
+                    col_status_idx = None
+                    for nm in ['status principal', 'status', 'status_principal', 'statusprincipal']:
+                        if nm in lower_map:
+                            col_status_idx = lower_map[nm]
+                            break
+                    
+                    print(f"[DEBUG] Índices encontrados - Cliente: {col_cliente_idx}, Lib.Servidor: {col_libservidor_idx}, Status: {col_status_idx}")
+
+                    if col_cliente_idx is not None and (col_status_idx is not None or col_libservidor_idx is not None):
+                        letra_col_cliente = utils.indice_para_letra_coluna(col_cliente_idx)
+                        start_row = LINHA_CABECALHO + 1
+                        range_clientes = f"'{NOME_ABA_PLANILHA}'!{letra_col_cliente}{start_row}:{letra_col_cliente}"
+                        
+                        print(f"[DEBUG] Buscando clientes no range: {range_clientes}")
+                        valores = sheets_service.spreadsheets().values().get(
+                            spreadsheetId=ID_PLANILHA_PROJETOS,
+                            range=range_clientes
+                        ).execute().get('values', [])
+
+                        # Encontrar linha do cliente
+                        linha_encontrada = None
+                        for idx, row in enumerate(valores):
+                            if row and row[0].strip() == cliente_sheet:
+                                linha_encontrada = start_row + idx
+                                break
+
+                        print(f"[DEBUG] Linha encontrada para cliente {cliente_sheet}: {linha_encontrada}")
+
+                        if linha_encontrada:
+                            updates = []
+                            if col_status_idx is not None:
+                                letra_col_status = utils.indice_para_letra_coluna(col_status_idx)
+                                range_status = f"'{NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}"
+                                updates.append({
+                                    'range': range_status,
+                                    'values': [["Em Andamento"]]
+                                })
+                                print(f"[DEBUG] Adicionada atualização de status: {range_status} = Em Andamento")
+                            
+                            if col_libservidor_idx is not None:
+                                letra_col_lib = utils.indice_para_letra_coluna(col_libservidor_idx)
+                                range_lib = f"'{NOME_ABA_PLANILHA}'!{letra_col_lib}{linha_encontrada}"
+                                updates.append({
+                                    'range': range_lib,
+                                    'values': [[data_atual_ddmmyyyy]]
+                                })
+                                print(f"[DEBUG] Adicionada atualização de Lib.Servidor: {range_lib} = {data_atual_ddmmyyyy}")
+
+                            if updates:
+                                print(f"[DEBUG] Executando batch update com {len(updates)} atualizações")
+                                result = sheets_service.spreadsheets().values().batchUpdate(
+                                    spreadsheetId=ID_PLANILHA_PROJETOS,
+                                    body={'valueInputOption': 'USER_ENTERED', 'data': updates}
+                                ).execute()
+                                print(f"[DEBUG] Resultado do batch update: {result}")
+                                mensagens.append('Planilha principal: Status Principal e Lib.Servidor atualizados')
+                        else:
+                            print(f"[WARNING] Cliente {cliente_sheet} não encontrado na planilha")
+                            mensagens.append(f"Aviso: Cliente {cliente_sheet} não encontrado na planilha")
+                    else:
+                        print(f"[WARNING] Colunas necessárias não encontradas")
+                        mensagens.append("Aviso: Colunas necessárias não encontradas na planilha")
+                except Exception as e:
+                    print(f"[ERROR] Erro ao atualizar planilha: {str(e)}")
+                    traceback.print_exc()
+                    mensagens.append(f"Aviso: Falha ao atualizar planilha: {e}")
+
+            # 3. Atualizar banco de dados
+            try:
+                conn = database.get_db_connection()
+                cursor = conn.cursor()
+                
+                # Atualizar data_liberacao_servidor
+                cursor.execute(
+                    "UPDATE projects SET data_liberacao_servidor = ? WHERE id = ?",
+                    (data_atual, projeto_id)
+                )
+                
+                # Atualizar data_ultima_mudanca
+                cursor.execute(
+                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
+                    (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), projeto_id)
+                )
+                
+                conn.commit()
+                print(f"[DEBUG] Banco de dados atualizado para projeto {projeto_id}")
+                mensagens.append("Banco de dados: campos data_liberacao_servidor e data_ultima_mudanca atualizados")
+            except Exception as e:
+                print(f"[ERROR] Erro ao atualizar banco de dados: {str(e)}")
+                mensagens.append(f"Erro ao atualizar banco de dados: {str(e)}")
+            finally:
+                conn.close()
+
+            # Sincronizar novamente o banco após atualização do campo customizado
+            _sincronizar_db_local(projeto_id, access_token, mensagens)
+
+            # Atualizar data_ultima_mudanca após a mudança
+            data_ultima_mudanca = _obter_data_ultima_mudanca(projeto_id, access_token)
+            if data_ultima_mudanca:
+                conn = database.get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
+                    (data_ultima_mudanca, projeto_id)
+                )
+                conn.commit()
+                conn.close()
+                mensagens.append(f"Data última mudança atualizada após campo customizado: {data_ultima_mudanca}")
+            else:
+                mensagens.append("Aviso: Não foi possível obter data da última mudança após atualização")
+
+            # Atualizar planilha
+            if cliente_sheet:
+                try:
+                    creds = utils.build_google_credentials_from_session()
+                    sheets_service = build('sheets', 'v4', credentials=creds)
+                    # Atualizar Status Principal
+                    utils.atualizar_status_principal_planilha_por_cliente(sheets_service, cliente_sheet, "Em Andamento")
+                    mensagens.append("Status Principal atualizado na planilha")
+                    # Atualizar Lib.Servidor
+                    utils.atualizar_coluna_planilha_por_cliente(sheets_service, cliente_sheet, "Lib.Servidor", data_atual)
+                    mensagens.append("Coluna Lib.Servidor atualizada na planilha")
+                except Exception as e:
+                    mensagens.append(f"Aviso: Falha ao atualizar planilha: {e}")
+
+        return jsonify({"sucesso": True, "mensagem": "Projeto movido com sucesso.", "detalhes": mensagens})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+
+def _obter_data_ultima_mudanca(projeto_id: str, access_token: str) -> str | None:
+    """Obtém a data da última atividade do projeto via feed de atividades."""
+    try:
+        # Tentar V3 primeiro
+        headers = {
+            "Authorization": f"Zoho-oauthtoken {access_token}",
+            "Content-Type": "application/json"
+        }
+        params = {"sort_column": "activity_time", "sort_order": "descending", "per_page": 1}
+        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            activities = data.get('activities', [])
+            if activities:
+                latest_activity = activities[0]
+                activity_time = latest_activity.get('activity_time')
+                if activity_time:
+                    return activity_time
+
+        # Se V3 falhar, tentar restapi
+        resp = requests.get(url, headers=headers, params=params, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            activities = data.get('activities', [])
+            if activities:
+                latest_activity = activities[0]
+                activity_time = latest_activity.get('activity_time')
+                if activity_time:
+                    return activity_time
+
+        return None
+    except Exception as e:
+        print(f"Erro ao obter atividades: {e}")
+        return None
+
