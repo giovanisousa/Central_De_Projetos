@@ -1791,17 +1791,110 @@ def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_me
 def _sincronizar_db_local(projeto_id: str, access_token: str, coletor_mensagens: list) -> None:
     """
     Sincroniza o projeto específico com o banco local após movimentação.
-    Atualiza campos como dias_na_fase e data_ultima_mudanca.
+    Força atualização da data_ultima_mudanca e recalcula dias_na_fase.
     """
     try:
         from sync_zoho import synchronize_single_project
+        from datetime import datetime, date
+        import database
         
-        # Sincroniza o projeto específico
+        print(f"[DEBUG][SYNC] Iniciando sincronização forçada do projeto {projeto_id}")
+        
+        # 1. Sincroniza dados do projeto com o Zoho
         project_updated = synchronize_single_project(projeto_id, access_token)
         
         if project_updated:
+            print(f"[DEBUG][SYNC] Projeto sincronizado do Zoho com sucesso")
+            
+            # 2. Forçar atualização da data_ultima_mudanca para HOJE
+            data_atual = date.today().strftime('%Y-%m-%d')
+            print(f"[DEBUG][SYNC] Atualizando data_ultima_mudanca para: {data_atual}")
+            
+            try:
+                conn = database.get_db_connection()
+                cursor = conn.cursor()
+                
+                # Atualizar data_ultima_mudanca no banco
+                cursor.execute("""
+                    UPDATE projects 
+                    SET data_ultima_mudanca = ?
+                    WHERE id = ?
+                """, (data_atual, projeto_id))
+                
+                rows_affected = cursor.rowcount
+                conn.commit()
+                conn.close()
+                
+                if rows_affected > 0:
+                    print(f"[DEBUG][SYNC] Data última mudança atualizada no banco")
+                    coletor_mensagens.append("Data última mudança atualizada")
+                else:
+                    print(f"[WARN][SYNC] Nenhuma linha afetada ao atualizar data_ultima_mudanca")
+                    
+            except Exception as db_error:
+                print(f"[ERROR][SYNC] Erro ao atualizar data_ultima_mudanca: {db_error}")
+                # Não falha a operação por causa disso
+            
+            # 3. Recalcular dias_na_fase
+            try:
+                project_row = database.get_project_by_id(projeto_id)
+                if project_row:
+                    # Calcular dias desde a data_ultima_mudanca
+                    data_ultima_str = project_row['data_ultima_mudanca'] if 'data_ultima_mudanca' in project_row.keys() else data_atual
+                    
+                    try:
+                        # Converter data string para date object
+                        if isinstance(data_ultima_str, str):
+                            data_ultima = datetime.strptime(data_ultima_str, '%Y-%m-%d').date()
+                        else:
+                            data_ultima = date.today()
+                        
+                        # Calcular diferença em dias
+                        hoje = date.today()
+                        dias_fase = (hoje - data_ultima).days
+                        
+                        print(f"[DEBUG][SYNC] Calculando dias_na_fase: {hoje} - {data_ultima} = {dias_fase} dias")
+                        
+                        # Atualizar dias_na_fase no banco
+                        conn = database.get_db_connection()
+                        cursor = conn.cursor()
+                        
+                        cursor.execute("""
+                            UPDATE projects 
+                            SET dias_na_fase = ?
+                            WHERE id = ?
+                        """, (str(dias_fase), projeto_id))
+                        
+                        conn.commit()
+                        conn.close()
+                        
+                        print(f"[DEBUG][SYNC] Dias na fase atualizado: {dias_fase}")
+                        coletor_mensagens.append(f"Dias na fase recalculado: {dias_fase}")
+                        
+                    except Exception as calc_error:
+                        print(f"[ERROR][SYNC] Erro ao calcular dias_na_fase: {calc_error}")
+                        # Define como 0 em caso de erro
+                        dias_fase = 0
+                        
+                        conn = database.get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE projects 
+                            SET dias_na_fase = ?
+                            WHERE id = ?
+                        """, (str(dias_fase), projeto_id))
+                        conn.commit()
+                        conn.close()
+                        
+                        coletor_mensagens.append("Dias na fase definido como 0 (erro no cálculo)")
+                        
+            except Exception as dias_error:
+                print(f"[ERROR][SYNC] Erro ao recalcular dias_na_fase: {dias_error}")
+                # Não falha a operação
+            
             coletor_mensagens.append("Banco local sincronizado com sucesso")
-            _log_move_info("[MOVE][DB]", projeto_id, "", "Sincronização do banco local concluída")
+            _log_move_info("[MOVE][DB]", projeto_id, "", f"Sincronização concluída - Data: {data_atual}")
+            
         else:
             coletor_mensagens.append("Aviso: Projeto não encontrado durante sincronização")
             _log_move_info("[MOVE][DB]", projeto_id, "", "Projeto não encontrado durante sincronização")
@@ -1934,27 +2027,6 @@ def mover_projeto():
 
         # Sincronizar projeto específico
         _sincronizar_db_local(projeto_id, access_token, mensagens)
-
-        # Obter data da última mudança do feed de atividades
-        data_ultima_mudanca = _obter_data_ultima_mudanca(projeto_id, access_token)
-
-        if data_ultima_mudanca:
-            # Atualizar no banco de dados
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            try:
-                cursor.execute(
-                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
-                    (data_ultima_mudanca, projeto_id)
-                )
-                conn.commit()
-                mensagens.append(f"Data última mudança atualizada: {data_ultima_mudanca}")
-            except Exception as e:
-                mensagens.append(f"Aviso: Falha ao atualizar data_ultima_mudanca: {e}")
-            finally:
-                conn.close()
-        else:
-            mensagens.append("Aviso: Não foi possível obter data da última mudança")
 
         # Ações especiais para transição de Falta Liberar Servidor Infra para Em Andamento
         print(f"[DEBUG] Verificando transição especial: origem={coluna_origem}, destino={coluna_destino}")
@@ -2096,21 +2168,6 @@ def mover_projeto():
             # Sincronizar novamente o banco após atualização do campo customizado
             _sincronizar_db_local(projeto_id, access_token, mensagens)
 
-            # Atualizar data_ultima_mudanca após a mudança
-            data_ultima_mudanca = _obter_data_ultima_mudanca(projeto_id, access_token)
-            if data_ultima_mudanca:
-                conn = database.get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
-                    (data_ultima_mudanca, projeto_id)
-                )
-                conn.commit()
-                conn.close()
-                mensagens.append(f"Data última mudança atualizada após campo customizado: {data_ultima_mudanca}")
-            else:
-                mensagens.append("Aviso: Não foi possível obter data da última mudança após atualização")
-
             # Atualizar planilha
             if cliente_sheet:
                 try:
@@ -2131,39 +2188,4 @@ def mover_projeto():
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)}), 500
 
-
-def _obter_data_ultima_mudanca(projeto_id: str, access_token: str) -> str | None:
-    """Obtém a data da última atividade do projeto via feed de atividades."""
-    try:
-        # Tentar V3 primeiro
-        headers = {
-            "Authorization": f"Zoho-oauthtoken {access_token}",
-            "Content-Type": "application/json"
-        }
-        params = {"sort_column": "activity_time", "sort_order": "descending", "per_page": 1}
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            activities = data.get('activities', [])
-            if activities:
-                latest_activity = activities[0]
-                activity_time = latest_activity.get('activity_time')
-                if activity_time:
-                    return activity_time
-
-        # Se V3 falhar, tentar restapi
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            activities = data.get('activities', [])
-            if activities:
-                latest_activity = activities[0]
-                activity_time = latest_activity.get('activity_time')
-                if activity_time:
-                    return activity_time
-
-        return None
-    except Exception as e:
-        print(f"Erro ao obter atividades: {e}")
-        return None
 
