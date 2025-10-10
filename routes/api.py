@@ -1527,6 +1527,56 @@ def iniciar_implantacao():
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         detalhes_zoho = json.loads(project_row['full_data_json'])
 
+        # ==== 1. PRIMEIRO: Mover para coluna "Em Andamento - Implantação" usando o sistema de mapeamento ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Movendo projeto {project_id} para 'Em Andamento - Implantação'")
+        
+        try:
+            access_token = utils.obter_access_token()
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Access token obtido com sucesso")
+            
+            # Carregar configuração da coluna "Em Andamento - Implantação"
+            from utils import carregar_mapeamento_colunas
+            mapeamento = carregar_mapeamento_colunas()
+            info_dest = mapeamento.get("Em Andamento - Implantação", {})
+            
+            if not info_dest:
+                erro_msg = "Configuração para 'Em Andamento - Implantação' não encontrada no mapeamento"
+                print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+                return jsonify({"sucesso": False, "erro": erro_msg}), 500
+            
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração encontrada: {info_dest}")
+            
+            # Atualizar o campo data_de_inicio_da_implantacao na configuração
+            custom_fields_config = info_dest.get("zohoCustomFields", {}).copy()
+            custom_fields_config["data_de_inicio_da_implantacao"] = data_inicio_implantacao
+            info_dest_modificada = info_dest.copy()
+            info_dest_modificada["zohoCustomFields"] = custom_fields_config
+            
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração modificada com data: {info_dest_modificada}")
+            
+            # Usar o sistema de mapeamento existente para aplicar as mudanças
+            mensagens_zoho = []
+            _atualizar_zoho(
+                projeto_id=project_id,
+                coluna_destino="Em Andamento - Implantação", 
+                info_dest=info_dest_modificada,
+                access_token=access_token,
+                detalhes_zoho=detalhes_zoho,
+                coletor_mensagens=mensagens_zoho,
+                coluna_origem="Em Andamento"  # Assumindo que vem de "Em Andamento"
+            )
+            
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Zoho atualizado com sucesso. Mensagens: {mensagens_zoho}")
+
+        except Exception as e:
+            erro_msg = f"Falha ao atualizar Zoho Projects: {str(e)}"
+            print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+            traceback.print_exc()
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
+
+        # ==== 2. SEGUNDO: Atualizar PLANILHA PRINCIPAL ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Iniciando atualização da planilha...")
+        
         creds = utils.build_google_credentials_from_session()
         sheets_service = build('sheets', 'v4', credentials=creds)
 
@@ -1559,19 +1609,28 @@ def iniciar_implantacao():
             if ris_first:
                 implant_responsavel += f" + Ris - {ris_first}"
 
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Cliente identificado: '{chave_busca}'")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Implantador responsável: '{implant_responsavel}'")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Data para planilha: '{_fmt_ddmmyyyy(data_inicio_implantacao)}'")
+
         try:
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Atualizando coluna 'Dt Inicio Implantação'...")
             utils.update_col_value_by_cliente_tolerant(
                 sheets_service,
                 chave_busca,
                 'Dt Inicio Implantação',
                 _fmt_ddmmyyyy(data_inicio_implantacao)
             )
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Coluna 'Dt Inicio Implantação' atualizada com sucesso")
         except Exception as e:
-            return jsonify({"sucesso": False, "erro": f"Falha ao atualizar data na planilha: {e}"}), 500
+            erro_msg = f"Falha ao atualizar data na planilha: {e}"
+            print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
 
         detalhes_msg = []
         if implant_responsavel:
             try:
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Atualizando coluna 'Implant Responsável'...")
                 utils.update_col_value_by_cliente_tolerant(
                     sheets_service,
                     chave_busca,
@@ -1579,12 +1638,28 @@ def iniciar_implantacao():
                     implant_responsavel
                 )
                 detalhes_msg.append("Implant Responsável atualizado.")
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Coluna 'Implant Responsável' atualizada com sucesso")
             except Exception as e:
-                return jsonify({"sucesso": False, "erro": f"Falha ao atualizar implantador na planilha: {e}"}), 500
+                erro_msg = f"Falha ao atualizar implantador na planilha: {e}"
+                print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+                return jsonify({"sucesso": False, "erro": erro_msg}), 500
         else:
             detalhes_msg.append("Implant Responsável não atualizado (selecione PACS).")
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Implant Responsável não atualizado - nenhum PACS selecionado")
 
-        return jsonify({"sucesso": True, "mensagem": "Implantação agendada e planilha atualizada.", "detalhes": detalhes_msg})
+        # ==== 3. TERCEIRO: Sincronizar banco local ====
+        try:
+            _sincronizar_db_local(project_id, access_token, detalhes_msg)
+        except Exception as e:
+            # Log do erro mas não falha a operação
+            print(f"[WARN] Falha na sincronização do banco local: {e}")
+            detalhes_msg.append("Aviso: Falha na sincronização do cache local")
+
+        return jsonify({
+            "sucesso": True, 
+            "mensagem": "Implantação iniciada com sucesso! Zoho Projects e planilha atualizados.", 
+            "detalhes": detalhes_msg
+        })
 
     except Exception as e:
         traceback.print_exc()
