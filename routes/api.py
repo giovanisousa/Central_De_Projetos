@@ -1527,6 +1527,114 @@ def iniciar_implantacao():
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         detalhes_zoho = json.loads(project_row['full_data_json'])
 
+        # ==== 1. PRIMEIRO: Mover para coluna "Em Andamento - Implantação" usando o sistema de mapeamento ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Movendo projeto {project_id} para 'Em Andamento - Implantação'")
+        
+        try:
+            access_token = utils.obter_access_token()
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Access token obtido com sucesso")
+            
+            # Carregar configuração da coluna "Em Andamento - Implantação"
+            from utils import carregar_mapeamento_colunas
+            mapeamento = carregar_mapeamento_colunas()
+            info_dest = mapeamento.get("Em Andamento - Implantação", {})
+            
+            if not info_dest:
+                erro_msg = "Configuração para 'Em Andamento - Implantação' não encontrada no mapeamento"
+                print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+                return jsonify({"sucesso": False, "erro": erro_msg}), 500
+            
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração encontrada: {info_dest}")
+            
+            # Atualizar o campo data_de_inicio_da_implantacao na configuração
+            custom_fields_config = info_dest.get("zohoCustomFields", {}).copy()
+            custom_fields_config["data_de_inicio_da_implantacao"] = data_inicio_implantacao
+            info_dest_modificada = info_dest.copy()
+            info_dest_modificada["zohoCustomFields"] = custom_fields_config
+            
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração modificada com data: {info_dest_modificada}")
+            
+            # Usar o sistema de mapeamento existente para aplicar as mudanças
+            mensagens_zoho = []
+            try:
+                _atualizar_zoho(
+                    projeto_id=project_id,
+                    coluna_destino="Em Andamento - Implantação", 
+                    info_dest=info_dest_modificada,
+                    access_token=access_token,
+                    detalhes_zoho=detalhes_zoho,
+                    coletor_mensagens=mensagens_zoho,
+                    coluna_origem="Em Andamento"  # Assumindo que vem de "Em Andamento"
+                )
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Zoho atualizado com sucesso. Mensagens: {mensagens_zoho}")
+            except Exception as zoho_error:
+                # Se falhar completamente, tenta uma abordagem mais simples
+                print(f"[WARN][INICIAR_IMPLANTACAO] Erro na atualização completa: {zoho_error}")
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Tentando atualização simplificada...")
+                
+                # Tenta apenas atualizar o campo customizado sem mexer nas tags
+                try:
+                    headers = {
+                        "Authorization": f"Zoho-oauthtoken {access_token}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    }
+                    base_url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+                    
+                    # Apenas atualizar o campo customizado
+                    payload_custom = {"custom_fields": {"data_de_inicio_da_implantacao": data_inicio_implantacao}}
+                    response_custom = requests.patch(base_url, headers=headers, json=payload_custom, timeout=45)
+                    
+                    if response_custom.status_code in (200, 201):
+                        print(f"[DEBUG][INICIAR_IMPLANTACAO] Campo customizado atualizado com sucesso (fallback)")
+                        mensagens_zoho.append("Campo customizado atualizado (modo compatibilidade)")
+                        
+                        # Tentar adicionar tag separadamente
+                        try:
+                            # Obter tags atuais
+                            response_get = requests.get(base_url, headers=headers, timeout=30)
+                            if response_get.status_code == 200:
+                                project_data = response_get.json().get('project', {})
+                                tags_atuais = project_data.get('tags', [])
+                                
+                                # Verificar se já tem a tag
+                                tag_implantacao_id = "2376502000000188201"
+                                ja_tem_tag = any(str(tag.get('id', '')) == tag_implantacao_id for tag in tags_atuais)
+                                
+                                if not ja_tem_tag:
+                                    tags_atuais.append({"id": tag_implantacao_id})
+                                    payload_tags = {"tags": tags_atuais}
+                                    response_tags = requests.patch(base_url, headers=headers, json=payload_tags, timeout=45)
+                                    
+                                    if response_tags.status_code in (200, 201):
+                                        print(f"[DEBUG][INICIAR_IMPLANTACAO] Tag de implantação adicionada (fallback)")
+                                        mensagens_zoho.append("Tag de implantação adicionada")
+                                    else:
+                                        print(f"[WARN][INICIAR_IMPLANTACAO] Falha ao adicionar tag: {response_tags.status_code}")
+                                        mensagens_zoho.append("Aviso: Tag não pôde ser adicionada automaticamente")
+                                else:
+                                    print(f"[DEBUG][INICIAR_IMPLANTACAO] Tag de implantação já existe")
+                                    mensagens_zoho.append("Tag de implantação já presente")
+                        except Exception as tag_error:
+                            print(f"[WARN][INICIAR_IMPLANTACAO] Erro ao processar tags: {tag_error}")
+                            mensagens_zoho.append("Aviso: Erro ao processar tags")
+                    else:
+                        print(f"[ERROR][INICIAR_IMPLANTACAO] Falha no fallback: {response_custom.status_code} - {response_custom.text}")
+                        raise zoho_error  # Re-raise o erro original
+                        
+                except Exception as fallback_error:
+                    print(f"[ERROR][INICIAR_IMPLANTACAO] Falha no fallback: {fallback_error}")
+                    raise zoho_error  # Re-raise o erro original
+
+        except Exception as e:
+            erro_msg = f"Falha ao atualizar Zoho Projects: {str(e)}"
+            print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+            traceback.print_exc()
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
+
+        # ==== 2. SEGUNDO: Atualizar PLANILHA PRINCIPAL ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Iniciando atualização da planilha...")
+        
         creds = utils.build_google_credentials_from_session()
         sheets_service = build('sheets', 'v4', credentials=creds)
 
@@ -1559,19 +1667,28 @@ def iniciar_implantacao():
             if ris_first:
                 implant_responsavel += f" + Ris - {ris_first}"
 
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Cliente identificado: '{chave_busca}'")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Implantador responsável: '{implant_responsavel}'")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Data para planilha: '{_fmt_ddmmyyyy(data_inicio_implantacao)}'")
+
         try:
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Atualizando coluna 'Dt Inicio Implantação'...")
             utils.update_col_value_by_cliente_tolerant(
                 sheets_service,
                 chave_busca,
                 'Dt Inicio Implantação',
                 _fmt_ddmmyyyy(data_inicio_implantacao)
             )
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Coluna 'Dt Inicio Implantação' atualizada com sucesso")
         except Exception as e:
-            return jsonify({"sucesso": False, "erro": f"Falha ao atualizar data na planilha: {e}"}), 500
+            erro_msg = f"Falha ao atualizar data na planilha: {e}"
+            print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
 
         detalhes_msg = []
         if implant_responsavel:
             try:
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Atualizando coluna 'Implant Responsável'...")
                 utils.update_col_value_by_cliente_tolerant(
                     sheets_service,
                     chave_busca,
@@ -1579,32 +1696,205 @@ def iniciar_implantacao():
                     implant_responsavel
                 )
                 detalhes_msg.append("Implant Responsável atualizado.")
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Coluna 'Implant Responsável' atualizada com sucesso")
             except Exception as e:
-                return jsonify({"sucesso": False, "erro": f"Falha ao atualizar implantador na planilha: {e}"}), 500
+                erro_msg = f"Falha ao atualizar implantador na planilha: {e}"
+                print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
+                return jsonify({"sucesso": False, "erro": erro_msg}), 500
         else:
             detalhes_msg.append("Implant Responsável não atualizado (selecione PACS).")
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Implant Responsável não atualizado - nenhum PACS selecionado")
 
-        return jsonify({"sucesso": True, "mensagem": "Implantação agendada e planilha atualizada.", "detalhes": detalhes_msg})
+        # ==== 3. TERCEIRO: Sincronizar banco local FORÇADAMENTE ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Iniciando sincronização forçada do banco local...")
+        try:
+            # Forçar sincronização múltipla para garantir que as mudanças sejam capturadas
+            _sincronizar_db_local_forcado(project_id, access_token, detalhes_msg)
+        except Exception as e:
+            # Log do erro mas não falha a operação
+            print(f"[WARN] Falha na sincronização do banco local: {e}")
+            detalhes_msg.append("Aviso: Falha na sincronização do cache local")
+
+        return jsonify({
+            "sucesso": True, 
+            "mensagem": "Implantação iniciada com sucesso! Zoho Projects e planilha atualizados.", 
+            "detalhes": detalhes_msg
+        })
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)}), 500
 
 
+def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_mensagens: list) -> None:
+    """
+    Sincroniza o projeto com múltiplas tentativas para garantir que as mudanças sejam capturadas.
+    Especialmente útil após alterações de tags que podem demorar para se propagar na API do Zoho.
+    """
+    import time
+    from sync_zoho import synchronize_single_project
+    
+    max_tentativas = 3
+    intervalo_tentativas = 2  # segundos
+    
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            print(f"[DEBUG][SYNC] Tentativa {tentativa}/{max_tentativas} de sincronização do projeto {projeto_id}")
+            
+            # Pequena pausa para permitir que a API do Zoho propague as mudanças
+            if tentativa > 1:
+                time.sleep(intervalo_tentativas)
+            
+            # Sincroniza o projeto específico
+            project_updated = synchronize_single_project(projeto_id, access_token)
+            
+            if project_updated:
+                # Verificar se as mudanças foram capturadas
+                import database
+                project_row = database.get_project_by_id(projeto_id)
+                
+                if project_row:
+                    import json
+                    detalhes_zoho = json.loads(project_row['full_data_json'])
+                    
+                    # Verificar se tem a tag de implantação
+                    tags = detalhes_zoho.get('tags', [])
+                    tag_implantacao_presente = any(str(tag.get('id', '')) == "2376502000000188201" for tag in tags)
+                    
+                    # Verificar se tem o campo customizado
+                    campo_data_presente = detalhes_zoho.get('data_de_inicio_da_implantacao') is not None
+                    
+                    print(f"[DEBUG][SYNC] Tag implantação presente: {tag_implantacao_presente}")
+                    print(f"[DEBUG][SYNC] Campo data presente: {campo_data_presente}")
+                    
+                    if tag_implantacao_presente or tentativa == max_tentativas:
+                        coletor_mensagens.append(f"Banco local sincronizado (tentativa {tentativa})")
+                        _log_move_info("[MOVE][DB]", projeto_id, "Em Andamento - Implantação", f"Sincronização concluída na tentativa {tentativa}")
+                        return
+                    else:
+                        print(f"[DEBUG][SYNC] Mudanças ainda não propagadas, tentando novamente...")
+                else:
+                    print(f"[WARN][SYNC] Projeto não encontrado no banco local após sincronização")
+            else:
+                print(f"[WARN][SYNC] Falha na sincronização, tentativa {tentativa}")
+                
+        except Exception as exc:
+            error_msg = f"Erro na sincronização (tentativa {tentativa}): {exc}"
+            print(f"[ERROR][SYNC] {error_msg}")
+            
+            if tentativa == max_tentativas:
+                coletor_mensagens.append(f"Aviso: Falha na sincronização após {max_tentativas} tentativas")
+                _log_move_error("[MOVE][DB]", projeto_id, "Em Andamento - Implantação", error_msg)
+                raise
+
+
 def _sincronizar_db_local(projeto_id: str, access_token: str, coletor_mensagens: list) -> None:
     """
     Sincroniza o projeto específico com o banco local após movimentação.
-    Atualiza campos como dias_na_fase e data_ultima_mudanca.
+    Força atualização da data_ultima_mudanca e recalcula dias_na_fase.
     """
     try:
         from sync_zoho import synchronize_single_project
+        from datetime import datetime, date
+        import database
         
-        # Sincroniza o projeto específico
+        print(f"[DEBUG][SYNC] Iniciando sincronização forçada do projeto {projeto_id}")
+        
+        # 1. Sincroniza dados do projeto com o Zoho
         project_updated = synchronize_single_project(projeto_id, access_token)
         
         if project_updated:
+            print(f"[DEBUG][SYNC] Projeto sincronizado do Zoho com sucesso")
+            
+            # 2. Forçar atualização da data_ultima_mudanca para HOJE
+            data_atual = date.today().strftime('%Y-%m-%d')
+            print(f"[DEBUG][SYNC] Atualizando data_ultima_mudanca para: {data_atual}")
+            
+            try:
+                conn = database.get_db_connection()
+                cursor = conn.cursor()
+                
+                # Atualizar data_ultima_mudanca no banco
+                cursor.execute("""
+                    UPDATE projects 
+                    SET data_ultima_mudanca = ?
+                    WHERE id = ?
+                """, (data_atual, projeto_id))
+                
+                rows_affected = cursor.rowcount
+                conn.commit()
+                conn.close()
+                
+                if rows_affected > 0:
+                    print(f"[DEBUG][SYNC] Data última mudança atualizada no banco")
+                    coletor_mensagens.append("Data última mudança atualizada")
+                else:
+                    print(f"[WARN][SYNC] Nenhuma linha afetada ao atualizar data_ultima_mudanca")
+                    
+            except Exception as db_error:
+                print(f"[ERROR][SYNC] Erro ao atualizar data_ultima_mudanca: {db_error}")
+                # Não falha a operação por causa disso
+            
+            # 3. Recalcular dias_na_fase
+            try:
+                project_row = database.get_project_by_id(projeto_id)
+                if project_row:
+                    # Calcular dias desde a data_ultima_mudanca
+                    data_ultima_str = project_row['data_ultima_mudanca'] if 'data_ultima_mudanca' in project_row.keys() else data_atual
+                    
+                    try:
+                        # Converter data string para date object
+                        if isinstance(data_ultima_str, str):
+                            data_ultima = datetime.strptime(data_ultima_str, '%Y-%m-%d').date()
+                        else:
+                            data_ultima = date.today()
+                        
+                        # Calcular diferença em dias
+                        hoje = date.today()
+                        dias_fase = (hoje - data_ultima).days
+                        
+                        print(f"[DEBUG][SYNC] Calculando dias_na_fase: {hoje} - {data_ultima} = {dias_fase} dias")
+                        
+                        # Atualizar dias_na_fase no banco
+                        conn = database.get_db_connection()
+                        cursor = conn.cursor()
+                        
+                        cursor.execute("""
+                            UPDATE projects 
+                            SET dias_na_fase = ?
+                            WHERE id = ?
+                        """, (str(dias_fase), projeto_id))
+                        
+                        conn.commit()
+                        conn.close()
+                        
+                        print(f"[DEBUG][SYNC] Dias na fase atualizado: {dias_fase}")
+                        coletor_mensagens.append(f"Dias na fase recalculado: {dias_fase}")
+                        
+                    except Exception as calc_error:
+                        print(f"[ERROR][SYNC] Erro ao calcular dias_na_fase: {calc_error}")
+                        # Define como 0 em caso de erro
+                        dias_fase = 0
+                        
+                        conn = database.get_db_connection()
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE projects 
+                            SET dias_na_fase = ?
+                            WHERE id = ?
+                        """, (str(dias_fase), projeto_id))
+                        conn.commit()
+                        conn.close()
+                        
+                        coletor_mensagens.append("Dias na fase definido como 0 (erro no cálculo)")
+                        
+            except Exception as dias_error:
+                print(f"[ERROR][SYNC] Erro ao recalcular dias_na_fase: {dias_error}")
+                # Não falha a operação
+            
             coletor_mensagens.append("Banco local sincronizado com sucesso")
-            _log_move_info("[MOVE][DB]", projeto_id, "", "Sincronização do banco local concluída")
+            _log_move_info("[MOVE][DB]", projeto_id, "", f"Sincronização concluída - Data: {data_atual}")
+            
         else:
             coletor_mensagens.append("Aviso: Projeto não encontrado durante sincronização")
             _log_move_info("[MOVE][DB]", projeto_id, "", "Projeto não encontrado durante sincronização")
@@ -1737,27 +2027,6 @@ def mover_projeto():
 
         # Sincronizar projeto específico
         _sincronizar_db_local(projeto_id, access_token, mensagens)
-
-        # Obter data da última mudança do feed de atividades
-        data_ultima_mudanca = _obter_data_ultima_mudanca(projeto_id, access_token)
-
-        if data_ultima_mudanca:
-            # Atualizar no banco de dados
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            try:
-                cursor.execute(
-                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
-                    (data_ultima_mudanca, projeto_id)
-                )
-                conn.commit()
-                mensagens.append(f"Data última mudança atualizada: {data_ultima_mudanca}")
-            except Exception as e:
-                mensagens.append(f"Aviso: Falha ao atualizar data_ultima_mudanca: {e}")
-            finally:
-                conn.close()
-        else:
-            mensagens.append("Aviso: Não foi possível obter data da última mudança")
 
         # Ações especiais para transição de Falta Liberar Servidor Infra para Em Andamento
         print(f"[DEBUG] Verificando transição especial: origem={coluna_origem}, destino={coluna_destino}")
@@ -1899,21 +2168,6 @@ def mover_projeto():
             # Sincronizar novamente o banco após atualização do campo customizado
             _sincronizar_db_local(projeto_id, access_token, mensagens)
 
-            # Atualizar data_ultima_mudanca após a mudança
-            data_ultima_mudanca = _obter_data_ultima_mudanca(projeto_id, access_token)
-            if data_ultima_mudanca:
-                conn = database.get_db_connection()
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
-                    (data_ultima_mudanca, projeto_id)
-                )
-                conn.commit()
-                conn.close()
-                mensagens.append(f"Data última mudança atualizada após campo customizado: {data_ultima_mudanca}")
-            else:
-                mensagens.append("Aviso: Não foi possível obter data da última mudança após atualização")
-
             # Atualizar planilha
             if cliente_sheet:
                 try:
@@ -1934,39 +2188,4 @@ def mover_projeto():
         traceback.print_exc()
         return jsonify({"sucesso": False, "erro": str(e)}), 500
 
-
-def _obter_data_ultima_mudanca(projeto_id: str, access_token: str) -> str | None:
-    """Obtém a data da última atividade do projeto via feed de atividades."""
-    try:
-        # Tentar V3 primeiro
-        headers = {
-            "Authorization": f"Zoho-oauthtoken {access_token}",
-            "Content-Type": "application/json"
-        }
-        params = {"sort_column": "activity_time", "sort_order": "descending", "per_page": 1}
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            activities = data.get('activities', [])
-            if activities:
-                latest_activity = activities[0]
-                activity_time = latest_activity.get('activity_time')
-                if activity_time:
-                    return activity_time
-
-        # Se V3 falhar, tentar restapi
-        resp = requests.get(url, headers=headers, params=params, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            activities = data.get('activities', [])
-            if activities:
-                latest_activity = activities[0]
-                activity_time = latest_activity.get('activity_time')
-                if activity_time:
-                    return activity_time
-
-        return None
-    except Exception as e:
-        print(f"Erro ao obter atividades: {e}")
-        return None
 

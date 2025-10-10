@@ -65,7 +65,9 @@
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000000188201"],
     "zohoTagsToRemove": [],
-    "zohoCustomFields": {},
+    "zohoCustomFields": {
+      "data_de_inicio_da_implantacao": "CURRENT_DATE"
+    },
     "triggers": []
   },
   "Em Homologação": {

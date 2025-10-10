@@ -55,6 +55,6 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         project_id_to_fetch = sys.argv[1]
     else:
-        project_id_to_fetch = "2376502000005512175" # ID de exemplo
+        project_id_to_fetch = "2376502000005544019" # ID de exemplo
         
     get_project_details(project_id_to_fetch)
