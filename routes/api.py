@@ -2189,3 +2189,75 @@ def mover_projeto():
         return jsonify({"sucesso": False, "erro": str(e)}), 500
 
 
+@api_bp.route('/progresso-fases/<project_id>', methods=['GET'])
+def obter_progresso_fases(project_id):
+    """
+    Retorna o percentual de conclusão das fases do projeto.
+    Busca na tabela 'fases' do banco de dados.
+    
+    Mapeamento:
+    - Implantação RIS -> NR
+    - Implantação PACS -> AP
+    - Importação -> IMP
+    - Integração -> INT
+    """
+    try:
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Buscar todas as fases do projeto
+        cursor.execute("""
+            SELECT nome, percentual_conclusao 
+            FROM fases 
+            WHERE projeto_id = ?
+        """, (project_id,))
+        
+        fases = cursor.fetchall()
+        conn.close()
+        
+        # Inicializar resultado
+        resultado = {
+            'NR': None,
+            'AP': None,
+            'IMP': None,
+            'INT': None
+        }
+        
+        # Mapear fases para as barras
+        for fase in fases:
+            nome_fase = (fase[0] or '').strip()
+            percentual = fase[1] if fase[1] is not None else 0
+            
+            # Garantir que o percentual seja um número entre 0 e 100
+            try:
+                percentual = float(percentual)
+                percentual = max(0, min(100, percentual))  # Limitar entre 0 e 100
+            except (ValueError, TypeError):
+                percentual = 0
+            
+            # Mapear para as categorias (verificações mais específicas primeiro)
+            # Priorizar "Implantação" sobre "Homologação" para evitar sobrescrita
+            if 'Implantação RIS' in nome_fase:
+                resultado['NR'] = round(percentual, 1)
+            elif 'Implantação PACS' in nome_fase:
+                resultado['AP'] = round(percentual, 1)
+            elif 'Importação' in nome_fase or 'Importacao' in nome_fase:
+                resultado['IMP'] = round(percentual, 1)
+            elif 'Integração' in nome_fase or 'Integracao' in nome_fase:
+                resultado['INT'] = round(percentual, 1)
+        
+        return jsonify({
+            'sucesso': True,
+            'progresso': resultado
+        })
+        
+    except Exception as e:
+        print(f"[ERROR] Erro ao buscar progresso das fases: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e),
+            'progresso': {'NR': None, 'AP': None, 'IMP': None, 'INT': None}
+        }), 500
+
+
