@@ -276,6 +276,7 @@ def upsert_project(project_data):
     created_time = project_data.get('created_time') or project_data.get('created_time_string')
     data_inicio_implantacao = _get_custom_field(project_data, 'Data Início Implantação')
     data_homologacao = _get_custom_field(project_data, 'Data Homologação')
+    data_homologacao_prevista = project_data.get('data_de_termino_original')  # Campo customizado do Zoho
     data_virada = project_data.get('data_de_virada')
     data_inicio_oa = _get_custom_field(project_data, 'Data Início OA')
 
@@ -322,6 +323,7 @@ def upsert_project(project_data):
         'data_liberacao_servidor': _get_custom_field(project_data, 'Data Liberação Servidor'),
         'data_inicio_implantacao': data_inicio_implantacao,
         'data_homologacao': data_homologacao,
+        'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
         'data_virada': data_virada, # Campo estruturado
         'data_inicio_oa': data_inicio_oa,
         'data_de_onboarding': _get_custom_field(project_data, 'Data de Onboarding'),
@@ -329,6 +331,7 @@ def upsert_project(project_data):
         'dias_na_fase': dias_na_fase_calc,
         'dias_total': dias_total_calc,
         'data_ultima_mudanca': project_data.get('last_modified_time'),
+        'data_mudanca_status': None,  # Será preenchido apenas na movimentação manual
         'link_google': link_google,
         'tags': tags_str,
         'full_data_json': json.dumps(project_data)
@@ -337,7 +340,12 @@ def upsert_project(project_data):
     # 4. Executa o SQL
     columns = ', '.join(params.keys())
     placeholders = ', '.join('?' for _ in params)
-    update_setters = ', '.join(f'{key} = excluded.{key}' for key in params.keys())
+    # IMPORTANTE: Não sobrescrever data_mudanca_status se já existe (foi definida manualmente)
+    update_setters = ', '.join(
+        f'{key} = excluded.{key}' if key != 'data_mudanca_status' 
+        else f'{key} = COALESCE(projects.{key}, excluded.{key})'
+        for key in params.keys()
+    )
 
     sql = f'''
         INSERT INTO projects ({columns})
@@ -478,6 +486,19 @@ def _migrate_database(cursor):
         if 'data_de_onboarding' not in columns:
             cursor.execute("ALTER TABLE projects ADD COLUMN data_de_onboarding TEXT")
             print("Migração: Coluna 'data_de_onboarding' adicionada à tabela projects")
+        
+        # Migração 2: Adicionar coluna data_mudanca_status se não existir
+        if 'data_mudanca_status' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN data_mudanca_status TEXT")
+            print("Migração: Coluna 'data_mudanca_status' adicionada à tabela projects")
+            # Inicializar com data_criacao para projetos existentes
+            cursor.execute("UPDATE projects SET data_mudanca_status = COALESCE(data_inicio, data_criacao) WHERE data_mudanca_status IS NULL")
+            print("Migração: Coluna 'data_mudanca_status' inicializada para projetos existentes")
+        
+        # Migração 3: Adicionar coluna data_homologacao_prevista se não existir
+        if 'data_homologacao_prevista' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN data_homologacao_prevista TEXT")
+            print("Migração: Coluna 'data_homologacao_prevista' adicionada à tabela projects")
             
     except Exception as e:
         print(f"Erro durante migração do banco de dados: {e}")

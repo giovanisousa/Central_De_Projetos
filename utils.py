@@ -412,6 +412,10 @@ def calcular_dias_total_projeto(start_date: str | None, created_time: str | None
 
 
 def calcular_dias_na_fase(info_min: dict | None, coluna_hint: str | None = None) -> str:
+    """
+    DEPRECATED: Esta função calcula dias baseada em datas específicas de cada fase.
+    Use calcular_dias_na_fase_from_status() para cálculo preciso baseado em data_mudanca_status.
+    """
     info_min = info_min or {}
     # Escolhe a melhor data conforme a coluna quando disponível
     cand = None
@@ -436,6 +440,43 @@ def calcular_dias_na_fase(info_min: dict | None, coluna_hint: str | None = None)
         return 'N/D'
     today = date.today()
     return _fmt_dias((today - cand).days)
+
+
+def calcular_dias_na_fase_from_status(data_mudanca_status: str | None) -> str:
+    """
+    Calcula dias na fase atual baseado na data_mudanca_status.
+    Esta é a função RECOMENDADA para cálculo preciso de dias na fase.
+    
+    Args:
+        data_mudanca_status: Data da última mudança de status (formato: YYYY-MM-DD)
+    
+    Returns:
+        String formatada: "Hoje", "1d", "2d", etc. ou "N/D" se data não disponível
+    
+    Examples:
+        >>> calcular_dias_na_fase_from_status("2025-10-13")  # Se hoje é 2025-10-13
+        "Hoje"
+        >>> calcular_dias_na_fase_from_status("2025-10-12")  # Se hoje é 2025-10-13
+        "1d"
+        >>> calcular_dias_na_fase_from_status("2025-10-11")  # Se hoje é 2025-10-13
+        "2d"
+    """
+    if not data_mudanca_status:
+        return 'N/D'
+    
+    data_base = _parse_date_any(data_mudanca_status)
+    if not data_base:
+        return 'N/D'
+    
+    hoje = date.today()
+    dias = (hoje - data_base).days
+    
+    if dias < 0:
+        return 'Futuro'
+    elif dias == 0:
+        return 'Hoje'
+    else:
+        return f"{dias}d"
 
 
 def determinar_coluna_projeto(projeto: dict) -> str:
