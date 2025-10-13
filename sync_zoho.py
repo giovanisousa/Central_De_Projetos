@@ -2,7 +2,13 @@ import requests
 import time
 
 # Importa as configurações e funções necessárias dos outros módulos do projeto
-from config import ZOHO_PORTAL_ID
+from config import (
+    ZOHO_PORTAL_ID,
+    PROPRIETARIOS_VALIDOS,
+    STATUS_CANCELADO_ID,
+    STATUS_FINALIZADO_ID,
+    STATUS_CONCLUIDO_ID
+)
 from database import (
     get_last_sync_time,
     upsert_project,
@@ -11,6 +17,41 @@ from database import (
     upsert_tarefa,
 )
 from utils import obter_access_token as obter_access_token_zoho, _zp_base, _zp_headers
+
+# IDs dos status que devem ser EXCLUÍDOS da sincronização
+STATUS_EXCLUIDOS = {
+    STATUS_CANCELADO_ID,    # Cancelado
+    STATUS_FINALIZADO_ID,   # Finalizado / Completed
+    STATUS_CONCLUIDO_ID     # Concluído
+}
+
+
+def projeto_deve_ser_salvo(project_data):
+    """
+    Verifica se um projeto atende aos critérios para ser salvo no banco.
+    
+    Critérios:
+    1. Proprietário (owner) deve ser Giovani OU Willian
+    2. Status NÃO deve ser Cancelado, Finalizado ou Concluído
+    
+    Args:
+        project_data: Dicionário com os dados do projeto da API do Zoho
+        
+    Returns:
+        bool: True se o projeto deve ser salvo, False caso contrário
+    """
+    # Valida proprietário
+    owner = project_data.get('owner', {})
+    owner_name = owner.get('name', '')
+    proprietario_valido = owner_name in PROPRIETARIOS_VALIDOS
+    
+    # Valida status
+    status = project_data.get('status', {})
+    status_id = str(status.get('id', ''))
+    status_valido = status_id not in STATUS_EXCLUIDOS
+    
+    # Retorna True apenas se AMBOS os critérios forem atendidos
+    return proprietario_valido and status_valido
 
 
 def _extract_project_from_response(data, project_id):
@@ -191,6 +232,13 @@ def synchronize_projects():
                 break
             for project in projects:
                 try:
+                    # Aplica filtro antes de salvar
+                    if not projeto_deve_ser_salvo(project):
+                        owner_name = project.get('owner', {}).get('name', 'Desconhecido')
+                        status_name = project.get('status', {}).get('name', 'Desconhecido')
+                        print(f"  -> [IGNORADO] {project.get('name')} - Proprietário: {owner_name}, Status: {status_name}")
+                        continue
+                    
                     upsert_project(project)
                     print(f"  -> Sincronizado projeto: {project.get('name')} (ID: {project.get('id')})")
                     total_synced += 1
@@ -234,6 +282,13 @@ def synchronize_single_project(project_id, access_token):
 
         project = _extract_project_from_response(data, project_id)
         if project:
+            # Aplica filtro antes de salvar
+            if not projeto_deve_ser_salvo(project):
+                owner_name = project.get('owner', {}).get('name', 'Desconhecido')
+                status_name = project.get('status', {}).get('name', 'Desconhecido')
+                print(f"Projeto ignorado (não atende critérios): {project.get('name')} - Proprietário: {owner_name}, Status: {status_name}")
+                return False
+            
             upsert_project(project)
             print(f"Sincronizado projeto único: {project.get('name')} (ID: {project.get('id')})")
             return True

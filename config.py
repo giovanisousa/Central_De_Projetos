@@ -63,6 +63,16 @@ DONOS_PROJETO = {
     "Giovani de Sousa": "2376502000000057291",
     "Willian dos Anjos": "2376502000000057285"
 }
+
+# Nomes dos proprietários válidos para filtro de projetos
+# A API do Zoho retorna apenas o nome (não o ID), então precisamos considerar as variações
+PROPRIETARIOS_VALIDOS = {
+    "Giovani de Sousa",
+    "Giovani",
+    "Willian dos Anjos",
+    "willian.anjos",
+    "Willian Anjos",
+}
 GRUPOS_ZOHO = {
     "PACS": "2376502000000057307",
     "Hibrido": "2376502000000111007",

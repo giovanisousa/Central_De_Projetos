@@ -1,0 +1,2467 @@
+================================================================================
+RELATÓRIO DE VALIDAÇÃO DE FILTRO DE PROJETOS
+================================================================================
+
+Total de projetos encontrados: 408
+Projetos VÁLIDOS (serão salvos no banco): 116
+Projetos REJEITADOS (NÃO serão salvos): 292
+
+
+================================================================================
+PROJETOS VÁLIDOS (Serão salvos no banco de dados)
+================================================================================
+
+1. 1165 - IDX - Instituto de Diagnóstico Por Imagem - NR/AP
+   ID: 2376502000005994875
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+2. 9876 - Projeto teste ultimo - NR/AP
+   ID: 2376502000005995871
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+3. 9877 - Projeto Teste - NR/AP
+   ID: 2376502000005995737
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+4. 9878 - Associar Tarefas - NR/AP
+   ID: 2376502000005996336
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+5. 9879 - Giovani Teste Tarefas - NR/AP
+   ID: 2376502000006003322
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+6. 9880 - GIOVANI TESTE - NR/AP
+   ID: 2376502000005995569
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+7. 9881 - Giovani teste - NR/AP
+   ID: 2376502000005995421
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+8. 9882 - Teste de projeto - NR/AP
+   ID: 2376502000005994533
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+9. 1208 - DIAG MED CENTRO DE DIAGNOSTICO EM MEDICINA LTDA - AP
+   ID: 2376502000005993043
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+10. 1206 - ONE MEDICINA DIAGNOSTICA LTDA - NR/AP
+   ID: 2376502000005972063
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+11. 1205 - RAIO X LAGOS DIAGNÓSTICOS POR IMAGEM - NR/AP
+   ID: 2376502000005824904
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+12. 1191 - Ecos Diagnóstico por Imagem - NR/AP
+   ID: 2376502000005827385
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+13. 1195 - Hospital de Clínicas de Carazinho - AP
+   ID: 2376502000005824705
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+14. 9600 - Viavita - Teste - AP
+   ID: 2376502000005825518
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+15. Registro de Horas NÃO faturáveis - 4° trimestre
+   ID: 2376502000005834717
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+16. 1201 - NDI Núcleo De Diagnósticos Por Imagem - NR/AP
+   ID: 2376502000005824069
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+17. 1200 - Bio Imagem – Ressonância Magnética - NR/AP
+   ID: 2376502000005828025
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+18. 1199 - CDI Ultrassom - AP
+   ID: 2376502000005758230
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+19. 1192 - Viavita Serviços Médicos - NR/AP
+   ID: 2376502000005726003
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+20. 1194 - Santa Cecília - Centro de Diagnósticos - AP
+   ID: 2376502000005705146
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+21. 1198 - Invasc - Instituto Vascular de Passo Fundo - AP
+   ID: 2376502000005705007
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+22. 1197 - Datamed - AP/NR
+   ID: 2376502000005641995
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+23. 1190 - GSG Imagens - AP
+   ID: 2376502000005641687
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+24. REIMPLANTAÇÃO - Nova Medical Center
+   ID: 2376502000005641460
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+25. 0548 - Med-X Serviços de Diagnóstico Por Imagem - NR/AP
+   ID: 2376502000005542081
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+26. 1181 - CLINICA RADIOLÓGICA SANTA BARBARA - NR/AP
+   ID: 2376502000005544019
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+27. 1196 - POLIS GESTÃO E TECNOLOGIA DA INFORMAÇÃO - AP
+   ID: 2376502000005512175
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+28. Reimplantação IMAGO - NR
+   ID: 2376502000005523261
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+29. 1188 - Centro Médico Sapiranga - AP
+   ID: 2376502000005492003
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+30. 1168 - Hospital Nossa Senhora das Dores - AP
+   ID: 2376502000005429382
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+31. 1187 - CEADI Maravilha - AP
+   ID: 2376502000005408025
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+32. 1180 - Hospital da Comunidade - AP
+   ID: 2376502000005365003
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+33. 1174 - Clinica Nina Uruaçu - NR/AP
+   ID: 2376502000005330021
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+34. 1138 - CEPARH - Clínica Elsimar Coutinho - AP
+   ID: 2376502000005329005
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+35. 1179 - Eikon Diagnóstico por Imagem - NR/AP
+   ID: 2376502000005312009
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+36. 1157 - Diagnostik Servicos Médicos Ltda - AP/NR
+   ID: 2376502000005292780
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+37. 1176 - Clínica IndiCare - AP
+   ID: 2376502000005236845
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+38. 1164 - Tagis Medicina e Diagnóstico - NR/AP
+   ID: 2376502000005249866
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+39. 1178 - Dra Michelle Mendes Grandi - AP
+   ID: 2376502000005236053
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+40. 1117 - Unica Imagem - NR/AP
+   ID: 2376502000005235445
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+41. 1177 - Clinica Leonardo da Vinci - NR/AP
+   ID: 2376502000005180127
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+42. 1175 - Diagcentro Diagnóstico por Imagem e Cardiologia - NR/AP
+   ID: 2376502000005155003
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+43. 1173 - Clínica Médica Saúde Popular - AP
+   ID: 2376502000005039203
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+44. 1162 - Hospital Evangélico Goiano - AP
+   ID: 2376502000004998563
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+45. 1172 - Hospital Geral Intermunicipal – HGI Dr. Aryzone Mendes de Araújo - AP
+   ID: 2376502000004886545
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+46. 1171 - Hospital Santo Antônio - AP
+   ID: 2376502000004886413
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+47. 1169 - Hospital São Francisco de Paula - AP
+   ID: 2376502000004884673
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+48. 1167 - Vida de Radiologista - AP
+   ID: 2376502000004868147
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+49. 1166 - Futura Diagnósticos por Imagem - AP/NR
+   ID: 2376502000004792003
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+50. 1158 - Unidade Radiologica Mallouk Mizuma - AP
+   ID: 2376502000004745039
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+51. 1064 - Hospital da Reserva - AP
+   ID: 2376502000004720640
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+52. 1149 - Instituto de Medicina Nuclear - AP/NR
+   ID: 2376502000004659428
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+53. 1163 - Valeimagem - AP
+   ID: 2376502000004659302
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+54. 1161 - Master Jaru Hospital - AP
+   ID: 2376502000004611869
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+55. 1156 - Hospital Santa  Terezinha - AP
+   ID: 2376502000004527130
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+56. 1155 - RM Paduá - NR/AP
+   ID: 2376502000004324882
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+57. 293/2024 - Centro Radiológico Goiania - Aditivo Filiais
+   ID: 2376502000004294348
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+58. 1154 - Diagnósticos Clinica - AP/NR
+   ID: 2376502000004273892
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+59. 1145 - Unimed Alto da Serra - AP
+   ID: 2376502000004263019
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+60. 1151 - Serviço de Diagnóstico Santa Paula - AP
+   ID: 2376502000004257006
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+61. 1150 - Hospital e Clínica Santa Paula - AP 
+   ID: 2376502000004242191
+   Proprietário: willian.anjos
+   Status: Aberto
+   ✓ Projeto válido
+
+62. 1143 - Clinica Tirol - NR/AP
+   ID: 2376502000004231100
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+63. 1146 - Hospital São Vicente de Paulo - Campo Belo - AP
+   ID: 2376502000004208739
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+64. 1128 - Acesso Saúde Taguatinga - AP
+   ID: 2376502000004208431
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+65. Projeto registro de horas NÃO FATURÁVEIS - 3° Trimestre/2025
+   ID: 2376502000004208211
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+66. 1139 - CDI Porto Ferreira - NR/AP
+   ID: 2376502000004208003
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+67. 1148 - Centro Diagnóstico Valgueiro - AP/NR 
+   ID: 2376502000004173461
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+68. 1142 - Hospital São Vicente de Paulo - AP 
+   ID: 2376502000004053440
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+69. 1141 - Imagem X - AP/NR (Sem OA)
+   ID: 2376502000004053174
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+70. 1137 - Grupo Health - NR/AP
+   ID: 2376502000004009628
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+71. 1118 - DoctorClin - AP
+   ID: 2376502000003928432
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+72. 1136 - Clínica Vivery - AP/NR (Sem OA)
+   ID: 2376502000003930041
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+73. 1133 - Interventix - CENTRO DE DIAGNOSTICOS LTDA - AP
+   ID: 2376502000003889423
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+74. 1129 - CDI Registro - Instituto Radio Diagnóstico - AP (Sem OA)
+   ID: 2376502000003782377
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+75. 1135 - IMR - INSTITUTO MARQUES DE RADIOLOGIA - NR/AP
+   ID: 2376502000003782093
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+76. 1131 - Associação Hospitalar São José - AP (Sem OA)
+   ID: 2376502000003729268
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+77. 1130 - CEMISC - Centro Médico Integrado Santa Catarina - AP (Sem OA)
+   ID: 2376502000003715878
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+78. 1126 - Pro Saude Serviços Médicos - AP
+   ID: 2376502000003680536
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+79. 1124 - Agora Pro Saúde - AP
+   ID: 2376502000003680397
+   Proprietário: Giovani
+   Status: Pendência
+   ✓ Projeto válido
+
+80. Registros treinamentos - HM Diagnósticos
+   ID: 2376502000003640439
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+81. 1121 - Clinica Imagem - NR/AP (SEM OA)
+   ID: 2376502000003627002
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+82. 1123 - RW Diagnósticos por Imagem Ltda - AP/NR (Sem OA)
+   ID: 2376502000003602607
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+83. 0907-4 - PR MD Rio Pardo
+   ID: 2376502000003570255
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+84. 1112 - Hospital Ernesto Dornelles - AP (Sem OA)
+   ID: 2376502000003569201
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+85. 1119 - Policlínica Vida Paraíba - AP
+   ID: 2376502000003549073
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+86. 1067 - INSTITUTO DE ANGIOLOGIA E CARDIOLOGIA DE GOIÂNIA LTDA - AP (SEM OA)
+   ID: 2376502000003539455
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+87. 1120 - Diagnósticos Via Imagem - NR/AP (SEM OA)
+   ID: 2376502000003459595
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+88.  1116 - Alvorada Diagnósticos por Imagem - AP (Sem OA)
+   ID: 2376502000003471444
+   Proprietário: willian.anjos
+   Status: Operação Assistida
+   ✓ Projeto válido
+
+89. 1110 - TELERRADIOLOGIA NÚCLEO DIAGNOSTICOS LTDA - AP (SEM OA)
+   ID: 2376502000003432165
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+90. 1114 - Instituto de Soluções Integradas Municipais (SIM) - NR/AP (SEM OA)
+   ID: 2376502000003432039
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+91. 1115 - AKC Diagnósticos- NR/AP (SEM OA)
+   ID: 2376502000003330185
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+92. 1106 - Clínica Inova Jacarei - NR/AP (SEM OA)
+   ID: 2376502000003330007
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+93. 1113 - Hospital Marques de Souza - AP - (Sem OA)
+   ID: 2376502000003206167
+   Proprietário: willian.anjos
+   Status: Operação Assistida
+   ✓ Projeto válido
+
+94. 1111 - Associação Hospitalar Roque Gonzales - AP - (Sem OA)
+   ID: 2376502000003107045
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+95. 1109 - Clínica Ritmo - NR/AP - (Sem OA)
+   ID: 2376502000003086171
+   Proprietário: willian.anjos
+   Status: Operação Assistida
+   ✓ Projeto válido
+
+96. 1098 - Gama Imagem - AP (SEM OA)
+   ID: 2376502000002786156
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+97. 1091 - Pro Imagem Diagnóstico - NR/AP (SEM OA)
+   ID: 2376502000002763533
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+98. 1097 - Clinica Gemina - Londrina - NR/AP (SEM OA)
+   ID: 2376502000002763377
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+99. 1103 - Centro Integrado de Endoscopia Digestiva - NR/AP (SEM OA)
+   ID: 2376502000002763003
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+100. 1096 - Unidade de Ultrassonografia de Rôndonia (SEM OA)
+   ID: 2376502000002749419
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+101. 1099 - Examina - NR/AP (SEM OA)
+   ID: 2376502000002732570
+   Proprietário: Giovani
+   Status: Aberto
+   ✓ Projeto válido
+
+102. 1082 - Magnus Imagens Médicas - Alfenas - AP - (Sem OA)
+   ID: 2376502000002579265
+   Proprietário: willian.anjos
+   Status: Operação Assistida
+   ✓ Projeto válido
+
+103. 1092 - Clinica de Imagenologia Neuroscan - NR/AP - (Sem OA)
+   ID: 2376502000002579077
+   Proprietário: willian.anjos
+   Status: Operação Assistida
+   ✓ Projeto válido
+
+104. 1093 - DIS Diagnóstico por Imagem - AP (SEM OA)
+   ID: 2376502000002568011
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+105. 1084 - AMA Diagnóstico - NR/AP (SEM OA)
+   ID: 2376502000002326783
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+106. 1076 - Hospital Ortopédico de Goiânia LTDA - AP - (Sem OA)
+   ID: 2376502000002159327
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+107. 1053 - CardioDiagnóstico - NR/AP
+   ID: 2376502000001979679
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+108. 1075 - CLINUS - Clinica de Imagem Ltda - AP/NR
+   ID: 2376502000001701819
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+109. 1054 - Hosp. Regional de Santa Maria - AP
+   ID: 2376502000001684361
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+110. Complexo Hospitalar Astrogildo de Azevedo - AP
+   ID: 2376502000001593107
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+111. Hugolino Andrade - NR
+   ID: 2376502000001249141
+   Proprietário: Giovani
+   Status: Pendência
+   ✓ Projeto válido
+
+112. 1034 - Centro Clínico Amparo - AP
+   ID: 2376502000000469131
+   Proprietário: willian.anjos
+   Status: Aguardando o Cliente
+   ✓ Projeto válido
+
+113. 1043 - Corpscan Serviços Médicos - NR/AP
+   ID: 2376502000000436301
+   Proprietário: willian.anjos
+   Status: Operação Assistida
+   ✓ Projeto válido
+
+114. Clinica Dr. Edson Coltro - NR/AP
+   ID: 2376502000000351049
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+115. 1033 - C.D.C Nuclear - NR/AP
+   ID: 2376502000000269443
+   Proprietário: willian.anjos
+   Status: Em Andamento
+   ✓ Projeto válido
+
+116. 0969-PR Instituto José da Luz - NR/AP
+   ID: 2376502000000213310
+   Proprietário: Giovani
+   Status: Em Andamento
+   ✓ Projeto válido
+
+
+================================================================================
+PROJETOS REJEITADOS (NÃO serão salvos no banco de dados)
+================================================================================
+
+1. Migração AP - CGOT
+   ID: 2376502000006074153
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+2. Implantação Grupo Aliança
+   ID: 2376502000005991100
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+3. Migração AP - Hospital Regional do Cancer de Presidente Prudente #137554
+   ID: 2376502000005773572
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+4. Migração AP - Clini X Braço do Norte
+   ID: 2376502000005720069
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+5. 1234 - Giovani teste - AP
+   ID: 2376502000005413063
+   Proprietário: Giovani
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+6. Migração AP - RAC #138188
+   ID: 2376502000005402806
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+7. Migração V3 - Lagumed
+   ID: 2376502000005197463
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+8. Migração AP - PROIMAGEM Sergipe #133843
+   ID: 2376502000005176832
+   Proprietário: Guilherme
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Guilherme)
+
+9. Filial - Barancelli - #116476 #127726
+   ID: 2376502000005129033
+   Proprietário: Jean
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Jean)
+
+10. Migração AP - Capital Diagnóstico #133278
+   ID: 2376502000004943523
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+11. Testes automatizados
+   ID: 2376502000004738940
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+12. Migração AP - IRG
+   ID: 2376502000004691048
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+13. Filial - CDI Salinas Montes Claros #128770
+   ID: 2376502000004647239
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+14. Filial - CDI BOCAIUVA #129931 
+   ID: 2376502000004647064
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+15. Migração AP - Pro Imagem Sergipe #133843
+   ID: 2376502000004641147
+   Proprietário: Guilherme
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Guilherme)
+
+16. 1153 - RDX Serviços Médicos Ltda - AP
+   ID: 2376502000004257132
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+17. Migração AP - CDI Unaí #128128
+   ID: 2376502000004191049
+   Proprietário: Guilherme
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Guilherme)
+
+18. Test RPoject
+   ID: 2376502000004117519
+   Proprietário: Arcadea
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Arcadea)
+
+19. 1140 - Nestcare Clinica Medica Ltda - AP/NR (Sem OA)
+   ID: 2376502000003930868
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+20. EASYMED SERVIÇOS MÉDICOS LYTDA - AP
+   ID: 2376502000003841035
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+21. 1127 - Santa Casa de Louveira - AP (Sem OA)
+   ID: 2376502000003762390
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+22. 1132 - Hospital e Maternidade Cristo Rei Ltda - AP - (Sem OA)
+   ID: 2376502000003715017
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+23. 1134 - Associação Hospital Vila Nova - Sede Butiá - AP
+   ID: 2376502000003707018
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+24. Endos - Centro de Endoscopia de Balneario Camboriu - AP/NR
+   ID: 2376502000003664837
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+25. Broker - Hospital Vida e Saude #121717
+   ID: 2376502000003618264
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+26. Migração V3 - Dr Imagem #124179
+   ID: 2376502000003595235
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+27. Migração AP - Unimed Guarulhos
+   ID: 2376502000003453214
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+28. Task Import
+   ID: 2376502000003438261
+   Proprietário: Arcadea
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Arcadea)
+
+29. Broker - Goiana (tele) - Iporá #121740
+   ID: 2376502000003384367
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+30. 1104 - MDI Medicina Diagnóstica Por Imagem - AP/NR  (Sem OA)
+   ID: 2376502000003304833
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+31. Migracao AP - ER Imagens (Chopinzinho) #133114
+   ID: 2376502000003111603
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+32. Migracao AP - BLM #134589
+   ID: 2376502000003111455
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+33. Migração AP - Ultrax #121242
+   ID: 2376502000003111301
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+34. Migração AP + Infra - Sudoeste #121243
+   ID: 2376502000003111125
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+35. Broker - Clinica L&L #120674
+   ID: 2376502000003093162
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+36. Arcadea Burndown Report 4
+   ID: 2376502000003069285
+   Proprietário: Arcadea
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Arcadea)
+
+37. Arcadea Burndown Report 3
+   ID: 2376502000003069161
+   Proprietário: Arcadea
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Arcadea)
+
+38. Arcadea Burndown Report 2
+   ID: 2376502000003069037
+   Proprietário: Arcadea
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Arcadea)
+
+39. Support - In-house demands/requests
+   ID: 2376502000002990511
+   Proprietário: Cristiano
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+40. Broker Orasi (Hosp. Nossa Senhora) #120417
+   ID: 2376502000002972113
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+41. 1108 - Nina Núcleo de Saúde da Mulher - NR/AP (SEM OA)
+   ID: 2376502000002924678
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+42. 1045 - Exame Center - NR/AP (SEM OA)
+   ID: 2376502000002843209
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+43. Broker BROKER - VIDALAUDO ( Umuarama/Radcenter) #118132
+   ID: 2376502000002810612
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+44. 1101 - Radiologia Paranoá - NR/AP (SEM OA)
+   ID: 2376502000002816574
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+45. 1105 - Imagem Clínica de Diagnósticos - NR/AP (SEM OA)
+   ID: 2376502000002786327
+   Proprietário: Giovani
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+46. BROKER - CEDIL (URGETRAUMA) #91974
+   ID: 2376502000002760885
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+47. Projeto registro de horas NÃO FATURÁVEIS - 2° Trimestre/2025
+   ID: 2376502000002756119
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+48. 1094 - TCOSTA - NR/AP (SEM OA)
+   ID: 2376502000002732828
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+49. Migração AP - Unimed São Carlos (CADI)
+   ID: 2376502000002702570
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+50. Migração AP - IDAP #118112
+   ID: 2376502000002649190
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+51. 1089 - Irradial - Ap (Sem OA)
+   ID: 2376502000002626118
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+52. 1078 - Prefeitura de Lucas do Rio Verde - AP (SEM OA)
+   ID: 2376502000002568440
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+53. Broker - Cedil (Radimagem) #116368
+   ID: 2376502000002531026
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+54. Arcadea Burndown Report
+   ID: 2376502000002512003
+   Proprietário: Arcadea
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Arcadea)
+
+55. Broker - Matrix #105003
+   ID: 2376502000002485003
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+56. 1088 - Clinica Pedro Areda - NR/AP (SEM OA)
+   ID: 2376502000002448325
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+57. 1090 - ICAM – Instituto Castro Alves de Assistência a Mulher - AP - (Sem OA)
+   ID: 2376502000002463133
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+58. 1074 - Hospital Unimed Presidente Prudente LTDA - AP - (Sem OA)
+   ID: 2376502000002456011
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+59. Broker  Clinica Goiana (Tele) #116656
+   ID: 2376502000002446155
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+60. 1077 - Hospital de Tramandaí - AP (SEM OA)
+   ID: 2376502000002448007
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+61. Broker - Santé (Tele) #116353
+   ID: 2376502000002446003
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+62. Migração - AP STA Casa SJRP #43555
+   ID: 2376502000002428079
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+63. 1085 - SAMEC - AP (SEM OA)
+   ID: 2376502000002363247
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+64. Broker - Santa Maria (radmais) #115368
+   ID: 2376502000002271283
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+65. 1073 - Goias Diagnósticos - NR/AP (SEM OA)
+   ID: 2376502000002272103
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+66. 1087 - Fórmula Locação de Veículos Especiais Ltda - AP - (Sem OA)
+   ID: 2376502000002250319
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+67. 1086 - Radio Imagem Diagnóstica Ltda - NR/AP - (Sem OA)
+   ID: 2376502000002186201
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+68. Broker/Filial - ZDI #92124
+   ID: 2376502000002170214
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+69. Broker - RAC#89558
+   ID: 2376502000002170038
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+70. Integração Animati PACS e HIS SASPMGO - CLIENTE: Fundação Tiradentes
+   ID: 2376502000002154038
+   Proprietário: Walter Ferreira
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Walter Ferreira)
+
+71. 1083 - Hosp. Caridade Palmeira das Missões - AP (SEM OA)
+   ID: 2376502000002124213
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+72. 1080 - Fundação Tiradentes (HPM) - AP - (Sem OA)
+   ID: 2376502000002114031
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+73. BROKER - RADMAIS (REINSTALAÇÃO)
+   ID: 2376502000002092037
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+74. IMP - Importação - Atendimento a Tickets de Suporte
+   ID: 2376502000002076565
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+75. Integração Animati PACS x SIHL - CLIENTE: Sihl Softwares - Hospital Santo Antônio
+   ID: 2376502000002031192
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+76. Integração Animati PACS x Moderna Sistemas - CLIENTE: Hospital São Lucas de Santos
+   ID: 2376502000002031014
+   Proprietário: Walter Ferreira
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Walter Ferreira)
+
+77. Projeto registro de horas NÃO FATURÁVEIS - 1º Trimestre/2025
+   ID: 2376502000002026133
+   Proprietário: Jean
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Jean)
+
+78. I.M.D. Guaraí  - NR/AP Importação
+   ID: 2376502000002007114
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+79. Integrações Comercial
+   ID: 2376502000001979193
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+80. Integração ANIMATIPACS x TOTVS - SANTA CASA DE CATALÃO
+   ID: 2376502000001963063
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+81. I.M.D. Chapadão do Sul - AP/NR Importação
+   ID: 2376502000001957022
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+82. Integração  Medilab x Animati PACS - CLIENTE: Labex - Medicina Diagnóstica
+   ID: 2376502000001955426
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+83. Integração ANIMATIPACS x CSoftware - CLIENTE: CELIMAGEM
+   ID: 2376502000001955227
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+84. Integração de worklist entre ANIMATIPACS e MV - CLIENTE: HOSPITAL DE CARIDADE ASTROGILDO DE AZEVEDO
+   ID: 2376502000001955072
+   Proprietário: Marcelo Santos
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Marcelo Santos)
+
+85. Integração ANIMATIPACS x Gclinica - CLIENTE: ULTRACLIN
+   ID: 2376502000001946921
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+86. Integração Netris e Animati PACS - - CLIENTE: CIN CENTRO DE IMAGEM E RADIOLOGIA
+   ID: 2376502000001946748
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+87. Integração Animati PACS x HIS JME - CLIENTE: Associação Hospital São José de Porto Lucena
+   ID: 2376502000001946541
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+88. Integração de worklist e retorno de laudo entre Animati PACS e Soul MV - Hospital de clínicas - Passo Fundo/RS
+   ID: 2376502000001946421
+   Proprietário: Marcelo Santos
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Marcelo Santos)
+
+89. Integração Animati PACS  x CliniON  - CLIENTE: HOSPITAL SANTA CRUZ DE CANOINHAS
+   ID: 2376502000001934724
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+90. Integração AnimatiPACS  x MV - CLIENTE: Hospital Evangélico Londrina
+   ID: 2376502000001934511
+   Proprietário: roger
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (roger) E Status excluído (Completed)
+
+91. Integração Animati PACS x MV 2000  - CLIENTE: HOSPITAL REGIONAL DE SANTA MARIA
+   ID: 2376502000001934180
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+92. Migração AP - PROIMAGEM GARÇA #124456
+   ID: 2376502000001938888
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+93. Migração AP - CLIMAGEM #124416
+   ID: 2376502000001938763
+   Proprietário: Jean
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Jean)
+
+94. Migração AP - Tesla DF #92520
+   ID: 2376502000001938388
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+95. Migração AP - RADTESLA #7477
+   ID: 2376502000001938263
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+96. Migração AP - Unimed Araraquara #116299
+   ID: 2376502000001938138
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+97. Migração AP - HFCP #90499
+   ID: 2376502000001938003
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+98. Novo projeto de integração entre Netris e Soul MV (Inserção de pedido de exame como encaixe no Netris)
+   ID: 2376502000001928845
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+99. Integração de laudo - Animati PACS e Promedico - CLIENTE: Centro Clínico Amparo
+   ID: 2376502000001928706
+   Proprietário: Walter Ferreira
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Walter Ferreira)
+
+100. Integração de worklist - Animati PACS e Promédico - CLIENTE: Centro Clínico Amparo
+   ID: 2376502000001928557
+   Proprietário: Walter Ferreira
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Walter Ferreira)
+
+101. Integração de laudo entre Netris e Animati PACS - CLIENTE: Corpscan Serviços Médicos 
+   ID: 2376502000001928330
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+102. Integração de worklist entre Netris e Animati PACS - CLIENTE:  Corpscan Serviços Médicos
+   ID: 2376502000001928189
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+103. Integração de laudo entre Animati PACSO e Saude MedLab - CLIENTE: Ressomed
+   ID: 2376502000001926993
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+104. Integração de worklist
+ entre Animati PACS e Saúde MedLab - CLIENTE: Ressomed
+   ID: 2376502000001926572
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+105. Integração de laudo entre netRIS e Animati PACS - CLIENTE: Clima - Clinica de Imagem
+   ID: 2376502000001926252
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+106. Integração de worklist entre netRIS e Animati PACS - CLIENTE: Clima - Clinica de Imagem
+   ID: 2376502000001926111
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+107. Integração de laudo - Netris e Animati PACS - CLIENTE: JR Tec Imagem Diagnóstica
+   ID: 2376502000001912964
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+108. Integração de worklist - Netris e Animati PACS - CLIENTE: JR Tec Imagem Diagnóstica
+   ID: 2376502000001912815
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+109. Integração de laudo -  Netris e Animati PACS - CLIENTE: Clinus - Clinica de Imagem
+   ID: 2376502000001912642
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+110. Integração de worklist - Netris e  Animati PACS - CLIENTE: Clinus - Clinica de Imagem
+   ID: 2376502000001912515
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+111. Integração de laudo - Netris e Animati PACS  - CLIENTE: Ultraclinica
+   ID: 2376502000001912330
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+112. Integração de worklist - Netris e Animati PACS - CLIENTE: Ultraclinica
+   ID: 2376502000001912177
+   Proprietário: Walter Ferreira
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Walter Ferreira) E Status excluído (Completed)
+
+113. Integrações Suporte
+   ID: 2376502000001896003
+   Proprietário: roger
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (roger)
+
+114. Clinus Clínica de Imagem - AP/NR Importação
+   ID: 2376502000001869307
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+115. 1062 - Med-Rad Radiologia - NR/AP
+   ID: 2376502000001785103
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+116. Dom Aquino - AP/NR Importação
+   ID: 2376502000001683539
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+117. 1072 - JR Tec Imagem Diagnóstica - NR/AP
+   ID: 2376502000001667799
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+118. Hospital Santa Cruz de Canoinhas - AP Importação
+   ID: 2376502000001634411
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+119. Central Diagnósticos - AP/NR Importação
+   ID: 2376502000001634245
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+120. UltraClínica AP/NR Importação
+   ID: 2376502000001634071
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+121. Clima Clínica de Imagem - AP/NR Importação
+   ID: 2376502000001629927
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+122. Med Rad Radiologia - AP/NR Importação
+   ID: 2376502000001629781
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+123. CardioDiagnósticos - AP/NR Importação
+   ID: 2376502000001629627
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+124. Santa Casa de Misericórdia de Catalão - AP Importação
+   ID: 2376502000001629471
+   Proprietário: Carlo Tristão
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Cancelado)
+
+125. Imagem e Diagnóstico - AP/NR Importação
+   ID: 2376502000001629293
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+126. D.M.I Diagnóstico Médico Mococa - AP/NR Importação
+   ID: 2376502000001629131
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+127. UniLab Laboratório Clínico - AP Importação
+   ID: 2376502000001624863
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+128. UltraClin - AP Importação
+   ID: 2376502000001624523
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+129. Scopp Diagnósticos - AP/NR Importação
+   ID: 2376502000001624411
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+130. Unimagem Diagnóstico por Imagem - AP/NR Importação
+   ID: 2376502000001624263
+   Proprietário: Carlo Tristão
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Cancelado)
+
+131. S.I.H.L Softwares Hospital D´Abadia - AP Importação
+   ID: 2376502000001624031
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+132. Ribimagem Diagnóstico Médico - AP/NR Importação
+   ID: 2376502000001613845
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+133. RadioImagem - AP/NR Importação
+   ID: 2376502000001613671
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+134. I.R.R.P Instituto Ressonância Rio Pardo - AP/NR Importação
+   ID: 2376502000001613243
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+135. RDX Paranaguá - AP/NR Importação
+   ID: 2376502000001613009
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+136. I.M.D. Batatais - AP/NR Importação
+   ID: 2376502000001607776
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+137. Hospital Evangélico de Londrina - AP Importação
+   ID: 2376502000001607476
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+138. Hospital Santa Cruz de Canoinhas - AP
+   ID: 2376502000001593217
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+139. 1065 - Clinica LBM - NR/AP
+   ID: 2376502000001577991
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+140. Celimagem - AP
+   ID: 2376502000001577875
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+141. 1069 - Clinica Dom Aquino - NR/AP
+   ID: 2376502000001577063
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+142. Clínica Dom Aquino - AP/NR Importação
+   ID: 2376502000001572225
+   Proprietário: Carlo Tristão
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Cancelado)
+
+143. 1071 - Ultraclinica - NR/AP
+   ID: 2376502000001572082
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+144. 1059 - Limagem - NR/AP
+   ID: 2376502000001535144
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+145. Migração AP - Prevencordis #90498
+   ID: 2376502000001498430
+   Proprietário: Jean
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Jean)
+
+146. Lilia Medicina - AP/NR Importação
+   ID: 2376502000001499087
+   Proprietário: Carlo Tristão
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Cancelado)
+
+147. Central Diagnósticos - NR/AP
+   ID: 2376502000001500277
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+148. Migração AP - Tupã  #90501 #89762
+   ID: 2376502000001498047
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+149. 1070 - Lília Medicina Diagnóstica (ATHA)  - NR/AP - (Sem OA)
+   ID: 2376502000001460005
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+150. 1068 - Clima - Clinica de Imagem - NR/AP - (Sem OA)
+   ID: 2376502000001394915
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+151. 0946 - Cintilon Medicina Nuclear - NR - (Sem OA)
+   ID: 2376502000001394797
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+152. Clidimagem - Cadastros - NR
+   ID: 2376502000001374671
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+153. CDC Nuclear - AP/NR Importação
+   ID: 2376502000001374519
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+154. TCR Imagem - AP/NR Importação
+   ID: 2376502000001374349
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+155. Diag Imagem / Palmeira das Missões - RS
+   ID: 2376502000001346469
+   Proprietário: Marcos
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Marcos)
+
+156. Santa Casa de Pedregulho - AP
+   ID: 2376502000001329703
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+157. Casa de Saúde Santa Rita / São Paulo - SP
+   ID: 2376502000001291908
+   Proprietário: Marcos
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Marcos)
+
+158. 1063 - Ressomed - AP - (Sem OA)
+   ID: 2376502000001291701
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+159. 1060 - Quest Group - AP
+   ID: 2376502000001246543
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+160. PROECHO CEPEM Botafogo - AP Importação
+   ID: 2376502000001227329
+   Proprietário: Carlo Tristão
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Cancelado)
+
+161. Orasi - AP
+   ID: 2376502000001223863
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+162. Migração AP - RDI #90502
+   ID: 2376502000001222096
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+163. Novimagem - AP/NR Importação
+   ID: 2376502000001209694
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+164. Radiodiagnóstico de Londrina - AP Importação
+   ID: 2376502000001209466
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+165. Irmandade de Macatuba - AP
+   ID: 2376502000001152423
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+166. Matrix - Broker Unidades OASE e  CENSIT - AP
+   ID: 2376502000001174401
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+167. Hospital de Caridade São Francisco / Restinga Seca - RS
+   ID: 2376502000001143007
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+168. Migracao Eco Clinica (V3 + infra + AP)
+   ID: 2376502000001029767
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+169. ICOR Laboratório de Cardiologia / Santa Maria - RS
+   ID: 2376502000000985003
+   Proprietário: Cristiano
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+170. Staff Soluções em Física Médica e Radioproteção / Santa Maria - RS
+   ID: 2376502000000907945
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+171. RDX Paranaguá - NR/AP
+   ID: 2376502000000820483
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+172. Hemocor SM Cardiologia Intervencionista / Santa Maria - RS
+   ID: 2376502000000907487
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+173. Nova Radicom Centro Clinico Ltda / Porto Alegre - RS
+   ID: 2376502000000907331
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+174. Hospital SAMUR / Vitória da Conquista - BA
+   ID: 2376502000000894465
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+175. IPEDDIA (Hospital Araucária) / Londrina - PR
+   ID: 2376502000000894355
+   Proprietário: Cristiano
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+176. Vivabem Imagem (Cegen) / Cornélio Procópio - PR
+   ID: 2376502000000894245
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+177. Hospital de Caridade Nossa Sra. da Conceição / Piratini - RS
+   ID: 2376502000000894135
+   Proprietário: Cristiano
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+178. Hospital Candelária - Candelária / RS
+   ID: 2376502000000894025
+   Proprietário: Cristiano
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+179. Hospital Agudo / Agudo - RS
+   ID: 2376502000000889911
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+180. Irmandade da Santa Casa de Caridade de Alegrete / Alegrete - RS
+   ID: 2376502000000889791
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+181. Mamoclin / Cachoeira do Sul - RS
+   ID: 2376502000000889619
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+182. Hospital Beneficente Santa Terezinha / Encantado - RS
+   ID: 2376502000000889481
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+183. Clinica Santa Bárbara / Jacobina - BA
+   ID: 2376502000000889363
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+184. CDI Planalto Médio / Marau - RS
+   ID: 2376502000000889223
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+185. Hospital São Vicente de Paulo / Três de Maio - RS
+   ID: 2376502000000889083
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+186. Zami Diagnósticos (antiga Cans Diagnósticos, Protege) / Santa Maria - RS
+   ID: 2376502000000885959
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+187. Clinimagem / Cruz Alta - RS
+   ID: 2376502000000885769
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+188. Irmandade da Santa Casa de Caridade de São Gabriel / São Gabriel - RS
+   ID: 2376502000000885659
+   Proprietário: Cristiano
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+189. Hospital de Caridade Nossa Senhora Auxiliadora / Rosário do Sul - RS
+   ID: 2376502000000885549
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+190. Hospital Ortopédico de Passo Fundo / Passo Fundo - RS
+   ID: 2376502000000885439
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+191. Hospital de Caridade Santo Cristo - RS
+   ID: 2376502000000885297
+   Proprietário: Cristiano
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+192. Sociedade Hospital Panambi / Panambi - RS
+   ID: 2376502000000885043
+   Proprietário: Cristiano
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Cristiano) E Status excluído (Completed)
+
+193. Seta Medicina Diagnóstica - AP/NR Importação
+   ID: 2376502000000877529
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+194. Ribeirão Clínica Radiologia Especializada - AP/NR Importação
+   ID: 2376502000000877055
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+195. C.D.I Planalto Médio Marau RS  - NR Importação
+   ID: 2376502000000869889
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+196. R.M.X Medicina Diagnóstica - AP/NR Importação
+   ID: 2376502000000869681
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+197. IBMED - AP/NR Importação
+   ID: 2376502000000869563
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+198. Hospital do Coração - AP Importação
+   ID: 2376502000000869335
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+199. Migração AP - Santa Clara #121244
+   ID: 2376502000000860433
+   Proprietário: Nery Paolo
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Cancelado)
+
+200. Santa Mônica Imagem - AP Importação
+   ID: 2376502000000862639
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+201. Hospital e Clínica São Lucas - AP Importação
+   ID: 2376502000000862529
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+202. Migração Althoff (iNFRA  + V3 + AP)
+   ID: 2376502000000860313
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+203. Migração AP - Cedeco #128051
+   ID: 2376502000000860197
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+204. Migração AP -  Azambuja
+   ID: 2376502000000860087
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+205. Centrus Dafi Diagnósticos Especializados - AP/NR Importação
+   ID: 2376502000000862121
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+206. Clínica L&L Imagem e Oftalmologia - NR Importação
+   ID: 2376502000000849733
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+207. Migração AP -  Clinica Pedro II #90220
+   ID: 2376502000000854851
+   Proprietário: Jean
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Jean) E Status excluído (Completed)
+
+208. Migração AP -  Alphaclin
+   ID: 2376502000000854739
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+209. Migração AP -  Função Hospitalar Rio Negrinho
+   ID: 2376502000000854611
+   Proprietário: Nery Paolo
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+210.  Migração AP -  Unicardio  #90503
+   ID: 2376502000000854485
+   Proprietário: Nery Paolo
+   Status: Operação Assistida
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+211. Migração Lucilo Maranhão #115923
+   ID: 2376502000000854265
+   Proprietário: Jean
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Jean)
+
+212. Migração AP -  QI MED
+   ID: 2376502000000854155
+   Proprietário: Nery Paolo
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Nery Paolo) E Status excluído (Completed)
+
+213. Migração AP  - Medilaudo #34112
+   ID: 2376502000000854045
+   Proprietário: Nery Paolo
+   Status: Pendência
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+214. Migração AP -  IRPP
+   ID: 2376502000000841925
+   Proprietário: Jean
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Jean) E Status excluído (Completed)
+
+215. Instituto Uberabense de Cardiologia Invasiva - AP Importação
+   ID: 2376502000000849513
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+216. MED Diagnóstico - AP/NR Importação
+   ID: 2376502000000849369
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+217. Endos Centro de Endoscopia de Baln. Camboriú - NR Importação
+   ID: 2376502000000849111
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+218. Clínica Fogaça - AP/NR Importação
+   ID: 2376502000000840719
+   Proprietário: Carlo Tristão
+   Status: Cancelado
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Cancelado)
+
+219. Frei Gaspar Medicina Diagnóstica - AP/NR Importação
+   ID: 2376502000000840581
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+220. Migração BMX
+   ID: 2376502000000841635
+   Proprietário: Nery Paolo
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Nery Paolo)
+
+221. Labex Medicina Diagnóstica - AP Importação
+   ID: 2376502000000840187
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+222. CorpScan Serviços Médicos - NR Importação
+   ID: 2376502000000840071
+   Proprietário: Carlo Tristão
+   Status: Aguardando o Cliente
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+223. Hospital Bernardina Salles de Barros (HBSB) / Júlio de Castilhos - RS
+   ID: 2376502000000806029
+   Proprietário: Cristiano
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+224. José da Luz - AP/NR Importação
+   ID: 2376502000000782857
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+225. Hospital de Clínicas de Passo Fundo - AP Importação
+   ID: 2376502000000788359
+   Proprietário: Carlo Tristão
+   Status: Em Andamento
+   ✗ Motivo: Proprietário inválido (Carlo Tristão)
+
+226. Centro Urológico - NR Importação
+   ID: 2376502000000788229
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+227. Attentive - NR Importação
+   ID: 2376502000000685777
+   Proprietário: Carlo Tristão
+   Status: Completed
+   ✗ Motivo: Proprietário inválido (Carlo Tristão) E Status excluído (Completed)
+
+228. 0528 - Clidimagem - NR
+   ID: 2376502000000497251
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+229. H&amp;H - NR
+   ID: 2376502000000465857
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+230. Verita - NR
+   ID: 2376502000000465733
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+231. Hospital Pio XII - AP
+   ID: 2376502000000465147
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+232. 0985 - Provisão Laboratório e Clínica Médica - NR/AP
+   ID: 2376502000000474973
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+233. Associação Nossa Casa de Apoio a Pessoas Com Câncer - Fortaleza CE - NR/AP
+   ID: 2376502000000477003
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+234. 1013 - Santa Mônica Imagem - AP
+   ID: 2376502000000474549
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+235. 1037 - Labex – Medicina Diagnóstica - AP
+   ID: 2376502000000474435
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+236. 1047 - Associação Hospital São José de Porto Lucena - AP
+   ID: 2376502000000469245
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+237. 1025 - Sihl Softwares - Hospital Santo Antônio - AP
+   ID: 2376502000000469017
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+238. 0972 - Instituto Médico de Diagnóstico por Imaginologia Ltda - AP
+   ID: 2376502000000456789
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+239. 0950 - Health Brasil Inteligência em Saúde - AP
+   ID: 2376502000000456819
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+240. Vitallis Imagens - NR/AP
+   ID: 2376502000000465011
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+241. Clinica Eccos - AP
+   ID: 2376502000000460757
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+242. SANTA CASA DE MISERICÓRDIA DE CATALÃO - AP
+   ID: 2376502000000460601
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+243. Hospital Evangélico Londrina - AP
+   ID: 2376502000000460347
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+244. UltraClin - AP
+   ID: 2376502000000460191
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+245. DMI Mococa - NR/AP
+   ID: 2376502000000460031
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+246. Hosp. Nsa Sra Aparecida - AP
+   ID: 2376502000000455777
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+247. 1031 - Scopp Diagnóstico - NR/AP
+   ID: 2376502000000455115
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+248. Habmed - NR/AP
+   ID: 2376502000000448453
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+249. 1050 - TCR Imagem - NR/AP
+   ID: 2376502000000436417
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+250. 1042 - Imagem e Diagnóstico Mococa - NR/AP
+   ID: 2376502000000436185
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+251. 1035 - Frei Gaspar Medicina Diagnóstica - NR/AP
+   ID: 2376502000000436069
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+252. SETA – Medicina Diagnostica - Ogata -  NR/AP
+   ID: 2376502000000426953
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+253. 1030 - Ribimagem - Diagnóstco Médico - NR/AP
+   ID: 2376502000000426837
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+254. 1003 - Unimagem – Diagnóstico por Imagem NR/AP
+   ID: 2376502000000426721
+   Proprietário: willian.anjos
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+255. Unicor Macaé - NR/AP
+   ID: 2376502000000426605
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+256. 0997 - Clínica de Radiologia Medvida - NR/AP
+   ID: 2376502000000413733
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+257. Novimagem / GO - NR/AP
+   ID: 2376502000000405895
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+258. IBMED - AP
+   ID: 2376502000000398891
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+259. 0954 - SRC - Serviço de Radiologia Clínica - NR/AP
+   ID: 2376502000000394055
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+260. 0953 - Instituto do Coração INCOR - AP
+   ID: 2376502000000382711
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+261. Clinica Fogaça - NR/AP
+   ID: 2376502000000383775
+   Proprietário: Giovani
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+262. Casavitta Fronteira - NR/AP
+   ID: 2376502000000383193
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+263. ITC Campo Grande - AP
+   ID: 2376502000000374981
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+264. Instituto Uberabense de Cardiologia - AP
+   ID: 2376502000000374767
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+265. Doctor Prime - AP
+   ID: 2376502000000374551
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+266. 0540 - Radiologia Ballester - NR/AP
+   ID: 2376502000000361755
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+267. Centro de Imagem Inst. do Coração - NR/AP
+   ID: 2376502000000364969
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+268. CIN - Centro de Imagem e Radiologia 
+   ID: 2376502000000364383
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+269. RadioImagem - NR/AP
+   ID: 2376502000000356801
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+270. Centrus - NR/AP
+   ID: 2376502000000356219
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+271. Unilab - NR/AP
+   ID: 2376502000000351631
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+272. Longex - NR/AP
+   ID: 2376502000000345837
+   Proprietário: Giovani
+   Status: Cancelado
+   ✗ Motivo: Status excluído (Cancelado)
+
+273. Clínica L &amp; L - NR/AP
+   ID: 2376502000000336673
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+274. Radiologia Especializada Ribeirão Preto - NR/AP
+   ID: 2376502000000336089
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+275. 0907.6-PR RMX - NR/AP
+   ID: 2376502000000332341
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+276. 0991-PR Núcleo Diagnósticos - NR/AP
+   ID: 2376502000000325759
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+277. OxiHiperbarica - NR
+   ID: 2376502000000325267
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+278. Blume Diagnósticos - NR/AP
+   ID: 2376502000000272711
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+279. Icardio Vale dos Sinos - AP
+   ID: 2376502000000257247
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+280. 0976-PR - Alfa de Indaiatuba - NR/AP
+   ID: 2376502000000243346
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+281. Cliente teste de instalação híbrido
+   ID: 2376502000000221033
+   Proprietário: Cristiano
+   Status: Aberto
+   ✗ Motivo: Proprietário inválido (Cristiano)
+
+282. 1016 - Hospital de Clínicas de Passo Fundo - AP
+   ID: 2376502000000230511
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+283. 1032 - Hospital Arcanjo São Miguel Gramado - AP
+   ID: 2376502000000230387
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+284. Clinica Médica Diagnóstico - NR/AP
+   ID: 2376502000000227334
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+285. 1008 - EndoImagem Diagnóstico por Imagem - NR/AP
+   ID: 2376502000000230257
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+286. 1014 - Med-Diagnóstico  - NR/AP
+   ID: 2376502000000230129
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+287. 0766 - Radiologue - NR
+   ID: 2376502000000209975
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+288. 0573 - CDI Planalto Médio / Marau RS - NR
+   ID: 2376502000000209855
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+289. 0971-PRS Angel Hosp. Psiquiátrico - NR/AP
+   ID: 2376502000000213770
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+290. ATT - Attentive Center - NR/AP
+   ID: 2376502000000209189
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+291. 0249.1-PR IMD Batatais - NR/AP
+   ID: 2376502000000199460
+   Proprietário: Giovani
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
+292. 1027 - Centro Urológico - NR/AP
+   ID: 2376502000000166639
+   Proprietário: willian.anjos
+   Status: Completed
+   ✗ Motivo: Status excluído (Completed)
+
