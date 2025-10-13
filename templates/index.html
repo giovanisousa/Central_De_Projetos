@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de Projetos</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/data-homologacao.css') }}">
     <!-- Ícones para contadores do card -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
@@ -707,7 +708,19 @@
                     ! <span class="imp-count">...</span>
                 </button>`;
 
-            // 2. Botão de adicionar comentário
+            // 2. Data de Homologação Prevista (apenas para coluna "Em Andamento - Implantação")
+            let dataHomologacaoPrevistaHtml = '';
+            if (coluna === 'Em Andamento - Implantação' && projeto.data_homologacao_prevista) {
+                const dataFormatada = formatDateToDDMMYYYY(projeto.data_homologacao_prevista);
+                dataHomologacaoPrevistaHtml = `
+                    <div class="data-homologacao-prevista" title="Data de Homologação Prevista">
+                        <i class="fas fa-flag-checkered"></i>
+                        <span>${dataFormatada}</span>
+                    </div>
+                `;
+            }
+
+            // 3. Botão de adicionar comentário
             const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;
 
             // 4. Botão de Play (se aplicável)
@@ -753,6 +766,7 @@
                         <span>${projeto.dias_total || ''}</span>
                     </div>
                 </div>
+                ${dataHomologacaoPrevistaHtml}
                 ${addCommentBtnHtml}
             `;
 
@@ -1070,7 +1084,11 @@
 
             // Enviar para o servidor (inclui cliente_sheet igual ao valor da planilha "Cliente")
             const clienteSheet = (projetoEncontrado && projetoEncontrado.cliente) ? String(projetoEncontrado.cliente).trim() : '';
-            enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino, clienteSheet);
+            
+            // Chamar função assíncrona e tratar Promise explicitamente
+            enviarMovimentoParaServidor(projetoId, colunaOrigem, colunaDestino, clienteSheet)
+                .then(() => console.log('[moverCardVisualmente] ✅ Servidor atualizado com sucesso'))
+                .catch(err => console.error('[moverCardVisualmente] ❌ Erro ao atualizar servidor:', err));
 
             console.log(`✅ Projeto movido de "${colunaOrigem}" para "${colunaDestino}"`);
         }
@@ -1108,15 +1126,68 @@
                 });
                 const rawText = await response.text();
                 console.log('[enviarMovimentoParaServidor] HTTP', response.status, 'body:', rawText);
+                
                 let data;
-                try { data = JSON.parse(rawText); } catch(e) { data = null; }
+                try { 
+                    data = JSON.parse(rawText); 
+                    console.log('[enviarMovimentoParaServidor] Resposta parseada:', data);
+                } catch(e) { 
+                    console.error('[enviarMovimentoParaServidor] Erro ao parsear JSON:', e);
+                    data = null; 
+                }
+                
                 if (data && data.sucesso) {
+                    console.log('[enviarMovimentoParaServidor] ✅ Sucesso! dados_atualizados:', data.dados_atualizados);
                     mostrarToast(data.mensagem || 'Movimentação concluída com sucesso!', 'success');
+                    
+                    // Atualizar o card imediatamente com os dados retornados
+                    if (data.dados_atualizados) {
+                        console.log('[enviarMovimentoParaServidor] Buscando card com ID:', projetoId);
+                        
+                        // Buscar pelo atributo correto: data-projeto-id (definido em criarCardProjeto)
+                        const cardElement = document.querySelector(`.project-card[data-projeto-id="${projetoId}"]`);
+                        console.log('[enviarMovimentoParaServidor] Card encontrado:', cardElement);
+                        
+                        if (cardElement) {
+                            // Classe correta é 'dias-na-fase' (definido em criarCardProjeto)
+                            const spanDias = cardElement.querySelector('.dias-na-fase');
+                            console.log('[enviarMovimentoParaServidor] Badge encontrado:', spanDias);
+                            
+                            if (spanDias) {
+                                console.log('[enviarMovimentoParaServidor] Atualizando badge de', spanDias.textContent, 'para', data.dados_atualizados.dias_na_fase);
+                                spanDias.textContent = data.dados_atualizados.dias_na_fase;
+                                
+                                // Aplicar cor baseado na coluna de destino
+                                // projetosSalvos é um objeto {coluna: [projetos]}, não um array direto
+                                let projetoEncontrado = null;
+                                for (const coluna in projetosSalvos) {
+                                    if (Array.isArray(projetosSalvos[coluna])) {
+                                        projetoEncontrado = projetosSalvos[coluna].find(p => String(p.id) === String(projetoId));
+                                        if (projetoEncontrado) break;
+                                    }
+                                }
+                                
+                                if (projetoEncontrado) {
+                                    aplicarCorDias(spanDias, colunaDestino, projetoTemNetRIS(projetoEncontrado), data.dados_atualizados.dias_na_fase);
+                                    console.log(`[enviarMovimentoParaServidor] ✅ Card atualizado! dias_fase="${data.dados_atualizados.dias_na_fase}" cor aplicada`);
+                                } else {
+                                    console.log(`[enviarMovimentoParaServidor] ✅ Card atualizado! dias_fase="${data.dados_atualizados.dias_na_fase}" (cor não aplicada - projeto não encontrado em projetosSalvos)`);
+                                }
+                            } else {
+                                console.warn('[enviarMovimentoParaServidor] ⚠️ Badge não encontrado no card');
+                            }
+                        } else {
+                            console.warn('[enviarMovimentoParaServidor] ⚠️ Card não encontrado no DOM');
+                        }
+                    } else {
+                        console.warn('[enviarMovimentoParaServidor] ⚠️ dados_atualizados não presente na resposta');
+                    }
                 } else {
+                    console.error('[enviarMovimentoParaServidor] ❌ Falha:', data);
                     mostrarToast((data && (data.mensagem || data.erro)) || 'Falha ao sincronizar movimento.', 'error');
                 }
             } catch (error) {
-                console.error('Erro ao sincronizar movimento:', error);
+                console.error('[enviarMovimentoParaServidor] ❌ Exceção:', error);
                 mostrarToast('Erro de comunicação com o servidor.', 'error');
             }
         }

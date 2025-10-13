@@ -1,0 +1,22 @@
+/* Estilo para Data de Homologação Prevista nos cards */
+.data-homologacao-prevista {
+    position: absolute;
+    bottom: 8px;
+    right: 42px; /* À esquerda do botão de comentário */
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #856404;
+    z-index: 1;
+}
+
+.data-homologacao-prevista i {
+    color: #ffc107;
+    font-size: 0.85rem;
+}
