@@ -608,6 +608,81 @@
             });
         }
 
+        // Formata as ferramentas contratadas
+        function formatarFerramentas(produto) {
+            if (!produto) return 'N/D';
+            
+            const map = {
+                'netRIS': 'NR',
+                'AnimatiPACS': 'AP',
+                'netRIS e AnimatiPACS': 'NR + AP',
+                'AnimatiPACS/netRIS': 'NR + AP',
+                'netPACS': 'NP'
+            };
+            return map[produto] || produto;
+        }
+
+        // Busca e renderiza as barras de progresso das fases
+        async function renderizarProgresso(projetoId, cardElement, coluna) {
+            // Define as colunas onde as barras de progresso devem ser exibidas
+            const colunasPermitidas = [
+                'Em Andamento - Implantação',
+                'Em Homologação',
+                'Em Virada'
+            ];
+            
+            // Verifica se a coluna está na lista de permitidas
+            if (!colunasPermitidas.includes(coluna)) {
+                return; // Não renderiza progresso para outras colunas
+            }
+            
+            try {
+                const response = await fetch(`/api/progresso-fases/${projetoId}`);
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                if (!data.sucesso || !data.progresso) return;
+                
+                const progresso = data.progresso;
+                let progressoHtml = '';
+                
+                // Ordem de exibição: NR, AP, IMP, INT
+                const fases = [
+                    { key: 'NR', label: 'NR' },
+                    { key: 'AP', label: 'AP' },
+                    { key: 'IMP', label: 'IMP' },
+                    { key: 'INT', label: 'INT' }
+                ];
+                
+                fases.forEach(fase => {
+                    const percentual = progresso[fase.key];
+                    if (percentual !== null && percentual !== undefined) {
+                        progressoHtml += `
+                            <div class="progress-item">
+                                <span class="progress-label">${fase.label}</span>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" style="width: ${percentual}%"></div>
+                                </div>
+                                <span class="progress-percent">${Math.round(percentual)}%</span>
+                            </div>
+                        `;
+                    }
+                });
+                
+                if (progressoHtml) {
+                    const projectInfo = cardElement.querySelector('.project-info');
+                    if (projectInfo) {
+                        const progressContainer = document.createElement('div');
+                        progressContainer.className = 'project-progress';
+                        progressContainer.innerHTML = progressoHtml;
+                        projectInfo.parentNode.insertBefore(progressContainer, projectInfo.nextSibling);
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao buscar progresso das fases:', error);
+            }
+        }
+
         // Cria um card de projeto (VERSÃO ATUALIZADA)
         function criarCardProjeto(projeto, coluna) {
             const card = document.createElement('div');
@@ -651,6 +726,10 @@
                 <div>
                     <div class="project-name" data-tooltip="${projeto.nome}">${nomeExibido}</div>
                     <div class="project-info">
+                        <div class="project-tools">
+                            <span class="icon">📦</span>
+                            <span class="tools-abbreviated">${formatarFerramentas(projeto.produto || projeto.produtos || projeto.produtos_contratados || '')}</span>
+                        </div>
                         <div class="project-detail">
                             <span class="icon">👤</span>
                             <span>${projeto.gp || 'N/A'}</span>
@@ -764,6 +843,9 @@
                     playForm.dataset.bound = '1';
                 }
             }
+
+            // Buscar e renderizar progresso das fases (apenas para colunas específicas)
+            renderizarProgresso(projeto.id, card, coluna);
 
             return card;
         }
