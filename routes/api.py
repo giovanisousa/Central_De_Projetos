@@ -983,8 +983,12 @@ def _atualizar_zoho(
         if exit_custom_fields:
             custom_fields.update(exit_custom_fields)
 
+    # CORREÇÃO: Campos customizados vão direto no payload, não dentro de "custom_fields"
+    # A API do Zoho Projects v3 aceita campos customizados no primeiro nível do payload
     if custom_fields:
-        payload_patch["custom_fields"] = _resolver_custom_fields(custom_fields)
+        resolved_fields = _resolver_custom_fields(custom_fields)
+        payload_patch.update(resolved_fields)
+        print(f"[DEBUG] Campos customizados resolvidos: {resolved_fields}")
 
     if payload_patch:
         print(f"[DEBUG] Enviando PATCH para {base_url}")
@@ -1004,6 +1008,11 @@ def _atualizar_zoho(
         # Se status_code = 200/201, os dados foram salvos com sucesso
         # Verificação "paranóica" com múltiplas tentativas é overhead desnecessário
         # Se houver erro real, o status_code será 4xx/5xx e a exception acima será lançada
+        
+        # Sincronizar campos customizados no banco de dados local
+        if custom_fields:
+            # CORREÇÃO: Agora os campos resolvidos estão diretamente no payload, não em "custom_fields"
+            _sincronizar_custom_fields_banco(projeto_id, resolved_fields, coletor_mensagens)
 
     # 2) Ajuste de tags
     _ajustar_tags_projeto(base_url, headers, info_dest, detalhes_zoho, coluna_destino)
@@ -1037,6 +1046,58 @@ def _resolver_custom_fields(custom_fields: dict) -> dict:
             resolved[chave] = valor
     logger.debug("Campos resolvidos: %s", resolved)
     return resolved
+
+
+def _sincronizar_custom_fields_banco(projeto_id: str, custom_fields_resolvidos: dict, coletor_mensagens: list) -> None:
+    """
+    Sincroniza os campos customizados do Zoho com o banco de dados local.
+    Garante que campos como data_de_homologacao, data_de_onboarding, etc. estejam sempre atualizados no banco.
+    """
+    if not custom_fields_resolvidos:
+        return
+    
+    # Mapeamento de campos customizados do Zoho para colunas do banco de dados
+    campo_para_coluna = {
+        'data_de_homologacao': 'data_homologacao',
+        'data_de_onboarding': 'data_de_onboarding',
+        'data_liberacao_servidor': 'data_liberacao_servidor',
+        'data_de_inicio_da_implantacao': 'data_inicio_implantacao',
+        'data_de_virada': 'data_virada',
+    }
+    
+    updates = {}
+    for campo_zoho, valor in custom_fields_resolvidos.items():
+        coluna_banco = campo_para_coluna.get(campo_zoho)
+        if coluna_banco:
+            updates[coluna_banco] = valor
+            print(f"[DEBUG][DB] Preparando atualização: {coluna_banco} = {valor}")
+    
+    if not updates:
+        print(f"[DEBUG][DB] Nenhum campo customizado mapeado para atualizar no banco")
+        return
+    
+    try:
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        
+        # Monta query de atualização dinamicamente
+        set_clause = ', '.join([f"{col} = ?" for col in updates.keys()])
+        values = list(updates.values()) + [projeto_id]
+        
+        sql = f"UPDATE projects SET {set_clause} WHERE id = ?"
+        cursor.execute(sql, values)
+        conn.commit()
+        conn.close()
+        
+        campos_atualizados = ', '.join([f"'{col}'" for col in updates.keys()])
+        mensagem = f"Banco de dados: campos {campos_atualizados} sincronizados com Zoho"
+        coletor_mensagens.append(mensagem)
+        print(f"[DEBUG][DB] {mensagem}")
+        
+    except Exception as e:
+        print(f"[ERROR][DB] Erro ao sincronizar campos customizados no banco: {e}")
+        traceback.print_exc()
+        coletor_mensagens.append(f"Aviso: Falha ao sincronizar campos no banco: {e}")
 
 
 def _verificar_campos_customizados(response_data: dict | None, valores_esperados: dict) -> bool:
@@ -1250,26 +1311,26 @@ def _executar_triggers(
         if not isinstance(trigger, dict):
             continue
         tipo = trigger.get("type")
-        if tipo == "projectComment":
-            _postar_comentario_projeto(projeto_id, headers, trigger.get("template", ""))
-        elif tipo == "taskComment":
-            _postar_comentario_tarefa(
-                projeto_id=projeto_id,
-                headers=headers,
-                detalhes_zoho=detalhes_zoho,
-                trigger=trigger
-            )
-        elif tipo == "workflow":
-            nome_workflow = trigger.get("name")
-            if nome_workflow:
-                try:
-                    synchronize_single_project.trigger_workflow  # type: ignore[attr-defined]
-                except AttributeError:
-                    from sync_zoho import trigger_workflow
-                    trigger_workflow(projeto_id, nome_workflow, access_token)
-                else:
-                    from sync_zoho import trigger_workflow
-                    trigger_workflow(projeto_id, nome_workflow, access_token)
+        
+        try:
+            if tipo == "projectComment":
+                _postar_comentario_projeto(projeto_id, headers, trigger.get("template", ""))
+            elif tipo == "taskComment":
+                _postar_comentario_tarefa(
+                    projeto_id=projeto_id,
+                    headers=headers,
+                    detalhes_zoho=detalhes_zoho,
+                    trigger=trigger
+                )
+            elif tipo == "workflow":
+                # Workflow triggers não estão implementados ainda
+                print(f"[WARNING] Trigger de workflow '{trigger.get('name')}' ignorado (não implementado)")
+                continue
+        except Exception as e:
+            # Log do erro mas não interrompe o fluxo de movimentação
+            print(f"[ERROR] Falha ao executar trigger tipo '{tipo}': {e}")
+            traceback.print_exc()
+            # Continua para o próximo trigger
 
 
 def _postar_comentario_projeto(projeto_id: str, headers: dict, template: str) -> None:
@@ -1446,7 +1507,35 @@ def _atualizar_planilha(
     coletor_mensagens.append(mensagem)
     _log_move_info("[MOVE][SHEET]", projeto_id, coluna_destino, mensagem)
 
-    # Atualizações específicas por transição após descobrir o cliente correto
+    # Processar atualizações de colunas específicas através de onTransition
+    if coluna_origem:
+        on_transition = info_dest.get("onTransition", {})
+        # Normalizar nome da coluna de origem removendo espaços especiais
+        coluna_origem_key = f"from_{coluna_origem.replace(' ', '_').replace('-', '_')}"
+        transition_config = on_transition.get(coluna_origem_key, {})
+        sheet_columns = transition_config.get("sheetColumns", {})
+        
+        if sheet_columns:
+            print(f"[DEBUG][SHEET] Processando onTransition para transição '{coluna_origem}' -> '{coluna_destino}'")
+            for nome_coluna, valor_config in sheet_columns.items():
+                try:
+                    # Resolver valores especiais
+                    if isinstance(valor_config, str) and valor_config.upper() == "CURRENT_DATE_DDMMYYYY":
+                        valor_real = datetime.now().strftime('%d/%m/%Y')
+                    elif isinstance(valor_config, str) and valor_config.upper() == "CURRENT_DATE":
+                        valor_real = datetime.now().strftime('%Y-%m-%d')
+                    else:
+                        valor_real = valor_config
+                    
+                    print(f"[DEBUG][SHEET] Atualizando coluna '{nome_coluna}' para '{valor_real}'")
+                    utils.update_col_value_by_cliente_tolerant(sheets_service, chave_busca, nome_coluna, valor_real)
+                    coletor_mensagens.append(f'Planilha principal: Coluna "{nome_coluna}" atualizada para "{valor_real}".')
+                    print(f"[DEBUG][SHEET] Coluna '{nome_coluna}' atualizada com sucesso")
+                except Exception as e:
+                    print(f"[DEBUG][SHEET] Erro ao atualizar coluna '{nome_coluna}': {e}")
+                    coletor_mensagens.append(f'Aviso: Falha ao atualizar coluna "{nome_coluna}": {e}')
+
+    # Atualizações específicas por transição após descobrir o cliente correto (mantido para compatibilidade)
     if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
         hoje_ddmmyyyy = datetime.now().strftime('%d/%m/%Y')
         print(f"[DEBUG][SHEET] Atualizando Lib.Servidor para cliente '{chave_busca}' com data '{hoje_ddmmyyyy}'")
@@ -1552,6 +1641,7 @@ def iniciar_implantacao():
         data_inicio_implantacao = (data.get('data_inicio_implantacao') or '').strip()  # esperado yyyy-mm-dd
         implantador_ris = (data.get('implantador_ris') or '').strip()
         implantador_pacs = (data.get('implantador_pacs') or '').strip()
+        modalidade = (data.get('modalidade') or 'Remoto/Presencial').strip()  # Remoto, Presencial ou Remoto/Presencial
 
         if not project_id or not data_inicio_implantacao:
             return jsonify({"sucesso": False, "erro": "Parâmetros inválidos."}), 400
@@ -1560,6 +1650,89 @@ def iniciar_implantacao():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         detalhes_zoho = json.loads(project_row['full_data_json'])
+        
+        # ==== IDENTIFICAR FERRAMENTAS CONTRATADAS DO BANCO DE DADOS ====
+        # Regras de negócio:
+        # - Projetos com netRIS (independente de ter AP ou não): 95 dias corridos
+        # - Projetos apenas AnimatiPACS: 35 dias corridos
+        
+        # sqlite3.Row usa acesso por índice/coluna, não .get()
+        try:
+            produtos_contratados_json = project_row['produtos_contratados']
+        except (KeyError, IndexError):
+            produtos_contratados_json = None
+        
+        try:
+            if produtos_contratados_json:
+                produtos_list = json.loads(produtos_contratados_json)
+            else:
+                produtos_list = []
+        except (json.JSONDecodeError, TypeError):
+            produtos_list = []
+        
+        # Normalizar nomes de produtos para comparação
+        produtos_normalized = [p.strip().lower() for p in produtos_list if p]
+        
+        # Verificar se tem netRIS
+        tem_netris = any('netris' in p for p in produtos_normalized)
+        tem_apenas_ap = any('pacs' in p or 'animatipacs' in p for p in produtos_normalized) and not tem_netris
+        
+        if tem_netris:
+            dias_ate_homologacao = 95
+            tipo_projeto_label = "netRIS"
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Projeto com netRIS detectado (produtos: {produtos_list}) - Prazo: {dias_ate_homologacao} dias")
+        elif tem_apenas_ap:
+            dias_ate_homologacao = 35
+            tipo_projeto_label = "AnimatiPACS"
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Projeto apenas AnimatiPACS detectado (produtos: {produtos_list}) - Prazo: {dias_ate_homologacao} dias")
+        else:
+            # Fallback: se produtos não identificados, tenta pelo nome do projeto
+            proj_name = str((detalhes_zoho or {}).get('name', '') or '')
+            tem_netris_nome = ' - NR/AP' in proj_name or ' - NR' in proj_name
+            tem_apenas_ap_nome = ' - AP' in proj_name and not tem_netris_nome
+            
+            if tem_netris_nome:
+                dias_ate_homologacao = 95
+                tipo_projeto_label = "netRIS (fallback por nome)"
+                print(f"[WARN][INICIAR_IMPLANTACAO] Produtos não identificados no BD. Usando nome do projeto - Prazo: {dias_ate_homologacao} dias")
+            elif tem_apenas_ap_nome:
+                dias_ate_homologacao = 35
+                tipo_projeto_label = "AnimatiPACS (fallback por nome)"
+                print(f"[WARN][INICIAR_IMPLANTACAO] Produtos não identificados no BD. Usando nome do projeto - Prazo: {dias_ate_homologacao} dias")
+            else:
+                # Padrão conservador: assume prazo maior
+                dias_ate_homologacao = 95
+                tipo_projeto_label = "padrão (conservador)"
+                print(f"[WARN][INICIAR_IMPLANTACAO] Ferramentas não identificadas - Usando prazo conservador: {dias_ate_homologacao} dias")
+        
+        # ==== CALCULAR DATAS PREVISTAS ====
+        from datetime import datetime, timedelta
+        
+        # Calcular data de homologação prevista baseada no tipo de projeto
+        data_inicio_dt = datetime.strptime(data_inicio_implantacao, '%Y-%m-%d')
+        data_homologacao_prevista_dt = data_inicio_dt + timedelta(days=dias_ate_homologacao)
+        
+        # Ajustar para segunda-feira (início da semana de homologação)
+        while data_homologacao_prevista_dt.weekday() != 0:  # 0 = segunda-feira
+            data_homologacao_prevista_dt += timedelta(days=1)
+        
+        # Campo correto no Zoho: data_de_termino_original (Data de Homologação Prevista)
+        data_de_termino_original = data_homologacao_prevista_dt.strftime('%Y-%m-%d')
+        
+        # Calcular data de virada prevista (1 semana após homologação)
+        data_virada_prevista_dt = data_homologacao_prevista_dt + timedelta(days=7)
+        
+        # Ajustar para segunda-feira (início da semana de virada)
+        while data_virada_prevista_dt.weekday() != 0:  # 0 = segunda-feira
+            data_virada_prevista_dt += timedelta(days=1)
+        
+        # Campo correto no Zoho: data_de_virada_original (Data de Virada Prevista)
+        data_de_virada_original = data_virada_prevista_dt.strftime('%Y-%m-%d')
+        
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Datas calculadas:")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO]   📅 Início Implantação: {data_inicio_implantacao}")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO]   📅 Homologação Prevista (data_de_termino_original): {data_de_termino_original}")
+        print(f"[DEBUG][INICIAR_IMPLANTACAO]   📅 Virada Prevista (data_de_virada_original): {data_de_virada_original}")
 
         # ==== 1. PRIMEIRO: Mover para coluna "Em Andamento - Implantação" usando o sistema de mapeamento ====
         print(f"[DEBUG][INICIAR_IMPLANTACAO] Movendo projeto {project_id} para 'Em Andamento - Implantação'")
@@ -1580,13 +1753,18 @@ def iniciar_implantacao():
             
             print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração encontrada: {info_dest}")
             
-            # Atualizar o campo data_de_inicio_da_implantacao na configuração
+            # Atualizar campos customizados na configuração
             custom_fields_config = info_dest.get("zohoCustomFields", {}).copy()
             custom_fields_config["data_de_inicio_da_implantacao"] = data_inicio_implantacao
+            custom_fields_config["data_de_termino_original"] = data_de_termino_original  # Homologação Prevista
+            custom_fields_config["data_de_virada_original"] = data_de_virada_original  # Virada Prevista
             info_dest_modificada = info_dest.copy()
             info_dest_modificada["zohoCustomFields"] = custom_fields_config
             
-            print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração modificada com data: {info_dest_modificada}")
+            print(f"[DEBUG][INICIAR_IMPLANTACAO] Configuração modificada com datas:")
+            print(f"[DEBUG][INICIAR_IMPLANTACAO]   - data_de_inicio_da_implantacao: {data_inicio_implantacao}")
+            print(f"[DEBUG][INICIAR_IMPLANTACAO]   - data_de_termino_original: {data_de_termino_original}")
+            print(f"[DEBUG][INICIAR_IMPLANTACAO]   - data_de_virada_original: {data_de_virada_original}")
             
             # Usar o sistema de mapeamento existente para aplicar as mudanças
             mensagens_zoho = []
@@ -1615,8 +1793,14 @@ def iniciar_implantacao():
                     }
                     base_url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
                     
-                    # Apenas atualizar o campo customizado
-                    payload_custom = {"custom_fields": {"data_de_inicio_da_implantacao": data_inicio_implantacao}}
+                    # Atualizar campos customizados (incluindo datas previstas)
+                    payload_custom = {
+                        "custom_fields": {
+                            "data_de_inicio_da_implantacao": data_inicio_implantacao,
+                            "data_de_termino_original": data_de_termino_original,  # Homologação Prevista
+                            "data_de_virada_original": data_de_virada_original  # Virada Prevista
+                        }
+                    }
                     response_custom = requests.patch(base_url, headers=headers, json=payload_custom, timeout=45)
                     
                     if response_custom.status_code in (200, 201):
@@ -1666,6 +1850,118 @@ def iniciar_implantacao():
             traceback.print_exc()
             return jsonify({"sucesso": False, "erro": erro_msg}), 500
 
+        # ==== 1.5. ADICIONAR IMPLANTADORES SELECIONADOS E ATRIBUIR TAREFAS ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Adicionando implantadores selecionados ao projeto e atribuindo tarefas...")
+        
+        try:
+            from implantacao_manager import ImplantacaoManager, adicionar_implantador_e_atribuir_tarefas
+            
+            manager = ImplantacaoManager(ZOHO_PORTAL_ID, access_token)
+            resultados_implantacao = []
+            
+            # Processar implantador RIS se selecionado
+            if implantador_ris:
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Adicionando implantador RIS: {implantador_ris}")
+                resultado_ris = adicionar_implantador_e_atribuir_tarefas(
+                    project_id=project_id,
+                    nome_implantador=implantador_ris,
+                    tipo_projeto='RIS',
+                    access_token=access_token,
+                    portal_id=ZOHO_PORTAL_ID
+                )
+                resultados_implantacao.append(f"RIS ({implantador_ris}): {resultado_ris['mensagem']}")
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] RIS - {resultado_ris['mensagem']}")
+                
+                if not resultado_ris['sucesso']:
+                    print(f"[WARN][INICIAR_IMPLANTACAO] Falha parcial no RIS: {resultado_ris.get('erro', 'Erro desconhecido')}")
+            
+            # Processar implantador PACS se selecionado
+            if implantador_pacs:
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Adicionando implantador PACS: {implantador_pacs}")
+                resultado_pacs = adicionar_implantador_e_atribuir_tarefas(
+                    project_id=project_id,
+                    nome_implantador=implantador_pacs,
+                    tipo_projeto='PACS',
+                    access_token=access_token,
+                    portal_id=ZOHO_PORTAL_ID
+                )
+                resultados_implantacao.append(f"PACS ({implantador_pacs}): {resultado_pacs['mensagem']}")
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] PACS - {resultado_pacs['mensagem']}")
+                
+                if not resultado_pacs['sucesso']:
+                    print(f"[WARN][INICIAR_IMPLANTACAO] Falha parcial no PACS: {resultado_pacs.get('erro', 'Erro desconhecido')}")
+            
+            if not implantador_ris and not implantador_pacs:
+                print(f"[WARN][INICIAR_IMPLANTACAO] Nenhum implantador selecionado, pulando adição de implantadores")
+            else:
+                mensagens_zoho.extend(resultados_implantacao)
+                
+        except Exception as e:
+            # Log o erro mas não falha a operação principal
+            print(f"[WARN][INICIAR_IMPLANTACAO] Erro ao adicionar implantadores: {str(e)}")
+            traceback.print_exc()
+            mensagens_zoho.append(f"Aviso: Implantadores não puderam ser adicionados automaticamente ({str(e)})")
+        
+        # ==== 1.6. CRIAR EVENTOS NO GOOGLE CALENDAR ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Criando eventos no Google Calendar...")
+        
+        # Função auxiliar para formatar datas
+        def _fmt_ddmmyyyy(s: str) -> str:
+            try:
+                y, m, d = s.split('-')
+                return f"{d.zfill(2)}/{m.zfill(2)}/{y}"
+            except Exception:
+                return s
+        
+        try:
+            from google_calendar import criar_evento_homologacao, criar_evento_virada
+            
+            # Obter nome do cliente para os eventos
+            proj_name = str((detalhes_zoho or {}).get('name', '') or '')
+            nome_cliente = proj_name.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+            
+            if not nome_cliente:
+                nome_cliente = f"Projeto {project_id}"
+            
+            # Obter credenciais do Google
+            creds = utils.build_google_credentials_from_session()
+            
+            # Criar evento de Homologação
+            sucesso_homolog, event_id_homolog, erro_homolog = criar_evento_homologacao(
+                credentials=creds,
+                nome_cliente=nome_cliente,
+                data_homologacao=data_de_termino_original,  # Data de Homologação
+                modalidade=modalidade
+            )
+            
+            if sucesso_homolog:
+                print(f"[INFO][INICIAR_IMPLANTACAO] ✅ Evento de Homologação criado: {event_id_homolog}")
+                mensagens_zoho.append(f"Evento de Homologação criado no Google Calendar para {_fmt_ddmmyyyy(data_de_termino_original)}")
+            else:
+                print(f"[WARN][INICIAR_IMPLANTACAO] ⚠️  Falha ao criar evento de Homologação: {erro_homolog}")
+                mensagens_zoho.append(f"Aviso: Evento de Homologação não pôde ser criado ({erro_homolog})")
+            
+            # Criar evento de Virada
+            sucesso_virada, event_id_virada, erro_virada = criar_evento_virada(
+                credentials=creds,
+                nome_cliente=nome_cliente,
+                data_virada=data_de_virada_original,  # Data de Virada
+                modalidade=modalidade
+            )
+            
+            if sucesso_virada:
+                print(f"[INFO][INICIAR_IMPLANTACAO] ✅ Evento de Virada criado: {event_id_virada}")
+                mensagens_zoho.append(f"Evento de Virada criado no Google Calendar para {_fmt_ddmmyyyy(data_de_virada_original)}")
+            else:
+                print(f"[WARN][INICIAR_IMPLANTACAO] ⚠️  Falha ao criar evento de Virada: {erro_virada}")
+                mensagens_zoho.append(f"Aviso: Evento de Virada não pôde ser criado ({erro_virada})")
+                
+        except Exception as e:
+            # Log o erro mas não falha a operação principal
+            print(f"[WARN][INICIAR_IMPLANTACAO] Erro ao criar eventos no Google Calendar: {str(e)}")
+            traceback.print_exc()
+            mensagens_zoho.append(f"Aviso: Eventos no Google Calendar não puderam ser criados ({str(e)})")
+
         # ==== 2. SEGUNDO: Atualizar PLANILHA PRINCIPAL ====
         print(f"[DEBUG][INICIAR_IMPLANTACAO] Iniciando atualização da planilha...")
         
@@ -1678,13 +1974,6 @@ def iniciar_implantacao():
 
         if not chave_busca:
             return jsonify({"sucesso": False, "erro": "Não foi possível identificar o cliente do projeto."}), 400
-
-        def _fmt_ddmmyyyy(s: str) -> str:
-            try:
-                y, m, d = s.split('-')
-                return f"{d.zfill(2)}/{m.zfill(2)}/{y}"
-            except Exception:
-                return s
 
         def _primeiro_nome(nome: str) -> str:
             nome = (nome or '').strip()
@@ -2213,6 +2502,82 @@ def obter_progresso_fases(project_id):
             'sucesso': False,
             'erro': str(e),
             'progresso': {'NR': None, 'AP': None, 'IMP': None, 'INT': None}
+        }), 500
+
+
+@api_bp.route('/agendar-implantacao', methods=['POST'])
+def api_agendar_implantacao():
+    """
+    Endpoint para agendar implantação:
+    - Adiciona implantadores ao projeto
+    - Atribui tarefas RIS ou PACS aos implantadores
+    
+    Body esperado:
+    {
+        "project_id": "2376502000005544019",
+        "tipo_projeto": "RIS" ou "PACS"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'sucesso': False,
+                'erro': 'Nenhum dado recebido'
+            }), 400
+        
+        project_id = data.get('project_id')
+        tipo_projeto = data.get('tipo_projeto', '').upper()
+        
+        # Validações
+        if not project_id:
+            return jsonify({
+                'sucesso': False,
+                'erro': 'project_id é obrigatório'
+            }), 400
+        
+        if tipo_projeto not in ['RIS', 'PACS']:
+            return jsonify({
+                'sucesso': False,
+                'erro': 'tipo_projeto deve ser RIS ou PACS'
+            }), 400
+        
+        logger.info(f"🚀 Agendando implantação {tipo_projeto} para projeto {project_id}")
+        
+        # Obter access token
+        access_token = utils.obter_access_token()
+        
+        if not access_token:
+            return jsonify({
+                'sucesso': False,
+                'erro': 'Não foi possível obter access token'
+            }), 500
+        
+        # Importar e executar o manager
+        from implantacao_manager import agendar_implantacao_simplificado
+        
+        resultado = agendar_implantacao_simplificado(
+            project_id=project_id,
+            tipo_projeto=tipo_projeto,
+            access_token=access_token,
+            portal_id=ZOHO_PORTAL_ID
+        )
+        
+        if resultado['sucesso']:
+            logger.info(f"✅ Implantação agendada com sucesso: {resultado['mensagem']}")
+            return jsonify(resultado), 200
+        else:
+            logger.error(f"❌ Falha ao agendar implantação: {resultado['mensagem']}")
+            return jsonify(resultado), 400
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao agendar implantação: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e),
+            'mensagem': 'Erro interno ao agendar implantação'
         }), 500
 
 

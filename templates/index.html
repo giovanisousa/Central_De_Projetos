@@ -1265,45 +1265,6 @@
 
         document.getElementById('closePlayModal')?.addEventListener('click', fecharModalPlay);
 
-        document.getElementById('play-form')?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const project_id = document.getElementById('play-project-id').value;
-            const data_inicio_implantacao = document.getElementById('data_inicio_implantacao').value;
-            const implantador_ris = document.getElementById('implantador_ris').value;
-            const implantador_pacs = document.getElementById('implantador_pacs').value;
-
-            const formData = {
-                project_id,
-                data_inicio_implantacao,
-                implantador_ris,
-                implantador_pacs
-            };
-
-            try {
-                const response = await fetch('/api/iniciar_implantacao', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(formData),
-                });
-
-                const result = await response.json();
-
-                if (result.sucesso) {
-                    mostrarToast(result.mensagem || 'Dados de implantação atualizados com sucesso!', 'success');
-                } else {
-                    mostrarToast(result.erro || 'Falha ao atualizar dados de implantação.', 'error');
-                }
-            } catch (error) {
-                console.error('Erro ao submeter formulário de implantação:', error);
-                mostrarToast('Erro de comunicação com o servidor.', 'error');
-            } finally {
-                fecharModalPlay();
-            }
-        });
-
         // ===== Comentários em Projeto =====
         let projetoParaComentar = null;
         function abrirModalComentario(projeto) {

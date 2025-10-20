@@ -68,26 +68,72 @@
     "zohoCustomFields": {
       "data_de_inicio_da_implantacao": "CURRENT_DATE"
     },
+    "calculatedFields": {
+      "data_termino_original": {
+        "type": "add_calendar_days",
+        "baseField": "data_de_inicio_da_implantacao",
+        "daysRules": {
+          "netRIS": 95,
+          "AnimatiPACS": 35,
+          "default": 95
+        },
+        "determinedBy": "produtos_contratados",
+        "adjustToMonday": true,
+        "description": "Data de Homologação Prevista - Varia conforme produtos: netRIS (95 dias corridos) ou apenas AnimatiPACS (35 dias corridos)"
+      },
+      "data_de_termino_original": {
+        "type": "add_calendar_days",
+        "baseField": "data_termino_original",
+        "days": 7,
+        "adjustToMonday": true,
+        "description": "Data de Virada Prevista (1 semana após homologação)"
+      }
+    },
+    "googleCalendar": {
+      "createEvents": true,
+      "events": [
+        {
+          "type": "homologacao",
+          "dateField": "data_termino_original",
+          "titleTemplate": "Homologação {cliente}",
+          "weekSpan": true,
+          "colorId": "3"
+        },
+        {
+          "type": "virada",
+          "dateField": "data_de_termino_original",
+          "titleTemplate": "Virada {cliente}",
+          "weekSpan": true,
+          "colorId": "3"
+        }
+      ]
+    },
     "triggers": []
   },
   "Em Homologação": {
     "sheetStatus": "Em Homologação",
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000000983053"],
-    "zohoTagsToRemove": [],
-    "zohoCustomFields": {},
+    "zohoTagsToRemove": ["2376502000000188201"],
+    "zohoCustomFields": {
+      "data_de_homologacao": "CURRENT_DATE"
+    },
     "triggers": [
       {
         "type": "taskComment",
         "taskName": "02.01.01 - Validação do DEIP",
         "mentions": ["Giovani Sousa"],
-        "template": "Olá {mentions}, favor validar o DEIP e registrar feedback."
-      },
-      {
-        "type": "workflow",
-        "name": "preencher_dpi_homologacao"
+        "template": "Olá {mentions}, favor validar o DEIP e registrar feedback.",
+        "optional": true
       }
-    ]
+    ],
+    "onTransition": {
+      "from_Em_Andamento_-_Implantação": {
+        "sheetColumns": {
+          "Dt Homolog": "CURRENT_DATE_DDMMYYYY"
+        }
+      }
+    }
   },
   "Em Virada": {
     "sheetStatus": "Em Virada",

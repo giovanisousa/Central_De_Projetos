@@ -21,13 +21,17 @@ ID_PLANILHA_PROJETOS_SECUNDARIA = "12_eu6174i93OUK3CnN_u9CVeH0ZtOaUANC34JHXgBjM"
 NOME_ABA_PLANILHA_SECUNDARIA = "Em andamento"
 COLUNA_REFERENCIA_SECUNDARIA = "Cliente"
 SCOPES_GOOGLE = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/documents',
-    'openid',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile'
+    'https://www.googleapis.com/auth/calendar'
 ]
+
+# --- GOOGLE CALENDAR ---
+GOOGLE_CALENDAR_ID = "animati.com.br_g82f2343cocg9tgr5soplsl210@group.calendar.google.com"
 
 # --- ZOHO API ---
 ZOHO_CLIENT_ID = "1000.FHMB9OAB6ARPGZN1IS5ORTIKNTT1DR"
