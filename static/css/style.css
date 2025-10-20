@@ -693,7 +693,7 @@ body.kanban-page {
     display: flex;
     flex-direction: column;
 
-    min-height: auto; /* Ajustado para expansão automática */
+    min-height: auto; /* Ajustado para expansï¿½o automï¿½tica */
 }
 
 /* Destaque visual para novo projeto inserido */
@@ -1703,7 +1703,7 @@ body.kanban-page {
     display: flex;
     flex-direction: column;
 
-    min-height: auto; /* Ajustado para expansão automática */
+    min-height: auto; /* Ajustado para expansï¿½o automï¿½tica */
 }
 
 /* Destaque visual para novo projeto inserido */
@@ -2700,3 +2700,113 @@ body.login-page {
 
 
 
+
+/* ========================================= */
+/* ESTILOS DE BUSCA - Feature de Pesquisa */
+/* ========================================= */
+
+/* Campo de pesquisa - fundo branco gelo */
+.kanban-page #searchInput {
+    padding: 8px 16px;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    background: #F0F8FF !important;
+    color: #2c3e50 !important;
+    min-width: 200px;
+}
+
+.kanban-page #searchInput:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    background: #FFFFFF !important;
+}
+
+.kanban-page #searchInput::placeholder {
+    color: #A0A0A0;
+    font-weight: 400;
+}
+
+/* Botï¿½es de navegaï¿½ï¿½o da busca - roxo gradiente */
+.kanban-page #prevSearchButton,
+.kanban-page #nextSearchButton,
+.kanban-page #searchButton,
+.kanban-page #clearSearchButton {
+    padding: 4px 10px;
+    display: inline-block;
+    min-width: auto;
+    width: auto;
+    border: 2px solid #667eea;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.kanban-page #prevSearchButton:hover,
+.kanban-page #nextSearchButton:hover,
+.kanban-page #searchButton:hover {
+    background: linear-gradient(135deg, #764ba2, #667eea);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+}
+
+.kanban-page #prevSearchButton:active,
+.kanban-page #nextSearchButton:active,
+.kanban-page #searchButton:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+/* Botï¿½o de limpar (X) - vermelho suave */
+.kanban-page #clearSearchButton {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border-color: #e74c3c;
+    padding: 6px 12px;
+    font-weight: 700;
+}
+
+.kanban-page #clearSearchButton:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(231, 76, 60, 0.4);
+}
+
+.kanban-page #clearSearchButton:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(231, 76, 60, 0.3);
+}
+
+/* Grupo de busca - alinhamento */
+.kanban-page .search-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Borda animada no card encontrado */
+.kanban-page .card-encontrado {
+    border: 3px solid #667eea !important;
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.6),
+                0 0 40px rgba(118, 75, 162, 0.4) !important;
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% {
+        border-color: #667eea;
+        box-shadow: 0 0 20px rgba(102, 126, 234, 0.6),
+                    0 0 40px rgba(118, 75, 162, 0.4);
+    }
+    50% {
+        border-color: #764ba2;
+        box-shadow: 0 0 30px rgba(118, 75, 162, 0.8),
+                    0 0 60px rgba(102, 126, 234, 0.5);
+    }
+}

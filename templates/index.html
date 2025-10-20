@@ -12,9 +12,33 @@
 <body class="kanban-page">
     <div class="container">
         <div class="header">
-            <h1>📊 Dashboard de Projetos</h1>
+            <h1 id="dashboardTitle">📊 Dashboard de Projetos</h1>
             
             <div class="controls">
+                <!-- Campo de busca de projetos -->
+                <div class="control-group search-group">
+                    <label for="searchInput">🔍 Buscar Projeto:</label>
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        placeholder="Digite parte do nome do projeto..."
+                        title="Digite parte do nome e pressione Enter ou clique em Buscar"
+                        onkeypress="if(event.key === 'Enter') buscarProjeto()"
+                    >
+                    <button id="searchButton" onclick="buscarProjeto()" title="Buscar Projeto">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button id="prevSearchButton" onclick="resultadoAnterior()" title="Resultado Anterior" style="display: none;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button id="nextSearchButton" onclick="proximoResultado()" title="Próximo Resultado" style="display: none;">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button id="clearSearchButton" onclick="limparBusca()" title="Limpar Busca" style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
                 <div class="control-group">
                     <label for="gpSelect">Selecionar GP:</label>
                     <select id="gpSelect" {% if user_name %}disabled{% endif %}>
@@ -691,6 +715,7 @@
             card.draggable = true;
             card.dataset.projetoId = projeto.id;
             card.dataset.colunaOrigem = coluna;
+            card.dataset.projectName = projeto.nome;  // 🔍 Para busca confiável
             card.style.opacity = '0';
             card.style.transform = 'translateY(20px)';
             card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
@@ -1312,6 +1337,218 @@
                 }
             } catch (e) {
                 if (window.mostrarToast) window.mostrarToast('Erro de comunicação com o servidor.', 'error');
+            }
+        });
+
+        // ===== Busca de Projetos =====
+        let cardsEncontrados = [];
+        let indiceAtual = -1;
+
+        /**
+         * Normaliza texto para busca (remove acentos, lowercase, trim)
+         */
+        function normalizarParaBusca(texto) {
+            if (!texto) return '';
+            return texto
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+                .trim();
+        }
+
+        /**
+         * Busca projetos pelo nome e permite navegação entre múltiplos resultados
+         */
+        function buscarProjeto() {
+            const searchInput = document.getElementById('searchInput');
+            const searchTerm = normalizarParaBusca(searchInput?.value || '');
+            
+            if (!searchTerm) {
+                mostrarToast('Digite algo para buscar', 'warning');
+                return;
+            }
+
+            // Remove destaques anteriores
+            cardsEncontrados.forEach(card => card.classList.remove('card-encontrado'));
+            cardsEncontrados = [];
+            indiceAtual = -1;
+
+            // Busca em todos os cards visíveis
+            const todosCards = document.querySelectorAll('.project-card');
+            
+            for (const card of todosCards) {
+                // Busca pelo atributo data-project-name (mais confiável) ou pelo título
+                let nomeCard = card.getAttribute('data-project-name');
+                
+                if (!nomeCard) {
+                    // Fallback: busca no elemento de título
+                    const nomeElement = card.querySelector('.project-name');
+                    nomeCard = nomeElement?.textContent || '';
+                }
+                
+                const nomeNormalizado = normalizarParaBusca(nomeCard);
+                
+                if (nomeNormalizado.includes(searchTerm)) {
+                    cardsEncontrados.push({
+                        card: card,
+                        coluna: obterNomeColuna(card),
+                        nome: nomeCard.trim()
+                    });
+                }
+            }
+
+            if (cardsEncontrados.length === 0) {
+                mostrarToast(`❌ Nenhum projeto encontrado com "${searchInput.value}"`, 'error');
+                esconderBotoesNavegacao();
+            } else if (cardsEncontrados.length === 1) {
+                // Apenas 1 resultado - destaca e rola
+                indiceAtual = 0;
+                destacarEMostrarCard(cardsEncontrados[0]);
+                mostrarToast(`✅ Projeto encontrado: "${cardsEncontrados[0].nome}"`, 'success');
+                esconderBotoesNavegacao();
+            } else {
+                // Múltiplos resultados - mostra o primeiro e avisa
+                indiceAtual = 0;
+                destacarEMostrarCard(cardsEncontrados[0]);
+                mostrarToast(
+                    `🔍 Encontrados ${cardsEncontrados.length} projetos. Use ◀ ▶ para navegar ou seja mais específico.`,
+                    'info',
+                    5000
+                );
+                mostrarBotoesNavegacao();
+            }
+        }
+
+        /**
+         * Obtém o nome da coluna de um card
+         */
+        function obterNomeColuna(card) {
+            const coluna = card.closest('.kanban-column');
+            if (coluna) {
+                const colunaHeader = coluna.querySelector('.column-header h2');
+                return colunaHeader?.textContent || 'Coluna';
+            }
+            return 'Coluna';
+        }
+
+        /**
+         * Destaca um card e rola até ele
+         */
+        function destacarEMostrarCard(resultado) {
+            // Remove destaque de todos
+            cardsEncontrados.forEach(r => r.card.classList.remove('card-encontrado'));
+            
+            // Destaca o atual
+            resultado.card.classList.add('card-encontrado');
+            
+            // Atualiza badge com posição
+            if (cardsEncontrados.length > 1) {
+                resultado.card.setAttribute('data-result-position', `${indiceAtual + 1}/${cardsEncontrados.length}`);
+            }
+            
+            // Rola até o card e centraliza
+            resultado.card.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'center'
+            });
+        }
+
+        /**
+         * Navega para o próximo resultado
+         */
+        function proximoResultado() {
+            if (cardsEncontrados.length === 0) return;
+            
+            indiceAtual = (indiceAtual + 1) % cardsEncontrados.length;
+            destacarEMostrarCard(cardsEncontrados[indiceAtual]);
+            
+            mostrarToast(
+                `📍 Projeto ${indiceAtual + 1} de ${cardsEncontrados.length}: "${cardsEncontrados[indiceAtual].nome}"`,
+                'info',
+                2000
+            );
+        }
+
+        /**
+         * Navega para o resultado anterior
+         */
+        function resultadoAnterior() {
+            if (cardsEncontrados.length === 0) return;
+            
+            indiceAtual = (indiceAtual - 1 + cardsEncontrados.length) % cardsEncontrados.length;
+            destacarEMostrarCard(cardsEncontrados[indiceAtual]);
+            
+            mostrarToast(
+                `📍 Projeto ${indiceAtual + 1} de ${cardsEncontrados.length}: "${cardsEncontrados[indiceAtual].nome}"`,
+                'info',
+                2000
+            );
+        }
+
+        /**
+         * Mostra botões de navegação entre resultados
+         */
+        function mostrarBotoesNavegacao() {
+            const prevBtn = document.getElementById('prevSearchButton');
+            const nextBtn = document.getElementById('nextSearchButton');
+            const clearBtn = document.getElementById('clearSearchButton');
+            
+            if (prevBtn) prevBtn.style.display = 'inline-block';
+            if (nextBtn) nextBtn.style.display = 'inline-block';
+            if (clearBtn) clearBtn.style.display = 'inline-block';
+        }
+
+        /**
+         * Esconde botões de navegação
+         */
+        function esconderBotoesNavegacao() {
+            const prevBtn = document.getElementById('prevSearchButton');
+            const nextBtn = document.getElementById('nextSearchButton');
+            const clearBtn = document.getElementById('clearSearchButton');
+            
+            if (prevBtn) prevBtn.style.display = 'none';
+            if (nextBtn) nextBtn.style.display = 'none';
+            
+            // Mostra apenas o botão limpar se houver resultado único
+            if (cardsEncontrados.length === 1 && clearBtn) {
+                clearBtn.style.display = 'inline-block';
+            } else if (cardsEncontrados.length === 0 && clearBtn) {
+                clearBtn.style.display = 'none';
+            }
+        }
+
+        /**
+         * Limpa a busca e remove o destaque do card
+         */
+        function limparBusca() {
+            const searchInput = document.getElementById('searchInput');
+            
+            if (searchInput) searchInput.value = '';
+
+            // Remove destaques
+            cardsEncontrados.forEach(r => r.card.classList.remove('card-encontrado'));
+            cardsEncontrados = [];
+            indiceAtual = -1;
+
+            // Esconde todos os botões
+            esconderBotoesNavegacao();
+
+            mostrarToast('Busca limpa', 'info');
+        }
+
+        // Permite buscar pressionando Enter no campo de busca
+        document.getElementById('searchInput')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                buscarProjeto();
+            }
+        });
+
+        // Limpa a busca quando o campo fica vazio
+        document.getElementById('searchInput')?.addEventListener('input', function(e) {
+            if (!e.target.value.trim()) {
+                limparBusca();
             }
         });
     </script>
