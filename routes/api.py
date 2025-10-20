@@ -671,8 +671,33 @@ def carregar_projetos():
                 print(f"ID={p['id']} | Nome={p['nome']} | Status={p['status_nome']} ({p['status_id']}) | Tags={p['tags']} | Mapeado como='{p['status_kanban']}'")
             print("=================================================")
 
+        # Função auxiliar para converter dias_na_fase em número para ordenação
+        def extrair_dias_numericos(projeto):
+            """
+            Converte o valor de dias_na_fase para número para ordenação.
+            - "Hoje" -> 0
+            - "1d", "2d", etc -> 1, 2, etc
+            - "N/D" -> -1 (vai para o final)
+            - "Futuro" -> -2 (vai para o final)
+            """
+            dias_str = projeto.get('dias_na_fase', 'N/D')
+            if dias_str == 'Hoje':
+                return 0
+            elif dias_str == 'N/D':
+                return -1
+            elif dias_str == 'Futuro':
+                return -2
+            elif isinstance(dias_str, str) and dias_str.endswith('d'):
+                try:
+                    return int(dias_str[:-1])  # Remove o 'd' e converte para int
+                except ValueError:
+                    return -1
+            else:
+                return -1
+
+        # Ordena cada coluna por dias_na_fase (DECRESCENTE: mais dias no topo)
         for status, projetos in projetos_por_status.items():
-            projetos_por_status[status] = sorted(projetos, key=lambda p: p['nome'])
+            projetos_por_status[status] = sorted(projetos, key=extrair_dias_numericos, reverse=True)
             
         return jsonify({
             "sucesso": True,
