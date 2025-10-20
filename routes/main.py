@@ -74,6 +74,12 @@ def oauth2callback():
     incoming_state = request.args.get('state')
     state = saved_state or incoming_state
 
+    # Verifica se houve erro no callback
+    error = request.args.get('error')
+    if error:
+        flash(f'Erro na autenticação: {error}', 'danger')
+        return redirect(url_for('main.login_page'))
+
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_PATH,
         scopes=SCOPES_GOOGLE,
@@ -81,7 +87,23 @@ def oauth2callback():
         redirect_uri=url_for('main.oauth2callback', _external=True)
     )
     authorization_response = request.url
-    flow.fetch_token(authorization_response=authorization_response)
+    
+    # Tenta obter o token com tratamento de erros
+    try:
+        # Ignora warnings de mudança de escopo (scope) do OAuth
+        # Isso pode acontecer quando novos escopos são adicionados (ex: Calendar API)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', message='Scope has changed')
+            flow.fetch_token(authorization_response=authorization_response)
+    except Exception as e:
+        error_msg = str(e)
+        if 'invalid_grant' in error_msg.lower():
+            flash('Erro na autenticação: o código de autorização expirou ou já foi usado. Por favor, tente fazer login novamente.', 'danger')
+        else:
+            flash(f'Erro ao obter token de autenticação: {error_msg}', 'danger')
+        return redirect(url_for('main.login_page'))
+    
     credentials = flow.credentials
 
     temp_creds = Credentials(

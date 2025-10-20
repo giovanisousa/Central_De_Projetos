@@ -1,35 +1,107 @@
 # 🐛 Issues Conhecidos
 
-## ❌ Erro 500 ao Adicionar Usuários ao Projeto
+## ❌ Erro ao Adicionar Usuários ao Projeto - Escopo OAuth Insuficiente
 
-**Status:** Pendente investigação  
-**Data:** 12/10/2025  
+**Status:** ✅ Causa Identificada - Pendente Resolução  
+**Data:** 12/10/2025 | Atualizado: 15/10/2025  
 **Prioridade:** Média
 
 ### Descrição
-Ao tentar adicionar implantadores (RIS/PACS) ao projeto via API do Zoho, ocorre erro 500 (Internal Server Error).
+Ao tentar adicionar implantadores (RIS/PACS) ao projeto via API do Zoho, ocorre erro de permissão OAuth.
 
 ### Endpoint Afetado
 ```
 POST https://projectsapi.zoho.com/api/v3/portal/{PORTAL_ID}/projects/{PROJECT_ID}/projectusers
 ```
 
-### Payload Enviado
+### ✅ Descoberta (15/10/2025)
+
+Após teste seguindo a **documentação oficial** do Zoho Projects API v3, identificamos que:
+
+1. **Payload Correto** (conforme documentação):
+   ```json
+   {
+     "userdetails": [{
+       "email_id": "usuario@animati.com.br"
+     }],
+     "notify": false
+   }
+   ```
+   - ✅ **NÃO** usar `zpuid` (não existe na documentação oficial)
+   - ✅ Usar apenas `email_id` como campo obrigatório
+   - ✅ Outros campos são opcionais: `profile_id`, `role_id`, `rate`, etc.
+
+2. **Erro Real**:
+   ```json
+   {
+     "error": {
+       "status_code": "401",
+       "title": "INVALID_OAUTHSCOPE",
+       "error_type": "FIELDS_VALIDATION_ERROR",
+       "details": [{
+         "message": "Invalid OAuth scope."
+       }]
+     }
+   }
+   ```
+   **Status Code:** 401 Unauthorized
+
+### Causa Raiz Identificada
+
+❌ **O token de acesso não possui escopo OAuth necessário para adicionar usuários ao projeto**
+
+O erro 500 anterior era provavelmente um bug do Zoho ao tentar processar uma requisição sem permissão adequada.
+
+### Escopos OAuth do Zoho Projects
+
+**Escopo Necessário (provável):**
+- `ZohoProjects.projectusers.CREATE` ou
+- `ZohoProjects.projectusers.ALL` ou  
+- `ZohoProjects.projects.ALL`
+
+**Escopo Atual:**
+- Provável que temos apenas escopo de leitura/escrita de projetos básicos
+- Não temos escopo para gerenciar membros da equipe
+
+### Payload Testado (Correto)
 ```json
 {
   "userdetails": [{
-    "email_id": "implantador@animati.com.br",
-    "zpuid": "2376502000000080073"
+    "email_id": "camilo.rodrigues@animati.com.br"
   }],
-  "notify": "false"
+  "notify": false
 }
 ```
 
-### Resposta da API
-```
-Status Code: 500
-Message: Internal Server Error
-```
+### Próximos Passos para Resolução
+
+1. **Investigar Escopos Disponíveis:**
+   - Consultar documentação de OAuth do Zoho Projects
+   - Identificar escopo específico para gerenciamento de usuários
+   - Verificar se é `ZohoProjects.projectusers.ALL` ou similar
+
+2. **Atualizar Configuração OAuth:**
+   - Adicionar escopo necessário em `config.py` (similar ao que foi feito com Calendar)
+   - Exemplo: Adicionar à lista de escopos do Zoho
+
+3. **Re-autorizar Aplicação:**
+   - Usuários precisarão fazer novo login OAuth
+   - O Zoho solicitará permissão adicional para gerenciar membros da equipe
+   - Novo token será gerado com permissões expandidas
+
+4. **Re-testar:**
+   - Executar `test_add_user_to_project.py` novamente
+   - Verificar se requisição é autorizada (status 200)
+   - Validar que usuário é adicionado ao projeto
+
+5. **Implementar Funcionalidade:**
+   - Após confirmação de funcionamento, implementar na função de criação de projeto
+   - Adicionar tratamento de erros específico para escopo OAuth
+
+### Workaround Temporário
+Adicionar implantadores manualmente pelo painel web do Zoho Projects.
+
+---
 
 ### Possíveis Causas
 1. ❓ Problema temporário na API do Zoho
@@ -139,6 +211,184 @@ PATCH https://projectsapi.zoho.com/api/v3/portal/{PORTAL_ID}/projects/{PROJECT_I
 
 ---
 
+## 📋 Melhorias Pendentes
+
+### Mensagem Genérica na Tarefa de Validação do DEIP
+
+**Status:** Pendente Correção  
+**Data:** 15/10/2025  
+**Prioridade:** Baixa
+
+#### Descrição
+Atualmente, quando um card é movido para **"Falta Liberar Servidor Infra"**, é adicionado um comentário genérico na tarefa "Validação do DEIP" informando apenas que o projeto foi movido, sem contexto específico sobre a ação necessária.
+
+#### Problema Atual
+
+**Tarefa Afetada:** "Validação do DEIP"
+
+**Mensagem Atual:**
+```
+Projeto movido para 'Falta Liberar Servidor Infra'. Onboarding realizado.
+```
+
+**Problema:** 
+- ❌ Mensagem genérica sem ação clara
+- ❌ Não solicita explicitamente a liberação do servidor
+- ❌ Falta contexto sobre o que precisa ser feito
+
+#### Comportamento Desejado
+
+**Mensagem Sugerida:**
+```
+Onboarding realizado com sucesso! 
+
+Por favor, solicitar à equipe de infraestrutura a liberação do servidor para início das atividades de implantação.
+
+Após a liberação, atualizar o status do projeto para "Em Andamento".
+```
+
+**OU (mais direto):**
+```
+@{Equipe Infra}, favor liberar o servidor para início da implantação.
+
+Detalhes do projeto: [link ou descrição]
+```
+
+#### Implementação
+
+**Arquivo:** `mapeamento_colunas.json`
+
+**Localização:** Seção "Falta Liberar Servidor Infra" → triggers → taskComment "Validação do DEIP"
+
+**Alteração Sugerida:**
+```json
+{
+  "type": "taskComment",
+  "taskName": "Validação do DEIP",
+  "template": "Onboarding realizado com sucesso! Por favor, solicitar à equipe de infraestrutura a liberação do servidor para início das atividades de implantação."
+}
+```
+
+#### Impacto
+**Baixo** - Melhoria de UX e clareza de comunicação. Não afeta funcionalidade crítica.
+
+---
+
+### Notificações em Tarefas ao Mover para "Falta Liberar Servidor Infra"
+
+**Status:** Pendente Implementação  
+**Data:** 15/10/2025  
+**Prioridade:** Média
+
+#### Descrição
+Quando um card é movido de **"Aguardando Onboarding"** para **"Falta Liberar Servidor Infra"**, o sistema deve enviar comentários automáticos nas tarefas de integração e importação informando que os grupos foram criados.
+
+#### Comportamento Desejado
+
+**Evento:** Card movido de "Aguardando Onboarding" → "Falta Liberar Servidor Infra"
+
+**Ações:**
+1. Adicionar comentário na(s) tarefa(s) de **Integração**:
+   ```
+   Grupos criados com sucesso. Servidor aguardando liberação pela infraestrutura.
+```2. Adicionar comentário na(s) tarefa(s) de **Importação**:
+   ```
+   Grupos criados com sucesso. Servidor aguardando liberação pela infraestrutura.
+   ```
+
+#### Tarefas Candidatas
+- Tarefas com nome contendo: "integração", "worklist", "retorno de laudos"
+- Tarefas com nome contendo: "importação", "cadastros", "prontuários"
+
+#### Implementação Sugerida
+Adicionar em `mapeamento_colunas.json` na seção **"Falta Liberar Servidor Infra"**:
+
+```json
+{
+  "Falta Liberar Servidor Infra": {
+    "triggers": [
+      {
+        "type": "taskComment",
+        "taskNamePattern": "(integr|worklist|laudo)",
+        "template": "Grupos criados com sucesso. Servidor aguardando liberação pela infraestrutura.",
+        "optional": true
+      },
+      {
+        "type": "taskComment", 
+        "taskNamePattern": "(import|cadastro|prontu)",
+        "template": "Grupos criados com sucesso. Servidor aguardando liberação pela infraestrutura.",
+        "optional": true
+      }
+    ]
+  }
+}
+```
+
+**Observação:** Requer implementação de busca por regex em `taskNamePattern` na função `_executar_triggers()`.
+
+---
+
+### Notificações em Tarefas ao Sair de "Falta Liberar Servidor Infra"
+
+**Status:** Pendente Implementação  
+**Data:** 15/10/2025  
+**Prioridade:** Média
+
+#### Descrição
+Quando um card é movido **DE** "Falta Liberar Servidor Infra" **PARA** qualquer outra coluna (normalmente "Em Andamento"), o sistema deve enviar comentários automáticos nas tarefas de integração e importação informando que o servidor foi liberado.
+
+#### Comportamento Desejado
+
+**Evento:** Card movido de "Falta Liberar Servidor Infra" → (qualquer coluna de destino)
+
+**Ações:**
+1. Adicionar comentário na(s) tarefa(s) de **Integração**:
+   ```
+   Servidor liberado pela infraestrutura. Podem dar sequência nas atividades de integração.
+   ```
+
+2. Adicionar comentário na(s) tarefa(s) de **Importação**:
+   ```
+   Servidor liberado pela infraestrutura. Podem dar sequência nas atividades de importação.
+   ```
+
+#### Tarefas Candidatas
+- Tarefas com nome contendo: "integração", "worklist", "retorno de laudos", "RIS/HIS"
+- Tarefas com nome contendo: "importação", "cadastros", "prontuários"
+
+#### Implementação Sugerida
+Adicionar em `mapeamento_colunas.json` na seção **"Falta Liberar Servidor Infra"** usando `onExit`:
+
+```json
+{
+  "Falta Liberar Servidor Infra": {
+    "onExit": {
+      "triggers": [
+        {
+          "type": "taskComment",
+          "taskNamePattern": "(integr|worklist|laudo|ris|his)",
+          "template": "Servidor liberado pela infraestrutura. Podem dar sequência nas atividades de integração.",
+          "optional": true
+        },
+        {
+          "type": "taskComment",
+          "taskNamePattern": "(import|cadastro|prontu)",
+          "template": "Servidor liberado pela infraestrutura. Podem dar sequência nas atividades de importação.",
+          "optional": true
+        }
+      ]
+    }
+  }
+}
+```
+
+**Observações:**
+- Requer implementação de `onExit.triggers` na função `api_mover_projeto()`
+- Requer suporte a `taskNamePattern` com regex na função `_executar_triggers()`
+- Triggers devem ser `optional: true` para não bloquear movimentação se tarefas não existirem
+
+---
+
 ## ✅ Issues Resolvidos
 
 ### Data de Início da Implantação Sempre com Data Atual
@@ -153,4 +403,4 @@ PATCH https://projectsapi.zoho.com/api/v3/portal/{PORTAL_ID}/projects/{PROJECT_I
 
 ---
 
-**Última atualização:** 12/10/2025
+**Última atualização:** 15/10/2025
