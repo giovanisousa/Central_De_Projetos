@@ -1,0 +1,93 @@
+/* Estilo para informações dos Implantadores nos cards */
+.implantadores-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid #3B82F6;
+    border-radius: 4px;
+    margin-top: 8px;
+    font-size: 0.75rem;
+}
+
+/* Estilo para implantadores quando estão como project-detail (inline com outras infos) */
+.project-detail.implantadores-detail {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    background: none;
+    border: none;
+    margin-top: 0;
+}
+
+.project-detail.implantadores-detail .icon {
+    font-size: 0.9rem;
+}
+
+.project-detail.implantadores-detail .implantadores-badges {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 3px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.implantadores-info i {
+    color: #3B82F6;
+    font-size: 0.85rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.implantadores-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+}
+
+.implantador-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: fit-content;
+}
+
+.implantador-badge.ris-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.implantador-badge.pacs-badge {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: #fff;
+    border: 1px solid rgba(240, 147, 251, 0.3);
+}
+
+/* Ajuste do posicionamento no card */
+.project-card {
+    position: relative;
+    padding-bottom: 10px;
+}
+
+/* Responsividade para nomes muito longos */
+@media (max-width: 768px) {
+    .implantador-badge {
+        font-size: 0.6rem;
+        padding: 1px 4px;
+    }
+    
+    .implantadores-info {
+        font-size: 0.7rem;
+    }
+}

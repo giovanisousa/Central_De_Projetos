@@ -6,6 +6,7 @@
     <title>Dashboard de Projetos</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/data-homologacao.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/implantadores.css') }}">
     <!-- Ícones para contadores do card -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
@@ -745,6 +746,45 @@
                 `;
             }
 
+            // 2.1. Implantadores (apenas para coluna "Em Andamento - Implantação")
+            let implantadoresHtml = '';
+            if (coluna === 'Em Andamento - Implantação') {
+                // Extrair apenas o primeiro nome dos implantadores
+                const extrairPrimeiroNome = (nomeCompleto) => {
+                    if (!nomeCompleto) return null;
+                    return nomeCompleto.split(' ')[0];
+                };
+                
+                const implantadorRIS = extrairPrimeiroNome(projeto.implantador_ris);
+                const implantadorPACS = extrairPrimeiroNome(projeto.implantador_pacs);
+                
+                console.log('Implantadores para projeto', projeto.id, ':', {
+                    ris_completo: projeto.implantador_ris,
+                    pacs_completo: projeto.implantador_pacs,
+                    ris_primeiro: implantadorRIS,
+                    pacs_primeiro: implantadorPACS
+                });
+                
+                if (implantadorRIS || implantadorPACS) {
+                    let implantadoresText = '';
+                    
+                    if (implantadorRIS) {
+                        implantadoresText += `<span class="implantador-badge ris-badge" title="Implantador RIS: ${projeto.implantador_ris}">📱 ${implantadorRIS}</span>`;
+                    }
+                    
+                    if (implantadorPACS) {
+                        implantadoresText += `<span class="implantador-badge pacs-badge" title="Implantador PACS: ${projeto.implantador_pacs}">💻 ${implantadorPACS}</span>`;
+                    }
+                    
+                    implantadoresHtml = `
+                        <div class="project-detail implantadores-detail">
+                            <span class="icon">👥</span>
+                            <span class="implantadores-badges">${implantadoresText}</span>
+                        </div>
+                    `;
+                }
+            }
+
             // 3. Botão de adicionar comentário
             const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;
 
@@ -776,6 +816,7 @@
                             <span class="icon">📅</span>
                             <span>${formatDateToDDMMYYYY(projeto.data_inicio_formatada || projeto.data_inicio || projeto.start_date || '')}</span>
                         </div>
+                        ${implantadoresHtml}
                     </div>
                 </div>
                 <div class="play-btn-container">
@@ -866,17 +907,24 @@
                                 })
                             });
                             const data = await resp.json();
-                            if (!resp.ok || data.sucesso !== True && data.sucesso !== true) {
+                            
+                            // Verificar se houve sucesso
+                            if (!resp.ok || (data.sucesso === false)) {
                                 const msg = data && (data.erro || data.mensagem || JSON.stringify(data));
                                 alert('Falha ao agendar implantação: ' + (msg || 'Erro desconhecido'));
                                 return;
                             }
-                            // Sucesso
-                            if (window.mostrarToast) window.mostrarToast('Implantação agendada. Planilha atualizada.', 'success');
+                            
+                            // Sucesso - Fechar modal e recarregar projetos
                             modal.classList.add('hidden');
+                            if (window.mostrarToast) window.mostrarToast('Implantação agendada com sucesso!', 'success');
+                            
+                            // Recarregar os projetos para atualizar o kanban
+                            await carregarProjetos();
+                            
                         } catch (err) {
                             console.error('Erro no agendamento de implantação:', err);
-                            alert('Erro no agendamento de implantação.');
+                            alert('Erro no agendamento de implantação: ' + err.message);
                         }
                     });
                     playForm.dataset.bound = '1';
