@@ -623,6 +623,8 @@ def carregar_projetos():
             projeto_id = projeto.get('id')
             data_mudanca_status = None
             data_homologacao_prevista = None
+            implantador_ris = None
+            implantador_pacs = None
             try:
                 project_row = database.get_project_by_id(projeto_id)
                 if project_row:
@@ -630,9 +632,13 @@ def carregar_projetos():
                     try:
                         data_mudanca_status = project_row['data_mudanca_status']
                         data_homologacao_prevista = project_row['data_homologacao_prevista']
+                        implantador_ris = project_row['implantador_ris']
+                        implantador_pacs = project_row['implantador_pacs']
                     except (KeyError, IndexError):
                         data_mudanca_status = None
                         data_homologacao_prevista = None
+                        implantador_ris = None
+                        implantador_pacs = None
             except Exception as e:
                 print(f"[WARN] Erro ao buscar dados do projeto {projeto_id}: {e}")
             
@@ -652,7 +658,9 @@ def carregar_projetos():
                 'status_atual': status_kanban,
                 'produto': produto_info,
                 'data_mudanca_status': data_mudanca_status,  # Para debug/auditoria
-                'data_homologacao_prevista': data_homologacao_prevista  # Data de término original do Zoho
+                'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
+                'implantador_ris': implantador_ris,  # ✅ Nome do implantador RIS
+                'implantador_pacs': implantador_pacs  # ✅ Nome do implantador PACS
             }
             projetos_por_status[status_kanban].append(info_projeto)
 
@@ -1818,12 +1826,16 @@ def iniciar_implantacao():
                     }
                     base_url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
                     
-                    # Atualizar campos customizados (incluindo datas previstas)
+                    # Atualizar campos customizados (incluindo datas previstas e mudança de status)
+                    from datetime import date
+                    data_mudanca_atual = date.today().strftime('%Y-%m-%d')
+                    
                     payload_custom = {
                         "custom_fields": {
                             "data_de_inicio_da_implantacao": data_inicio_implantacao,
                             "data_de_termino_original": data_de_termino_original,  # Homologação Prevista
-                            "data_de_virada_original": data_de_virada_original  # Virada Prevista
+                            "data_de_virada_original": data_de_virada_original,  # Virada Prevista
+                            "data_mudanca_status": data_mudanca_atual  # Data da mudança de status
                         }
                     }
                     response_custom = requests.patch(base_url, headers=headers, json=payload_custom, timeout=45)
@@ -1874,6 +1886,28 @@ def iniciar_implantacao():
             print(f"[ERROR][INICIAR_IMPLANTACAO] {erro_msg}")
             traceback.print_exc()
             return jsonify({"sucesso": False, "erro": erro_msg}), 500
+
+        # ==== 1.4. ATUALIZAR BANCO DE DADOS LOCAL COM data_mudanca_status ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Atualizando data_mudanca_status no banco local...")
+        
+        from datetime import date
+        data_mudanca_atual = date.today().strftime('%Y-%m-%d')
+        
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE projects SET data_mudanca_status = ?, status_atual = ? WHERE id = ?",
+                (data_mudanca_atual, "Em Andamento - Implantação", project_id)
+            )
+            conn.commit()
+            print(f"[INFO][INICIAR_IMPLANTACAO] ✅ Banco local atualizado: data_mudanca_status = {data_mudanca_atual}, status_atual = 'Em Andamento - Implantação'")
+            mensagens_zoho.append(f"Data de mudança de status atualizada para {data_mudanca_atual}")
+        except Exception as db_error:
+            print(f"[WARN][INICIAR_IMPLANTACAO] ⚠️ Erro ao atualizar data_mudanca_status no banco: {db_error}")
+            mensagens_zoho.append(f"Aviso: Erro ao atualizar data no banco local: {str(db_error)}")
+        finally:
+            conn.close()
 
         # ==== 1.5. ADICIONAR IMPLANTADORES SELECIONADOS E ATRIBUIR TAREFAS ====
         print(f"[DEBUG][INICIAR_IMPLANTACAO] Adicionando implantadores selecionados ao projeto e atribuindo tarefas...")
@@ -1926,6 +1960,66 @@ def iniciar_implantacao():
             print(f"[WARN][INICIAR_IMPLANTACAO] Erro ao adicionar implantadores: {str(e)}")
             traceback.print_exc()
             mensagens_zoho.append(f"Aviso: Implantadores não puderam ser adicionados automaticamente ({str(e)})")
+        
+        # ==== 1.5.1. ATUALIZAR CAMPOS DE IMPLANTADORES NO ZOHO ====
+        print(f"[DEBUG][INICIAR_IMPLANTACAO] Atualizando campos de implantadores no Zoho...")
+        
+        try:
+            # Montar payload apenas com campos preenchidos
+            # Tentaremos AMBOS os formatos de nome dos campos
+            custom_fields_implantadores = {}
+            
+            if implantador_ris:
+                # Tentar ambos os formatos
+                custom_fields_implantadores["Implantador RIS"] = implantador_ris
+                custom_fields_implantadores["implantador_ris"] = implantador_ris
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Incluindo Implantador RIS no payload: {implantador_ris}")
+            
+            if implantador_pacs:
+                # Tentar ambos os formatos
+                custom_fields_implantadores["Implantador PACS"] = implantador_pacs
+                custom_fields_implantadores["implantador_pacs"] = implantador_pacs
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Incluindo Implantador PACS no payload: {implantador_pacs}")
+            
+            # Apenas fazer a chamada se houver pelo menos um implantador
+            if custom_fields_implantadores:
+                url_patch_implantadores = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+                headers_patch = {
+                    "Authorization": f"Zoho-oauthtoken {access_token}",
+                    "Content-Type": "application/json"
+                }
+                
+                payload_implantadores = {
+                    "custom_fields": custom_fields_implantadores
+                }
+                # Adicionar também no root level (padrão que funciona com "Link do Google")
+                payload_implantadores.update(custom_fields_implantadores)
+                
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Enviando payload de implantadores: {json.dumps(payload_implantadores, indent=2, ensure_ascii=False)}")
+                
+                response_impl = requests.patch(
+                    url_patch_implantadores,
+                    headers=headers_patch,
+                    json=payload_implantadores,
+                    timeout=30
+                )
+                
+                if response_impl.status_code in (200, 201):
+                    print(f"[INFO][INICIAR_IMPLANTACAO] ✅ Campos de implantadores atualizados no Zoho (HTTP {response_impl.status_code})")
+                    print(f"[DEBUG][INICIAR_IMPLANTACAO] Response: {response_impl.text[:500]}")
+                    mensagens_zoho.append("Campos de implantadores atualizados no Zoho")
+                else:
+                    print(f"[WARN][INICIAR_IMPLANTACAO] ⚠️ Falha ao atualizar campos: {response_impl.status_code}")
+                    print(f"[DEBUG][INICIAR_IMPLANTACAO] Response: {response_impl.text}")
+                    mensagens_zoho.append(f"Aviso: Campos de implantadores não puderam ser atualizados (HTTP {response_impl.status_code})")
+            else:
+                print(f"[DEBUG][INICIAR_IMPLANTACAO] Nenhum implantador para atualizar no Zoho")
+                
+        except Exception as e:
+            # Log o erro mas não falha a operação principal
+            print(f"[WARN][INICIAR_IMPLANTACAO] Erro ao atualizar campos de implantadores: {str(e)}")
+            traceback.print_exc()
+            mensagens_zoho.append(f"Aviso: Campos de implantadores não puderam ser atualizados ({str(e)})")
         
         # ==== 1.6. CRIAR EVENTOS NO GOOGLE CALENDAR ====
         print(f"[DEBUG][INICIAR_IMPLANTACAO] Criando eventos no Google Calendar...")

@@ -144,9 +144,89 @@ def _get_custom_field(project_data, field_name):
     # Fallback para a lista de custom_fields
     if 'custom_fields' in project_data and isinstance(project_data['custom_fields'], list):
         for field in project_data['custom_fields']:
+            # Busca por label_name
             if field.get('label_name') == field_name:
                 return field.get('value')
+            
+            # Busca também pela chave direta (para campos como "Implantador RIS")
+            if isinstance(field, dict):
+                for key, value in field.items():
+                    if key == field_name:
+                        return value
     return None
+
+
+def _formatar_implantadores(implantadores_data):
+    """
+    Formata dados de implantadores do Zoho.
+    
+    O Zoho retorna implantadores em diferentes formatos:
+    1. Objeto de usuário: { "zpuid": "123", "name": "João", "full_name": "João Silva", ... }
+    2. User Pick List: { "zpuid_123": "Nome do Usuario" }
+    3. Lista de objetos de usuários
+    
+    Args:
+        implantadores_data: Dados brutos do campo de implantadores
+    
+    Returns:
+        String com nomes dos implantadores separados por vírgula, ou None
+    """
+    if not implantadores_data:
+        return None
+    
+    try:
+        nomes = []
+        
+        # Se for string JSON, tenta parsear
+        if isinstance(implantadores_data, str):
+            implantadores_data = json.loads(implantadores_data)
+        
+        # Se for dicionário
+        if isinstance(implantadores_data, dict):
+            # Caso 1: Objeto de usuário do Zoho (com zpuid, name, full_name, etc)
+            if 'zpuid' in implantadores_data or 'name' in implantadores_data:
+                # Prioriza: full_name > name > first_name + last_name > email
+                nome = (
+                    implantadores_data.get('full_name') or 
+                    implantadores_data.get('name') or
+                    f"{implantadores_data.get('first_name', '')} {implantadores_data.get('last_name', '')}".strip() or
+                    implantadores_data.get('email', '').split('@')[0]
+                )
+                if nome:
+                    nomes.append(nome)
+            else:
+                # Caso 2: User Pick List { "zpuid_123": "Nome" }
+                for key, value in implantadores_data.items():
+                    if isinstance(value, str) and value.strip():
+                        nomes.append(value.strip())
+        
+        # Se for lista de dicionários
+        elif isinstance(implantadores_data, list):
+            for item in implantadores_data:
+                if isinstance(item, dict):
+                    # Objeto de usuário
+                    if 'zpuid' in item or 'name' in item:
+                        nome = (
+                            item.get('full_name') or 
+                            item.get('name') or
+                            f"{item.get('first_name', '')} {item.get('last_name', '')}".strip() or
+                            item.get('email', '').split('@')[0]
+                        )
+                        if nome:
+                            nomes.append(nome)
+                    else:
+                        # Tenta extrair nome de várias chaves possíveis
+                        nome = item.get('name') or item.get('display_name') or item.get('email', '').split('@')[0]
+                        if nome:
+                            nomes.append(nome)
+                elif isinstance(item, str) and item.strip():
+                    nomes.append(item.strip())
+        
+        return ', '.join(nomes) if nomes else None
+    
+    except Exception as e:
+        print(f"Erro ao formatar implantadores: {e}")
+        return None
 
 def parse_description(description):
     """
@@ -308,6 +388,15 @@ def upsert_project(project_data):
     gp_sobrenome = owner.get('last_name', '')
     gp_valor = f"{gp_nome} {gp_sobrenome}".strip() if gp_nome or gp_sobrenome else owner.get('name', '') or _get_custom_field(project_data, 'GP')
 
+    # Implantadores: Campos de primeiro nível na resposta da API
+    # Aparecem diretamente no JSON, não em custom_fields
+    implantador_ris_raw = project_data.get('implantador_ris')
+    implantador_pacs_raw = project_data.get('implantador_pacs')
+    
+    # Se os campos são de texto simples, use diretamente; senão, formata do formato User Pick List
+    implantador_ris = implantador_ris_raw if isinstance(implantador_ris_raw, str) else (_formatar_implantadores(implantador_ris_raw) if implantador_ris_raw else None)
+    implantador_pacs = implantador_pacs_raw if isinstance(implantador_pacs_raw, str) else (_formatar_implantadores(implantador_pacs_raw) if implantador_pacs_raw else None)
+
     params = {
         'id': project_id,
         'nome': project_data.get('name', 'N/A'),
@@ -334,6 +423,8 @@ def upsert_project(project_data):
         'data_mudanca_status': None,  # Será preenchido apenas na movimentação manual
         'link_google': link_google,
         'tags': tags_str,
+        'implantador_ris': implantador_ris,
+        'implantador_pacs': implantador_pacs,
         'full_data_json': json.dumps(project_data)
     }
 
@@ -499,6 +590,15 @@ def _migrate_database(cursor):
         if 'data_homologacao_prevista' not in columns:
             cursor.execute("ALTER TABLE projects ADD COLUMN data_homologacao_prevista TEXT")
             print("Migração: Coluna 'data_homologacao_prevista' adicionada à tabela projects")
+        
+        # Migração 4: Adicionar colunas de implantadores se não existirem
+        if 'implantador_ris' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN implantador_ris TEXT")
+            print("Migração: Coluna 'implantador_ris' adicionada à tabela projects")
+        
+        if 'implantador_pacs' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN implantador_pacs TEXT")
+            print("Migração: Coluna 'implantador_pacs' adicionada à tabela projects")
             
     except Exception as e:
         print(f"Erro durante migração do banco de dados: {e}")

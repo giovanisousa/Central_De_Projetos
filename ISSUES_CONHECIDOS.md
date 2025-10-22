@@ -403,4 +403,792 @@ Adicionar em `mapeamento_colunas.json` na seção **"Falta Liberar Servidor Infr
 
 ---
 
-**Última atualização:** 15/10/2025
+## 🚀 FUNCIONALIDADES PENDENTES (BACKLOG)
+
+### 1. Gestão de Equipe de Implantação via Interface
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Interface web para gerenciar a equipe de implantação sem necessidade de editar arquivos JSON manualmente.
+
+#### Funcionalidades Desejadas
+- ✨ Adicionar novos implantadores (nome, email, ZPUID)
+- ✨ Remover implantadores
+- ✨ Editar dados de implantadores existentes
+- ✨ Atualização automática de `equipe_implantacao_classificada.json`
+- ✨ Validação de email e ZPUID
+
+#### Benefícios
+- Facilita manutenção da equipe
+- Reduz erros de digitação
+- Interface amigável para não-técnicos
+
+#### Workaround Atual
+✅ Editar `equipe_implantacao_classificada.json` manualmente funciona perfeitamente
+
+---
+
+### 2. Gestão de Tarefas RIS/PACS via Interface
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Interface web para gerenciar as listas de tarefas RIS e PACS sem editar arquivos JSON.
+
+#### Funcionalidades Desejadas
+- ✨ Visualizar tarefas RIS e PACS
+- ✨ Adicionar novas tarefas
+- ✨ Remover tarefas
+- ✨ Reordenar tarefas
+- ✨ Definir prioridade (alta/média/baixa)
+- ✨ Atualização automática de `tarefas_ris.json` e `tarefas_pacs.json`
+
+#### Benefícios
+- Gestão visual das tarefas
+- Facilita ajustes do processo
+- Histórico de mudanças
+
+#### Workaround Atual
+✅ Editar arquivos JSON manualmente funciona perfeitamente
+
+---
+
+### 3. Dashboard de Métricas Gerenciais
+
+**Status:** 📋 Planejado  
+**Prioridade:** Média  
+**Data:** Backlog
+
+#### Descrição
+Painel executivo com métricas e KPIs de projetos e implantações.
+
+#### Funcionalidades Desejadas
+- 📊 Gráfico de projetos por fase
+- 📊 Taxa de conclusão no prazo vs atrasados
+- 📊 Média de dias por fase (histórico)
+- 📊 Projetos em atraso (SLA vencido)
+- 📊 Carga de trabalho por implantador
+- 📊 Tendências mensais/trimestrais
+- 📊 Exportação de relatórios (PDF/Excel)
+
+#### Benefícios
+- Visão estratégica do portfólio
+- Identificação de gargalos
+- Tomada de decisão baseada em dados
+
+#### Workaround Atual
+✅ Indicadores visuais no Kanban + contadores por coluna são suficientes para gestão operacional
+
+---
+
+### 4. Relatório Detalhado de Implantação
+
+**Status:** 📋 Planejado  
+**Prioridade:** Média  
+**Data:** Backlog
+
+#### Descrição
+Relatório específico para cada agendamento de implantação, mostrando o que foi feito e o que faltou.
+
+#### Funcionalidades Desejadas
+- 📋 Lista de tarefas atribuídas com sucesso
+- 📋 Lista de tarefas não encontradas
+- 📋 Lista de tarefas que falharam na atribuição
+- 📋 Datas bloqueadas por dependências
+- 📋 Implantadores adicionados
+- 📋 Sugestões de ações corretivas
+- 📋 Exportação do relatório
+
+#### Benefícios
+- Transparência do processo
+- Identificação rápida de problemas
+- Auditoria de ações automatizadas
+
+#### Workaround Atual
+✅ Logs detalhados no console mostram todas as informações
+
+---
+
+### 5. Sistema de Notificações
+
+**Status:** 📋 Planejado  
+**Prioridade:** Média  
+**Data:** Backlog
+
+#### Descrição
+Sistema de notificações automáticas para eventos importantes.
+
+#### Funcionalidades Desejadas
+- 📧 Email para implantador quando adicionado ao projeto
+- 📧 Email quando tarefas são atribuídas
+- 📧 Alertas de SLA próximo do vencimento (2 dias antes)
+- 📧 Notificação quando projeto é movido para homologação
+- 📧 Resumo diário/semanal para GPs
+- 🔔 Integração com Slack/Teams (opcional)
+
+#### Benefícios
+- Comunicação proativa
+- Redução de atrasos
+- Melhor coordenação da equipe
+
+#### Workaround Atual
+✅ Comentários automáticos no Zoho notificam via plataforma  
+✅ Indicadores visuais de SLA no dashboard
+
+---
+
+### 6. Histórico de Movimentações
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Timeline completo de todas as mudanças de status de um projeto.
+
+#### Funcionalidades Desejadas
+- 📜 Lista cronológica de movimentações
+- 📜 Usuário que realizou a movimentação
+- 📜 Timestamp de cada mudança
+- 📜 Tempo permanecido em cada fase
+- 📜 Comentários associados
+- 📜 Exportação do histórico
+
+#### Benefícios
+- Rastreabilidade completa
+- Análise de tempo por fase
+- Auditoria de processos
+
+#### Workaround Atual
+✅ Comentários automáticos registram movimentações  
+✅ Campo "dias na fase" mostra tempo atual  
+✅ Data da última mudança disponível
+
+---
+
+### 7. Edição de Projetos Existentes
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Interface para editar dados de projetos já criados.
+
+#### Funcionalidades Desejadas
+- ✏️ Modal de edição (similar ao de criação)
+- ✏️ Atualização de campos customizados
+- ✏️ Atualização de produtos contratados
+- ✏️ Atualização de planilhas Google
+- ✏️ Sincronização com Zoho Projects
+
+#### Benefícios
+- Correção de erros sem ir ao Zoho
+- Interface unificada
+- Validação de dados
+
+#### Workaround Atual
+✅ Editar diretamente no Zoho Projects funciona perfeitamente  
+✅ Editar planilhas Google manualmente
+
+---
+
+### 8. Filtros e Ordenação Avançados
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Sistema avançado de filtros e ordenação para o Kanban.
+
+#### Funcionalidades Desejadas
+- 🔍 Filtrar por GP
+- 🔍 Filtrar por produto (RIS/PACS/Ambos)
+- 🔍 Filtrar por período de criação
+- 🔍 Filtrar por SLA (no prazo/atrasado)
+- 🔍 Ordenar por dias na fase
+- 🔍 Ordenar por data de homologação prevista
+- 🔍 Salvar filtros favoritos
+
+#### Benefícios
+- Foco em projetos específicos
+- Identificação rápida de prioridades
+- Gestão personalizada por GP
+
+#### Workaround Atual
+✅ Busca por nome funciona bem  
+✅ Seletor de GP já existe  
+✅ Indicadores visuais ajudam a identificar prioridades
+
+---
+
+### 9. Integração com WhatsApp/Telegram
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Bot para consultar status de projetos e receber notificações via WhatsApp ou Telegram.
+
+#### Funcionalidades Desejadas
+- 🤖 Consultar status de projeto por código/nome
+- 🤖 Listar projetos de um GP
+- 🤖 Notificações de SLA vencido
+- 🤖 Notificações de mudança de status
+- 🤖 Comandos rápidos (/status, /projetos, /help)
+
+#### Benefícios
+- Acesso mobile rápido
+- Notificações instantâneas
+- Consultas sem abrir navegador
+
+#### Workaround Atual
+✅ Dashboard web acessível via mobile  
+✅ Comentários do Zoho notificam por email
+
+---
+
+### 10. Modo Offline
+
+**Status:** 📋 Planejado  
+**Prioridade:** Baixa  
+**Data:** Backlog
+
+#### Descrição
+Permitir visualização e marcação de mudanças offline, sincronizando quando conectar.
+
+#### Funcionalidades Desejadas
+- 📴 Visualizar projetos em cache local
+- 📴 Marcar projetos para mover (queue)
+- 📴 Sincronização automática ao conectar
+- 📴 Indicador visual de modo offline
+
+#### Benefícios
+- Trabalho sem internet
+- Resiliência a quedas de conexão
+- Melhor UX
+
+#### Workaround Atual
+✅ Cache local já permite visualização rápida  
+✅ Sincronização manual via botão
+
+---
+
+## 📝 NOVAS FUNCIONALIDADES SOLICITADAS (22/10/2025)
+
+### 🔴 IMPEDITIVOS PARA PRODUÇÃO (Prioridade Crítica)
+
+#### 1. Sistema de Comentários Completo
+**Status:** 🔴 Impeditivo para Produção  
+**Prioridade:** Crítica  
+**Data:** 22/10/2025
+
+**Descrição:**
+Criar sistema completo de visualização e adição de comentários no projeto, incluindo:
+- Modal com campo para novo comentário
+- Listagem de todos os comentários existentes
+- Histórico completo de comentários
+
+**Funcionalidades:**
+- ✨ Abrir modal ao clicar no botão "+"
+- ✨ Campo de texto para novo comentário
+- ✨ Listagem de comentários abaixo do campo
+- ✨ Exibir autor, data e conteúdo de cada comentário
+- ✨ Scroll para comentários longos
+
+**Impacto:**
+🔴 **BLOQUEANTE** - Essencial para transparência e comunicação do projeto
+
+---
+
+#### 2. Alerta de Projetos Sem Atualização
+**Status:** 🔴 Impeditivo para Produção  
+**Prioridade:** Crítica  
+**Data:** 22/10/2025
+
+**Descrição:**
+Sistema de alerta visual para projetos sem comentários há mais de 5 dias úteis.
+
+**Funcionalidades:**
+- ✨ Registrar data do último comentário no banco de dados
+- ✨ Calcular dias úteis desde último comentário
+- ✨ Marcar card com borda vermelha se > 5 dias úteis
+- ✨ Tooltip informando há quantos dias sem atualização
+
+**Implementação:**
+- Novo campo no BD: `last_comment_date`
+- Atualizar ao adicionar comentário
+- Script de verificação periódica
+- CSS para borda vermelha de alerta
+
+**Impacto:**
+🔴 **BLOQUEANTE** - Crítico para gestão proativa de projetos
+
+---
+
+### 🟡 AJUSTES E CORREÇÕES (Prioridade Alta)
+
+#### 3. Seleção Condicional de Implantadores
+**Status:** 🟡 Ajuste Necessário  
+**Prioridade:** Alta  
+**Data:** 22/10/2025
+
+**Descrição:**
+Exibir campos de implantador apenas para ferramentas contratadas.
+
+**Comportamento Atual:**
+❌ Sempre exibe campos RIS e PACS
+
+**Comportamento Esperado:**
+- ✅ Se apenas PACS contratado → Exibir só campo implantador PACS
+- ✅ Se apenas RIS contratado → Exibir só campo implantador RIS
+- ✅ Se ambos contratados → Exibir ambos os campos
+
+**Implementação:**
+- Detectar produtos contratados (campo `produtos_contratados`)
+- Mostrar/ocultar campos dinamicamente com JavaScript
+- Validação condicional no backend
+
+---
+
+#### 4. Alinhamento do Botão Fechar Modal
+**Status:** 🟡 Ajuste Visual  
+**Prioridade:** Alta  
+**Data:** 22/10/2025
+
+**Descrição:**
+Botão de fechar modal "Agendar Implantação" não está alinhado corretamente.
+
+**Problema:**
+❌ Botão se alinha com o texto do nome do cliente
+❌ Se nome curto, botão fica no início do cabeçalho
+
+**Solução:**
+✅ Posicionar botão absolutamente no canto superior direito
+✅ Independente do tamanho do texto
+
+**Arquivo:** `templates/index.html` - CSS do modal
+
+---
+
+#### 5. Indicador de Processamento no Agendamento
+**Status:** 🟡 Ajuste UX  
+**Prioridade:** Alta  
+**Data:** 22/10/2025
+
+**Descrição:**
+Adicionar feedback visual durante agendamento de implantação.
+
+**Comportamento Atual:**
+❌ Usuário clica e não sabe se está processando
+
+**Comportamento Esperado:**
+- ✅ Exibir spinner/loading ao clicar em "Agendar"
+- ✅ Desabilitar botão durante processamento
+- ✅ Mensagem: "Agendando implantação, aguarde..."
+- ✅ Feedback de sucesso ou erro ao finalizar
+
+**Implementação:**
+- Adicionar overlay com spinner
+- Mensagem de status
+- Timeout de segurança (30s)
+
+---
+
+#### 6. Diagnóstico de Atribuição de Tarefas
+**Status:** 🟡 Bug a Investigar  
+**Prioridade:** Alta  
+**Data:** 22/10/2025
+
+**Descrição:**
+Nem todas as tarefas estão sendo atribuídas aos implantadores.
+
+**Ações Necessárias:**
+- 🔍 Analisar logs de atribuição
+- 🔍 Identificar tarefas que não são atribuídas
+- 🔍 Verificar se é problema de nomenclatura
+- 🔍 Verificar se é problema de permissões
+- 🔍 Comparar com listas `tarefas_ris.json` e `tarefas_pacs.json`
+
+**Arquivos Relacionados:**
+- `implantacao_manager.py`
+- `implantacao_tarefas.py`
+- Logs de agendamento
+
+---
+
+### 🟢 MELHORIAS DE FUNCIONALIDADES (Prioridade Média/Baixa)
+
+#### 7. Comentários em Tarefas de Integração/Importação (Onboarding)
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover de "Aguardando Onboarding" → "Falta Liberar Servidor Infra", comentar em:
+- Tarefa de Infra (✅ já implementado)
+- Tarefas de Importação (🆕 novo)
+- Tarefas de Integração (🆕 novo)
+
+**Mensagem:**
+```
+Onboarding realizado. Grupos serão criados. Servidor aguardando liberação pela infraestrutura.
+```
+
+**Tarefas Candidatas:**
+- Importação: "importação", "cadastro", "prontuário"
+- Integração: "integração", "worklist", "laudo"
+
+**Implementação:**
+- Atualizar `mapeamento_colunas.json`
+- Adicionar triggers com `taskNamePattern`
+
+---
+
+#### 8. Comentários ao Liberar Servidor (VERIFICAR SE JÁ EXISTE)
+**Status:** ⚠️ Verificar Implementação  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover de "Falta Liberar Servidor Infra" → "Em Andamento", comentar em:
+- Tarefas de Importação
+- Tarefas de Integração
+
+**Mensagem:**
+```
+Servidor liberado pela infraestrutura. Podem dar sequência nas atividades.
+```
+
+**AÇÃO:** Verificar se já está implementado em `mapeamento_colunas.json`
+
+---
+
+#### 9. Atualização de "Equipe de Início do Projeto"
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao agendar implantação, preencher na planilha principal:
+- Coluna "Implant Responsável" (✅ já implementado)
+- Coluna "Equipe de início do projeto" (🆕 novo - mesma informação)
+
+**Implementação:**
+- Atualizar função `_atualizar_planilha()` em `routes/api.py`
+- Adicionar coluna na atualização do Sheets
+
+---
+
+#### 10. Filtros Avançados no Kanban
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Sistema de filtros para visualização personalizada do Kanban.
+
+**Filtros Desejados:**
+- 🔍 Projetos em atraso (SLA vencido)
+- 🔍 Por ferramenta contratada (RIS/PACS/Ambos)
+- 🔍 Por GP específico
+- 🔍 Por período de criação
+- 🔍 Combinação de filtros
+
+**Requisitos:**
+- ✅ Filtro por usuário (não afetar outros)
+- ✅ Persistir filtros na sessão
+- ✅ Botão limpar filtros
+- ✅ Contador de projetos filtrados
+
+**Implementação:**
+- UI: Botões/dropdowns de filtro
+- Backend: Filtrar no `/api/carregar_projetos`
+- Session: Armazenar filtros ativos
+
+---
+
+#### 11. Troca de Implantadores
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Permitir trocar implantadores em projetos já em andamento.
+
+**Funcionalidades:**
+- ✨ Ícone "atualizar" ao lado dos implantadores
+- ✨ Modal para selecionar novos implantadores
+- ✨ Atualizar planilha (coluna "Implant Responsável")
+- ✨ Atualizar campos customizados Zoho
+- ✨ Adicionar novos implantadores ao projeto
+- ✨ Reatribuir tarefas em aberto
+
+**Coluna Aplicável:**
+- "Em Andamento - Implantação"
+
+**Arquivos:**
+- `routes/api.py` - Novo endpoint `/api/trocar-implantadores`
+- `templates/index.html` - Modal de troca
+
+---
+
+#### 12. Gestão de Impeditivos
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Modal para gerenciar impeditivos do projeto.
+
+**Funcionalidades:**
+- ✨ Clicar no ícone de impeditivos
+- ✨ Listar impeditivos existentes
+- ✨ Adicionar novo impeditivo
+- ✨ Marcar como resolvido
+- ✨ Histórico de impeditivos
+
+**Dados do Impeditivo:**
+- Descrição
+- Data de registro
+- Status (ativo/resolvido)
+- Responsável
+
+**Armazenamento:**
+- Banco de dados local
+- Campo customizado Zoho (contador)
+
+---
+
+#### 13. Envio de Mensagem WhatsApp para Cronograma
+**Status:** 🟢 Melhoria  
+**Prioridade:** Baixa  
+**Data:** 22/10/2025
+
+**Descrição:**
+Botão para enviar mensagem WhatsApp solicitando cronograma de homologação.
+
+**Funcionalidades:**
+- ✨ Ícone no card
+- ✨ Modal solicitando nome e WhatsApp do cliente
+- ✨ Gerar mensagem padrão personalizada
+- ✨ Incluir link do documento Drive
+- ✨ Abrir WhatsApp Web com mensagem pronta
+
+**Mensagem Padrão:**
+```
+Olá [Nome do Cliente]!
+
+Estamos avançando com a implantação do [RIS/PACS]. 
+
+Para prosseguirmos com a etapa de Homologação, pedimos que preencha o cronograma no link abaixo:
+
+[Link do Google Drive]
+
+Qualquer dúvida, estamos à disposição!
+
+Equipe Animati
+```
+
+**Implementação:**
+- WhatsApp Web API: `https://wa.me/[número]?text=[mensagem]`
+- Buscar link do Drive na estrutura de pastas
+
+---
+
+#### 14. Agendamento de Homologação e Virada
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover de "Em Andamento - Implantação" → "Em Homologação":
+
+**Funcionalidades:**
+- ✨ Modal solicitando implantadores de homologação/virada
+- ✨ Adicionar implantadores ao projeto Zoho
+- ✨ Atribuir tarefas de homologação
+- ✨ Atribuir tarefas de virada
+- ✨ Solicitar data de homologação
+- ✨ Atualizar campo customizado Zoho
+- ✨ Atualizar planilha Google
+
+**Campos:**
+- Implantador Homologação RIS
+- Implantador Homologação PACS
+- Implantador Virada RIS
+- Implantador Virada PACS
+- Data de Homologação
+
+---
+
+#### 15. Geração de Ticket Financeiro na Virada
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover para "Em Virada":
+
+**Funcionalidades:**
+- ✨ Gerar ticket no HubSpot (ou ferramenta definida)
+- ✨ Informar data de virada no campo customizado
+- ✨ Concluir tarefa do GP "Criação do ticket de virada"
+- ✨ Atualizar status na planilha
+- ✨ Atualizar status no Zoho
+
+**Integração:**
+- Aguardando definição: HubSpot ou outra ferramenta
+- API a ser definida
+
+---
+
+#### 16. Gestão de Operação Assistida
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover de "Em Virada" → "Em Operação Assistida":
+
+**Funcionalidades:**
+- ✨ Adicionar usuário de OA ao projeto Zoho
+- ✨ Atribuir tarefa de OA ao usuário
+- ✨ Concluir tarefa GP "Adicionar equipe OA"
+- ✨ Enviar mensagem WhatsApp para GP com data de virada
+- ✨ Atualizar status planilha e Zoho
+
+**Mensagem WhatsApp GP:**
+```
+Olá [Nome GP]!
+
+O projeto [Cliente] entrou em Operação Assistida.
+
+Data de Virada: [DD/MM/YYYY]
+
+Acompanhar evolução das tarefas pendentes.
+
+Equipe Animati
+```
+
+---
+
+#### 17. Indicadores e Preenchimento DPI em OA
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Cards em "Em Operação Assistida":
+
+**Funcionalidades:**
+- ✨ Exibir contador de tarefas em aberto
+- ✨ Botão para preencher arquivo DPI
+- ✨ Modal solicitando confirmação
+- ✨ Preencher DPI automaticamente:
+  - Nome do cliente
+  - Ferramentas contratadas
+  - Data de onboarding
+  - Data de liberação servidor
+  - Data de início implantação
+  - Data de homologação
+  - Data de virada
+  - Data de início OA
+
+**Arquivo DPI:**
+- Localizar na pasta Drive do projeto
+- Preencher via Google Docs API
+- Confirmar preenchimento
+
+---
+
+#### 18. Envio de DPI ao Encerrar
+**Status:** 🟢 Melhoria  
+**Prioridade:** Média  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover de "Em Operação Assistida" → "Aguardando Encerramento":
+
+**Funcionalidades:**
+- ✨ Buscar arquivo DPI preenchido no Drive
+- ✨ Enviar email para destinatários específicos
+- ✨ Anexar arquivo DPI
+- ✨ Mensagem padrão de encerramento
+
+**Destinatários:**
+- Lista configurável em `config.py`
+
+**Email:**
+```
+Assunto: DPI - [Cliente] - Projeto Finalizado
+
+Prezados,
+
+Segue anexo o documento DPI do cliente [Cliente].
+
+O projeto foi concluído e está aguardando encerramento formal.
+
+Att,
+Sistema Central de Projetos
+```
+
+---
+
+#### 19. Alteração de Status - Projeto Parado
+**Status:** 🟢 Melhoria  
+**Prioridade:** Baixa  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover para "Projeto Parado":
+
+**Funcionalidades:**
+- ✨ Atualizar status no Zoho Projects
+- ✨ Atualizar status na planilha principal
+- ✨ Adicionar tag "Parado"
+- ✨ Remover outras tags de progresso
+
+---
+
+#### 20. Alteração de Status - Finalizado
+**Status:** 🟢 Melhoria  
+**Prioridade:** Baixa  
+**Data:** 22/10/2025
+
+**Descrição:**
+Ao mover para "Finalizado":
+
+**Funcionalidades:**
+- ✨ Atualizar status no Zoho Projects
+- ✨ Atualizar status na planilha principal
+- ✨ Adicionar tag "Finalizado"
+- ✨ Data de finalização
+
+---
+
+## 📊 Resumo das Novas Solicitações
+
+### Por Prioridade:
+- 🔴 **Impeditivas (Críticas):** 2 funcionalidades
+- 🟡 **Ajustes Necessários (Alta):** 4 funcionalidades
+- 🟢 **Melhorias (Média/Baixa):** 14 funcionalidades
+
+### Por Tipo:
+- ❌ **Bloqueantes para Produção:** 2
+- 🔧 **Correções/Ajustes:** 4
+- ✨ **Novas Funcionalidades:** 14
+
+### Total:
+**20 novas funcionalidades/ajustes solicitados**
+
+---
+
+**Última atualização:** 22/10/2025

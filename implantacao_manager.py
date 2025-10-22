@@ -299,6 +299,96 @@ class ImplantacaoManager:
         
         return None
     
+    def _preparar_payload_implantadores(self, usuarios_adicionados: List[Dict]) -> Dict:
+        """
+        Prepara o payload para atualizar os custom fields de implantadores no Zoho.
+        
+        Formato correto conforme documentação do Zoho:
+        { "zpuid": "123454321" }
+        
+        Args:
+            usuarios_adicionados: Lista de usuários com zpuid e nome
+        
+        Returns:
+            Dicionário com zpuid no formato esperado pelo Zoho
+        """
+        if not usuarios_adicionados:
+            return None
+        
+        # Pega o primeiro implantador
+        primeiro_usuario = usuarios_adicionados[0]
+        zpuid = primeiro_usuario.get('zpuid')
+        
+        if not zpuid:
+            return None
+        
+        # Formato: { "zpuid": "123454321" }
+        return {"zpuid": zpuid}
+    
+    def atualizar_custom_fields_implantadores(
+        self, 
+        project_id: str,
+        implantador_ris: str = None,
+        implantador_pacs: str = None
+    ) -> bool:
+        """
+        Atualiza os custom fields de implantadores no Zoho.
+        
+        Segue o mesmo padrão de api.py (linha 272-283) e dryrun_zoho_payload.py (linha 147):
+        - Campos customizados enviados em custom_fields
+        - Campos também copiados para o nível raiz do payload
+        
+        Args:
+            project_id: ID do projeto
+            implantador_ris: Nome completo do implantador RIS (string)
+            implantador_pacs: Nome completo do implantador PACS (string)
+        
+        Returns:
+            True se sucesso, False caso contrário
+        """
+        if not implantador_ris and not implantador_pacs:
+            logger.warning(f"⚠️  Nenhum implantador fornecido para atualizar")
+            return False
+        
+        # API v3
+        url = f"https://projectsapi.zoho.com/api/v3/portal/{self.portal_id}/projects/{project_id}"
+        headers = {
+            "Authorization": f"Zoho-oauthtoken {self.access_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        
+        # Monta custom_fields
+        custom_fields = {}
+        if implantador_ris:
+            custom_fields["Implantador RIS"] = implantador_ris
+        if implantador_pacs:
+            custom_fields["Implantador PACS"] = implantador_pacs
+        
+        # Payload seguindo o padrão de criação de projeto
+        payload = {
+            "custom_fields": custom_fields
+        }
+        
+        # Adiciona campos também no nível raiz (igual dryrun_zoho_payload.py linha 147)
+        payload.update(custom_fields)
+        
+        logger.info(f"📤 Enviando payload com implantadores: {payload}")
+        
+        try:
+            response = requests.patch(url, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code in [200, 201]:
+                logger.info(f"✅ Implantadores atualizados com sucesso")
+                return True
+            else:
+                logger.error(f"❌ Falha ao atualizar implantadores: {response.status_code} - {response.text[:500]}")
+                return False
+        
+        except Exception as e:
+            logger.error(f"❌ Erro ao atualizar implantadores: {e}")
+            return False
+    
     def agendar_implantacao(
         self, 
         project_id: str, 
@@ -308,6 +398,7 @@ class ImplantacaoManager:
         Executa o agendamento de implantação completo:
         1. Adiciona implantadores ao projeto
         2. Atribui tarefas aos implantadores
+        3. Atualiza custom fields no Zoho com os implantadores
         
         Args:
             project_id: ID do projeto
@@ -323,6 +414,7 @@ class ImplantacaoManager:
             "tarefas_atribuidas": [],
             "tarefas_nao_encontradas": [],
             "tarefas_falharam": [],
+            "custom_fields_atualizados": False,
             "mensagem": ""
         }
         
@@ -372,18 +464,45 @@ class ImplantacaoManager:
             if resultado["usuarios_falharam"]:
                 logger.warning(f"⚠️  {len(resultado['usuarios_falharam'])} usuários falharam")
             
-            # 3. Carregar tarefas do tipo de projeto
+            # 3. Atualizar custom fields no Zoho com os implantadores
+            if resultado["usuarios_adicionados"]:
+                # Pega o nome completo do primeiro usuário adicionado
+                nome_implantador = resultado["usuarios_adicionados"][0]["nome"]
+                
+                # Determina qual campo atualizar baseado no tipo
+                kwargs = {}
+                if tipo_projeto.upper() == "RIS":
+                    kwargs["implantador_ris"] = nome_implantador
+                elif tipo_projeto.upper() == "PACS":
+                    kwargs["implantador_pacs"] = nome_implantador
+                
+                if kwargs:
+                    sucesso_cf = self.atualizar_custom_fields_implantadores(
+                        project_id,
+                        **kwargs
+                    )
+                    
+                    resultado["custom_fields_atualizados"] = sucesso_cf
+                    
+                    if sucesso_cf:
+                        logger.info(f"✅ Implantador '{nome_implantador}' atualizado no Zoho")
+                    else:
+                        logger.warning(f"⚠️  Falha ao atualizar implantador no Zoho")
+                else:
+                    logger.warning(f"⚠️  Tipo de projeto '{tipo_projeto}' inválido")
+            
+            # 4. Carregar tarefas do tipo de projeto
             tarefas_para_atribuir = self.carregar_tarefas(tipo_projeto)
             logger.info(f"📋 {len(tarefas_para_atribuir)} tarefas para atribuir")
             
-            # 4. Listar tarefas do projeto
+            # 5. Listar tarefas do projeto
             tarefas_projeto = self.listar_tarefas_projeto(project_id)
             
             if not tarefas_projeto:
                 resultado["mensagem"] = "Não foi possível carregar as tarefas do projeto"
                 return resultado
             
-            # 5. Atribuir tarefas aos implantadores
+            # 6. Atribuir tarefas aos implantadores
             for nome_tarefa in tarefas_para_atribuir:
                 # Encontrar tarefa no projeto
                 tarefa = self.encontrar_tarefa_por_nome(tarefas_projeto, nome_tarefa)
@@ -416,7 +535,7 @@ class ImplantacaoManager:
                             "erro": erro
                         })
             
-            # 6. Resumo
+            # 7. Resumo
             logger.info(f"✅ {len(resultado['tarefas_atribuidas'])} tarefas atribuídas com sucesso")
             
             if resultado["tarefas_nao_encontradas"]:
