@@ -37,12 +37,12 @@ def index():
         "cores_colunas": {
             "Aguardando Onboarding": "#6c757d",
             "Falta Liberar Servidor Infra": "#E67E22",
-            "Em Andamento": "#2ECC71",
+            "Aguardando Cronograma": "#b8b814",
             "Em Homologação": "#1ABC9C",
             "Em Virada": "#1ABC9C",
             "Em Operação Assistida": "#3498DB",
             "Aguardando Encerramento": "#8B5CF6",
-            "Finalizado": "#27AE60",
+            "Finalizado": "#229954",
             "Projeto Parado": "#DC143C",
             "Cancelado": "#b5b5b5",
             "Status Desconhecido": "#95A5A6"

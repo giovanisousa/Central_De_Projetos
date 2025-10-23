@@ -1,9 +1,18 @@
 # 🐛 Issues Conhecidos
 
-## 🎉 RESUMO EXECUTIVO - 22/10/2025
+## 🎉 RESUMO EXECUTIVO - ÚLTIMAS ATUALIZAÇÕES
 
-### ✅ CONQUISTAS DO DIA
-**Status:** 🚀 **2 FUNCIONALIDADES CRÍTICAS CONCLUÍDAS**
+### ✅ 23/10/2025 - Nova Funcionalidade Implementada
+**Status:** 🚀 **Barra de Progresso Infraestrutura - CONCLUÍDA**
+
+#### 🆕 Funcionalidade Entregue
+**📊 Barra de Progresso na Coluna "Falta Liberar Servidor Infra"**
+- Visual: Exibe percentual da fase "Infraestrutura"
+- Label: "Infra" + barra de progresso
+- Objetivo: Dar visibilidade ao progresso antes da implantação
+
+### ✅ 22/10/2025 - Funcionalidades Críticas Concluídas
+**Status:** 🚀 **2 IMPEDITIVOS DE PRODUÇÃO RESOLVIDOS**
 
 #### 📊 Métricas de Entrega
 - ✅ **2/2** Impeditivos de produção resolvidos (100%)
@@ -847,6 +856,106 @@ Sistema de alerta visual para projetos sem comentários há mais de 5 dias útei
 - 🎨 Visual impactante (borda vermelha + badge laranja)
 - 💡 Feedback imediato ao adicionar comentário
 - 🚀 Performance otimizada (cálculo server-side)
+
+---
+
+#### ✅ 3. Barra de Progresso Infraestrutura - CONCLUÍDO
+**Status:** ✅ Implementado, Testado e Funcionando  
+**Prioridade:** Média  
+**Data Início:** 23/10/2025 | **Data Conclusão:** 23/10/2025
+
+**Descrição:**
+Sistema de visualização do progresso da fase "Infraestrutura" nos cards da coluna "Falta Liberar Servidor Infra", fornecendo visibilidade ao gerente de projeto sobre o andamento antes da implantação.
+
+**Objetivo:**
+Permitir que o GP acompanhe o percentual de conclusão da preparação de infraestrutura sem precisar abrir o projeto no Zoho.
+
+**Funcionalidades Implementadas:**
+
+✅ **BACKEND (routes/api.py)**
+- ✅ Endpoint `/api/progresso-fases/<project_id>` atualizado
+- ✅ Adicionado suporte à fase `INFRA` (Infraestrutura)
+- ✅ Mapeamento automático: Fases com "infraestrutura" ou "infra" no nome → `INFRA`
+- ✅ Retorno JSON inclui campo `INFRA` com percentual
+- ✅ Normalização de nomes (remove prefixos numéricos, case-insensitive)
+
+✅ **FRONTEND (templates/index.html)**
+- ✅ Função `renderizarProgresso()` atualizada
+- ✅ Coluna "Falta Liberar Servidor Infra" adicionada às permitidas
+- ✅ Lógica condicional por coluna:
+  - **Falta Liberar Servidor Infra**: Exibe apenas barra "Infra"
+  - **Em Andamento/Homologação/Virada**: Exibe NR, AP, IMP, INT
+- ✅ Mantém consistência visual com barras existentes
+
+**Comportamento:**
+
+**Na coluna "Falta Liberar Servidor Infra":**
+```
+┌─────────────────────────────┐
+│  Projeto XYZ                │
+│  ┌───────────────────────┐  │
+│  │ Infra  [████░░░░] 45% │  │ ← Barra de progresso
+│  └───────────────────────┘  │
+│  ...                        │
+└─────────────────────────────┘
+```
+
+**Outras colunas (Em Andamento, Em Homologação, Em Virada):**
+- Continuam exibindo: NR, AP, IMP, INT (sem alterações)
+
+**Código Modificado:**
+
+**Backend (`routes/api.py`):**
+```python
+# Adicionado INFRA ao resultado
+resultado = {
+    'NR': None,
+    'AP': None,
+    'IMP': None,
+    'INT': None,
+    'INFRA': None  # ✨ NOVO
+}
+
+# Mapear fase Infraestrutura (prioridade no if)
+if 'infraestrutura' in nome_normalizado or nome_normalizado == 'infra':
+    resultado['INFRA'] = round(percentual, 1)
+```
+
+**Frontend (`templates/index.html`):**
+```javascript
+// Adicionada coluna nas permitidas
+const colunasPermitidas = [
+    'Falta Liberar Servidor Infra',  // ✨ NOVO
+    'Em Andamento - Implantação',
+    'Em Homologação',
+    'Em Virada'
+];
+
+// Lógica condicional por coluna
+if (coluna === 'Falta Liberar Servidor Infra') {
+    fases = [{ key: 'INFRA', label: 'Infra' }];  // ✨ Apenas Infra
+} else {
+    fases = [/* NR, AP, IMP, INT */];
+}
+```
+
+**Arquivos Criados/Modificados:**
+- ✅ `routes/api.py` - Endpoint atualizado (~10 linhas modificadas)
+- ✅ `templates/index.html` - Função renderizarProgresso() atualizada (~25 linhas modificadas)
+
+**Benefícios:**
+- 📊 **Visibilidade**: GP monitora progresso sem abrir Zoho
+- ⚡ **Performance**: Reutiliza endpoint existente (zero overhead)
+- 🎯 **Específico**: Exibe apenas fase relevante para cada coluna
+- 🔄 **Consistente**: UI/UX idêntica às barras existentes
+- 🚀 **Escalável**: Fácil adicionar novas fases/colunas no futuro
+
+**Resultado Final:**
+✅ **Sistema 100% funcional, testado e aprovado para produção**
+- 📊 Cards em "Falta Liberar Servidor Infra" exibem progresso da fase Infra
+- ⚡ Carregamento assíncrono (não bloqueia renderização)
+- 🎨 Visual consistente com barras de progresso existentes
+- 💡 Informação relevante para tomada de decisão do GP
 
 ---
 
