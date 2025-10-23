@@ -219,19 +219,53 @@
         </div>
     </div>
 
-    <!-- Modal: Adicionar Comentário -->
+    <!-- Modal: Comentários do Projeto -->
     <div id="commentModal" class="modal hidden">
         <div class="modal-content comment-modal">
             <div class="modal-header">
-                <h2>Adicionar comentário</h2>
+                <div>
+                    <h2>Comentários do Projeto</h2>
+                    <p id="comment-modal-project-name" style="font-size: 0.9rem; color: #555; margin-top: 4px;"></p>
+                </div>
                 <button type="button" id="closeCommentModal" class="modal-close">×</button>
             </div>
-            <div class="modal-body">
-                <textarea id="commentText" rows="8" placeholder="Digite seu comentário..."></textarea>
+            
+            <!-- Seção de Adicionar Comentário (40% altura) -->
+            <div class="modal-body comment-input-section">
+                <div class="comment-input-header">
+                    <label for="commentText">Novo Comentário</label>
+                    <button type="button" id="syncCommentsBtn" class="btn-sync" title="Sincronizar comentários do Zoho">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M13.65 2.35A7.5 7.5 0 0 0 1.5 8H0l2.5 2.5L5 8H3.5a6 6 0 1 1 1.76 4.24l-1.06 1.06A7.5 7.5 0 1 0 13.65 2.35z"/>
+                        </svg>
+                        Sincronizar
+                    </button>
+                </div>
+                <textarea id="commentText" rows="4" placeholder="Digite seu comentário aqui..."></textarea>
+                <div class="comment-actions">
+                    <button type="button" class="btn-secondary" id="cancelCommentBtn">Cancelar</button>
+                    <button type="button" class="btn-primary" id="submitCommentBtn">
+                        <span class="btn-text">Adicionar Comentário</span>
+                        <span class="btn-loading hidden">
+                            <span class="spinner"></span> Enviando...
+                        </span>
+                    </button>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-secondary" id="cancelCommentBtn">Cancelar</button>
-                <button type="button" class="btn-primary" id="submitCommentBtn">Comentar</button>
+            
+            <!-- Seção de Histórico de Comentários (60% altura) -->
+            <div class="modal-body comment-history-section">
+                <div class="comment-history-header">
+                    <h3>Histórico de Comentários</h3>
+                    <span id="commentCount" class="comment-count">0 comentários</span>
+                </div>
+                <div id="commentsList" class="comments-list">
+                    <!-- Comentários serão carregados aqui via JavaScript -->
+                    <div class="comments-loading">
+                        <span class="spinner"></span>
+                        <p>Carregando comentários...</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -506,6 +540,9 @@
                     projetosSalvos = data.projetos;
                     renderizarProjetos(data.projetos);
                     statusText.textContent = `${data.total} projetos carregados.`;
+                    
+                    // Após carregar, verifica projetos sem atualização
+                    await destacarProjetosSemAtualizacao();
                 } else {
                     throw new Error(data.erro || 'Erro desconhecido');
                 }
@@ -522,6 +559,73 @@
                 loadButton.disabled = false;
                 loadButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
                 loadingSpinner.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Busca projetos sem atualização e destaca visualmente
+         */
+        async function destacarProjetosSemAtualizacao() {
+            try {
+                const response = await fetch('/api/projetos-sem-atualizacao');
+                const data = await response.json();
+                
+                if (data.sucesso && data.projetos_alerta) {
+                    data.projetos_alerta.forEach(projeto => {
+                        const card = document.querySelector(`[data-projeto-id="${projeto.id}"]`);
+                        if (card) {
+                            // Adiciona classe de alerta
+                            card.classList.add('projeto-sem-atualizacao');
+                            
+                            // Adiciona badge de alerta
+                            const badge = document.createElement('div');
+                            badge.className = 'badge-alerta-atualizacao';
+                            badge.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${projeto.dias_sem_atualizacao} dias sem atualização`;
+                            badge.title = `Último comentário: ${formatarDataSimples(projeto.data_ultimo_comentario)}`;
+                            
+                            // Insere no topo do card
+                            card.insertBefore(badge, card.firstChild);
+                        }
+                    });
+                    
+                    if (data.projetos_alerta.length > 0) {
+                        console.log(`⚠️ ${data.projetos_alerta.length} projeto(s) sem atualização há mais de 5 dias úteis`);
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao buscar projetos sem atualização:', error);
+            }
+        }
+        
+        /**
+         * Formata data para exibição simples
+         */
+        function formatarDataSimples(dataISO) {
+            if (!dataISO) return 'N/D';
+            try {
+                const data = new Date(dataISO);
+                return data.toLocaleDateString('pt-BR');
+            } catch {
+                return 'N/D';
+            }
+        }
+
+        /**
+         * Remove a marcação de alerta de um projeto específico
+         */
+        function removerAlertaProjeto(projetoId) {
+            const card = document.querySelector(`[data-projeto-id="${projetoId}"]`);
+            if (card) {
+                // Remove a classe de alerta
+                card.classList.remove('projeto-sem-atualizacao');
+                
+                // Remove o badge de alerta
+                const badge = card.querySelector('.badge-alerta-atualizacao');
+                if (badge) {
+                    badge.remove();
+                }
+                
+                console.log(`✅ Alerta removido do projeto ID: ${projetoId}`);
             }
         }
 
@@ -1340,51 +1444,224 @@
 
         // ===== Comentários em Projeto =====
         let projetoParaComentar = null;
-        function abrirModalComentario(projeto) {
+        
+        /**
+         * Formata data para exibição (DD/MM/YYYY HH:MM)
+         */
+        function formatarDataComentario(dataISO) {
+            if (!dataISO) return '';
+            try {
+                const data = new Date(dataISO);
+                const dia = String(data.getDate()).padStart(2, '0');
+                const mes = String(data.getMonth() + 1).padStart(2, '0');
+                const ano = data.getFullYear();
+                const hora = String(data.getHours()).padStart(2, '0');
+                const minuto = String(data.getMinutes()).padStart(2, '0');
+                return `${dia}/${mes}/${ano} ${hora}:${minuto}`;
+            } catch (e) {
+                return dataISO;
+            }
+        }
+        
+        /**
+         * Carrega comentários do servidor
+         */
+        async function carregarComentarios(projetoId) {
+            const lista = document.getElementById('commentsList');
+            const contador = document.getElementById('commentCount');
+            
+            // Mostra loading
+            lista.innerHTML = `
+                <div class="comments-loading">
+                    <span class="spinner"></span>
+                    <p>Carregando comentários...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch(`/api/comentarios/${projetoId}`);
+                const data = await response.json();
+                
+                if (response.ok && data.sucesso) {
+                    const comentarios = data.comentarios || [];
+                    const total = data.total || 0;
+                    
+                    // Atualiza contador
+                    contador.textContent = `${total} comentário${total !== 1 ? 's' : ''}`;
+                    
+                    if (comentarios.length === 0) {
+                        lista.innerHTML = `
+                            <div class="comments-empty">
+                                <p>📝 Nenhum comentário ainda</p>
+                                <p style="font-size: 0.85rem; margin-top: 8px;">Seja o primeiro a comentar!</p>
+                            </div>
+                        `;
+                    } else {
+                        lista.innerHTML = comentarios.map(c => `
+                            <div class="comment-item">
+                                <div class="comment-header">
+                                    <span class="comment-author">${c.autor_nome || 'Desconhecido'}</span>
+                                    <div class="comment-meta">
+                                        <span class="comment-date">
+                                            📅 ${formatarDataComentario(c.data_criacao)}
+                                        </span>
+                                        <span class="comment-via">${c.adicionado_via || 'WEB'}</span>
+                                    </div>
+                                </div>
+                                <div class="comment-content">${c.conteudo}</div>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    throw new Error(data.mensagem || 'Erro ao carregar comentários');
+                }
+            } catch (e) {
+                lista.innerHTML = `
+                    <div class="comments-empty">
+                        <p>❌ Erro ao carregar comentários</p>
+                        <p style="font-size: 0.85rem; margin-top: 8px;">${e.message}</p>
+                    </div>
+                `;
+                console.error('Erro ao carregar comentários:', e);
+            }
+        }
+        
+        /**
+         * Sincroniza comentários do Zoho
+         */
+        async function sincronizarComentarios(projetoId) {
+            const btn = document.getElementById('syncCommentsBtn');
+            const btnOriginal = btn.innerHTML;
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner"></span> Sincronizando...';
+                
+                const response = await fetch(`/api/comentarios/${projetoId}/sincronizar`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.sucesso) {
+                    mostrarToast(data.mensagem || 'Comentários sincronizados', 'success');
+                    
+                    // Remove o alerta visual se existir (sem recarregar a página)
+                    removerAlertaProjeto(projetoId);
+                    
+                    await carregarComentarios(projetoId);
+                } else {
+                    throw new Error(data.mensagem || 'Erro ao sincronizar');
+                }
+            } catch (e) {
+                mostrarToast('Erro ao sincronizar comentários', 'error');
+                console.error('Erro ao sincronizar:', e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = btnOriginal;
+            }
+        }
+        
+        /**
+         * Abre modal de comentários
+         */
+        async function abrirModalComentario(projeto) {
             const modal = document.getElementById('commentModal');
             if (!modal) return;
+            
             projetoParaComentar = projeto || null;
+            
+            // Preenche nome do projeto
+            const nomeProjeto = document.getElementById('comment-modal-project-name');
+            if (nomeProjeto) {
+                nomeProjeto.textContent = projeto?.nome || 'Projeto';
+            }
+            
+            // Limpa textarea
             const textarea = document.getElementById('commentText');
             if (textarea) textarea.value = '';
+            
+            // Mostra modal
             modal.classList.remove('hidden');
+            
+            // Carrega comentários existentes
+            if (projeto?.id) {
+                await carregarComentarios(projeto.id);
+            }
         }
+        
+        /**
+         * Fecha modal de comentários
+         */
         function fecharModalComentario() {
             const modal = document.getElementById('commentModal');
             if (!modal) return;
             const textarea = document.getElementById('commentText');
             if (textarea) textarea.value = '';
             modal.classList.add('hidden');
+            projetoParaComentar = null;
         }
-        document.addEventListener('click', function(e){
-            if (e.target && e.target.id === 'closeCommentModal') fecharModalComentario();
-            if (e.target && e.target.id === 'cancelCommentBtn') fecharModalComentario();
+        
+        // Event Listeners
+        document.getElementById('closeCommentModal')?.addEventListener('click', fecharModalComentario);
+        document.getElementById('cancelCommentBtn')?.addEventListener('click', fecharModalComentario);
+        
+        // Sincronizar comentários
+        document.getElementById('syncCommentsBtn')?.addEventListener('click', async function() {
+            if (projetoParaComentar?.id) {
+                await sincronizarComentarios(projetoParaComentar.id);
+            }
         });
-        document.getElementById('submitCommentBtn')?.addEventListener('click', async function(){
+        
+        // Adicionar comentário
+        document.getElementById('submitCommentBtn')?.addEventListener('click', async function() {
             if (!projetoParaComentar) return fecharModalComentario();
+            
             const textarea = document.getElementById('commentText');
-            const content = (textarea?.value || '').trim();
-            if (!content) {
-                if (window.mostrarToast) window.mostrarToast('Digite um comentário.', 'error');
+            const conteudo = (textarea?.value || '').trim();
+            
+            if (!conteudo) {
+                mostrarToast('Digite um comentário', 'error');
                 return;
             }
+            
+            const btn = this;
+            const btnText = btn.querySelector('.btn-text');
+            const btnLoading = btn.querySelector('.btn-loading');
+            
             try {
-                const r = await fetch('/api/projetos/comentar', {
+                // Mostra loading
+                btn.disabled = true;
+                if (btnText) btnText.classList.add('hidden');
+                if (btnLoading) btnLoading.classList.remove('hidden');
+                
+                const response = await fetch(`/api/comentarios/${projetoParaComentar.id}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ projeto_id: projetoParaComentar.id, content })
+                    body: JSON.stringify({ conteudo })
                 });
-                const text = await r.text();
-                let data = null; try { data = JSON.parse(text); } catch(_) {}
-                if (r.ok && data && (data.sucesso || data.status === 'success')) {
-                    const okMsg = (data.mensagem || data.message || 'Comentário adicionado');
-                    if (window.mostrarToast) window.mostrarToast(okMsg, 'success'); else alert(okMsg);
-                    fecharModalComentario();
+                
+                const data = await response.json();
+                
+                if (response.ok && data.sucesso) {
+                    mostrarToast(data.mensagem || 'Comentário adicionado', 'success');
+                    textarea.value = '';
+                    
+                    // Remove o alerta visual se existir (sem recarregar a página)
+                    removerAlertaProjeto(projetoParaComentar.id);
+                    
+                    // Recarrega lista de comentários
+                    await carregarComentarios(projetoParaComentar.id);
                 } else {
-                    const msg = (data && (data.erro || data.mensagem || data.message)) || ('Falha ao comentar. HTTP ' + r.status);
-                    if (window.mostrarToast) window.mostrarToast(msg, 'error'); else alert(msg);
+                    throw new Error(data.mensagem || 'Erro ao adicionar comentário');
                 }
             } catch (e) {
-                if (window.mostrarToast) window.mostrarToast('Erro de comunicação com o servidor.', 'error');
+                mostrarToast(e.message || 'Erro ao adicionar comentário', 'error');
+                console.error('Erro ao adicionar comentário:', e);
+            } finally {
+                // Esconde loading
+                btn.disabled = false;
+                if (btnText) btnText.classList.remove('hidden');
+                if (btnLoading) btnLoading.classList.add('hidden');
             }
         });
 
