@@ -2810,3 +2810,338 @@ body.login-page {
                     0 0 60px rgba(102, 126, 234, 0.5);
     }
 }
+
+/* ============================================================================
+   MODAL DE COMENTÁRIOS
+   ============================================================================ */
+
+.comment-modal {
+    width: 90%;
+    max-width: 800px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.comment-modal .modal-header {
+    flex-shrink: 0;
+}
+
+/* Seção de Adicionar Comentário (40%) */
+.comment-input-section {
+    flex: 0 0 40%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 1rem;
+}
+
+.comment-input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.comment-input-header label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.btn-sync {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-sync:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-sync svg {
+    transition: transform 0.5s ease;
+}
+
+.btn-sync:hover svg {
+    transform: rotate(180deg);
+}
+
+.comment-input-section textarea {
+    flex: 1;
+    min-height: 80px;
+    resize: vertical;
+    font-family: 'Inter', sans-serif;
+}
+
+.comment-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* Seção de Histórico (60%) */
+.comment-history-section {
+    flex: 1 1 60%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: 1rem;
+}
+
+.comment-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.comment-history-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.comment-count {
+    background: var(--bg-color);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    color: var(--label-color);
+    font-weight: 500;
+}
+
+.comments-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 8px;
+    background: #F9FAFB;
+}
+
+/* Scrollbar personalizada */
+.comments-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.comments-list::-webkit-scrollbar-track {
+    background: #E5E7EB;
+    border-radius: 4px;
+}
+
+.comments-list::-webkit-scrollbar-thumb {
+    background: #9CA3AF;
+    border-radius: 4px;
+}
+
+.comments-list::-webkit-scrollbar-thumb:hover {
+    background: #6B7280;
+}
+
+/* Card de Comentário */
+.comment-item {
+    background: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    padding: 12px;
+    transition: border-color 0.2s;
+}
+
+.comment-item:hover {
+    border-color: #9CA3AF;
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.comment-author {
+    font-weight: 600;
+    color: #1F2937;
+    font-size: 0.9rem;
+}
+
+.comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: #6B7280;
+}
+
+.comment-date {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.comment-via {
+    background: #F3F4F6;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: #4B5563;
+}
+
+.comment-content {
+    color: #374151;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Estados de carregamento */
+.comments-loading,
+.comments-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: #6B7280;
+    text-align: center;
+}
+
+.comments-loading .spinner {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 16px;
+}
+
+.comments-empty p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+/* Spinner de loading */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #E5E7EB;
+    border-top-color: #3B82F6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Botão de ação com loading */
+.btn-primary .btn-text,
+.btn-primary .btn-loading {
+    display: inline-block;
+}
+
+.btn-primary .btn-loading.hidden {
+    display: none;
+}
+
+.btn-primary .btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Botão de adicionar comentário no card */
+.add-comment-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+}
+
+.add-comment-btn:hover {
+    transform: scale(1.1) rotate(90deg);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* ===== ALERTA DE PROJETO SEM ATUALIZAÇÃO (>5 dias úteis) ===== */
+.kanban-page .project-card.projeto-sem-atualizacao {
+    border: 3px solid #DC2626;
+    border-left: 6px solid #DC2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1), 0 3px 15px rgba(0, 0, 0, 0.1);
+    animation: pulse-alert 2s ease-in-out infinite;
+}
+
+@keyframes pulse-alert {
+    0%, 100% {
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1), 0 3px 15px rgba(0, 0, 0, 0.1);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.2), 0 5px 20px rgba(220, 38, 38, 0.3);
+    }
+}
+
+.badge-alerta-atualizacao {
+    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+    border: 2px solid #DC2626;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #991B1B;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
+}
+
+.badge-alerta-atualizacao i {
+    font-size: 1rem;
+    animation: shake 0.5s ease-in-out infinite;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+}
+
+.kanban-page .project-card.projeto-sem-atualizacao:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.2), 0 10px 30px rgba(220, 38, 38, 0.3);
+}
+

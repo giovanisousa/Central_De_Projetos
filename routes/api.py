@@ -2700,3 +2700,195 @@ def api_agendar_implantacao():
         }), 500
 
 
+# ============================================================================
+#  ENDPOINTS DE COMENTÁRIOS
+# ============================================================================
+
+@api_bp.route('/comentarios/<projeto_id>', methods=['GET'])
+def api_buscar_comentarios(projeto_id):
+    """
+    Busca comentários de um projeto do banco de dados local.
+    
+    Query Parameters:
+        - limit (int): Número máximo de comentários (padrão: todos)
+        - offset (int): Número de comentários a pular (padrão: 0)
+    
+    Returns:
+        JSON com lista de comentários ordenados por data (mais recentes primeiro)
+    """
+    try:
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', default=0, type=int)
+        
+        comentarios = database.get_comentarios_projeto(projeto_id, limit=limit, offset=offset)
+        total = database.contar_comentarios_projeto(projeto_id)
+        
+        # Converte sqlite3.Row para dict
+        comentarios_list = [dict(c) for c in comentarios]
+        
+        return jsonify({
+            'sucesso': True,
+            'comentarios': comentarios_list,
+            'total': total,
+            'offset': offset,
+            'limit': limit or total
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar comentários do projeto {projeto_id}: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e),
+            'mensagem': 'Erro ao buscar comentários'
+        }), 500
+
+
+@api_bp.route('/comentarios/<projeto_id>', methods=['POST'])
+def api_adicionar_comentario(projeto_id):
+    """
+    Adiciona um novo comentário a um projeto via API do Zoho e sincroniza no banco local.
+    
+    Body Parameters:
+        - conteudo (str): Texto do comentário (obrigatório)
+    
+    Returns:
+        JSON com dados do comentário criado
+    """
+    try:
+        data = request.get_json()
+        conteudo = data.get('conteudo', '').strip()
+        
+        if not conteudo:
+            return jsonify({
+                'sucesso': False,
+                'mensagem': 'Conteúdo do comentário é obrigatório'
+            }), 400
+        
+        # Importa as funções de comentários
+        from sync_comentarios import adicionar_comentario_projeto_zoho, sincronizar_comentarios_projeto
+        
+        # Adiciona comentário via API do Zoho
+        comentario = adicionar_comentario_projeto_zoho(projeto_id, conteudo)
+        
+        if comentario and comentario.get('id'):
+            # Sincroniza os comentários do projeto para garantir consistência
+            try:
+                sincronizar_comentarios_projeto(projeto_id)
+                logger.info(f"✅ Comentários do projeto {projeto_id} sincronizados após adição")
+            except Exception as sync_error:
+                logger.warning(f"⚠️ Erro ao sincronizar após adicionar comentário: {sync_error}")
+            
+            return jsonify({
+                'sucesso': True,
+                'mensagem': 'Comentário adicionado com sucesso',
+                'comentario': comentario
+            }), 201
+        else:
+            return jsonify({
+                'sucesso': False,
+                'mensagem': 'Falha ao adicionar comentário'
+            }), 400
+    
+    except Exception as e:
+        logger.error(f"❌ Erro ao adicionar comentário ao projeto {projeto_id}: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e),
+            'mensagem': 'Erro ao adicionar comentário'
+        }), 500
+
+
+@api_bp.route('/comentarios/<projeto_id>/sincronizar', methods=['POST'])
+def api_sincronizar_comentarios(projeto_id):
+    """
+    Sincroniza comentários de um projeto do Zoho para o banco local.
+    
+    Returns:
+        JSON com número de comentários sincronizados
+    """
+    try:
+        # Importa a função de sincronização
+        from sync_comentarios import sincronizar_comentarios_projeto
+        
+        # Sincroniza comentários
+        total = sincronizar_comentarios_projeto(projeto_id)
+        
+        return jsonify({
+            'sucesso': True,
+            'mensagem': f'{total} comentários sincronizados',
+            'total': total
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"❌ Erro ao sincronizar comentários do projeto {projeto_id}: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e),
+            'mensagem': 'Erro ao sincronizar comentários'
+        }), 500
+
+
+@api_bp.route('/projetos-sem-atualizacao', methods=['GET'])
+def api_projetos_sem_atualizacao():
+    """
+    Retorna lista de IDs de projetos sem comentários há mais de 5 dias úteis.
+    
+    Returns:
+        JSON com lista de projeto_ids que precisam de atenção
+    """
+    try:
+        from utils import calcular_dias_uteis_desde
+        import database
+        
+        # Busca todos os projetos com data_ultimo_comentario
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, data_ultimo_comentario, nome
+            FROM projects
+            WHERE data_ultimo_comentario IS NOT NULL
+        ''')
+        
+        projetos = cursor.fetchall()
+        conn.close()
+        
+        # Verifica quais projetos estão sem atualização há mais de 5 dias úteis
+        projetos_alerta = []
+        
+        for projeto in projetos:
+            projeto_id = projeto['id']
+            data_ultimo = projeto['data_ultimo_comentario']
+            nome_projeto = projeto['nome'] if projeto['nome'] else 'Sem nome'
+            
+            if data_ultimo:
+                dias_uteis = calcular_dias_uteis_desde(data_ultimo)
+                
+                if dias_uteis > 5:
+                    projetos_alerta.append({
+                        'id': projeto_id,
+                        'dias_sem_atualizacao': dias_uteis,
+                        'data_ultimo_comentario': data_ultimo,
+                        'nome': nome_projeto
+                    })
+        
+        return jsonify({
+            'sucesso': True,
+            'projetos_alerta': projetos_alerta,
+            'total': len(projetos_alerta)
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar projetos sem atualização: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e),
+            'mensagem': 'Erro ao buscar projetos sem atualização'
+        }), 500
+
+
+

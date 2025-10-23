@@ -2856,3 +2856,56 @@ def determinar_coluna_projeto(project_data: dict) -> str:
     
     # Se nada corresponder, retorna status desconhecido
     return 'Status Desconhecido'
+
+
+def calcular_dias_uteis_desde(data_inicial_str: str) -> int:
+    """
+    Calcula o número de dias úteis (segunda a sexta) desde uma data até hoje.
+    
+    Args:
+        data_inicial_str: Data inicial em formato ISO (YYYY-MM-DDTHH:MM:SS.sssZ ou YYYY-MM-DD)
+    
+    Returns:
+        int: Número de dias úteis desde a data inicial até hoje
+        
+    Examples:
+        >>> calcular_dias_uteis_desde('2025-10-15T10:30:00.000Z')
+        5  # Se hoje for 22/10/2025 (segunda a sexta)
+    """
+    if not data_inicial_str:
+        return 0
+    
+    try:
+        # Parse da data inicial (suporta vários formatos)
+        if 'T' in data_inicial_str:
+            # Formato ISO completo: 2025-10-15T10:30:00.000Z
+            data_inicial = datetime.fromisoformat(data_inicial_str.replace('Z', '+00:00'))
+            # Remove timezone para comparação naive
+            data_inicial = data_inicial.replace(tzinfo=None)
+        else:
+            # Formato simples: 2025-10-15
+            data_inicial = datetime.fromisoformat(data_inicial_str)
+        
+        # Remove hora/minuto/segundo para comparar apenas datas
+        data_inicial = data_inicial.replace(hour=0, minute=0, second=0, microsecond=0)
+        data_hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Se a data inicial é futura, retorna 0
+        if data_inicial > data_hoje:
+            return 0
+        
+        # Conta dias úteis (segunda=0 a sexta=4)
+        dias_uteis = 0
+        data_atual = data_inicial
+        
+        while data_atual < data_hoje:
+            # weekday(): segunda=0, terça=1, ..., domingo=6
+            if data_atual.weekday() < 5:  # Segunda a Sexta
+                dias_uteis += 1
+            data_atual += timedelta(days=1)
+        
+        return dias_uteis
+    
+    except Exception as e:
+        print(f"⚠️ Erro ao calcular dias úteis desde '{data_inicial_str}': {e}")
+        return 0

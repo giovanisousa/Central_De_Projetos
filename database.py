@@ -91,6 +91,29 @@ def init_db():
         )
     ''')
 
+    # Tabela de Comentários
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS comentarios (
+            id TEXT PRIMARY KEY, -- ID do comentário no Zoho
+            projeto_id TEXT NOT NULL,
+            conteudo TEXT NOT NULL,
+            autor_zpuid TEXT,
+            autor_nome TEXT,
+            autor_email TEXT,
+            data_criacao TEXT NOT NULL, -- ISO 8601 format
+            data_modificacao TEXT, -- ISO 8601 format
+            adicionado_via TEXT, -- WEB, MOBILE, API, etc.
+            full_data_json TEXT, -- JSON completo do comentário
+            FOREIGN KEY (projeto_id) REFERENCES projects (id)
+        )
+    ''')
+    
+    # Índice para buscar comentários por projeto ordenados por data
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_comentarios_projeto_data 
+        ON comentarios (projeto_id, data_criacao DESC)
+    ''')
+
     # Tabela de Usuários
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -535,6 +558,211 @@ def upsert_tarefa(tarefa_data, lista_de_tarefas_id, fase_id, projeto_id):
     conn.close()
 
 
+def upsert_comentario(comentario_data, projeto_id):
+    """
+    Insere ou atualiza um comentário no banco de dados.
+    
+    Args:
+        comentario_data: Dicionário com os dados do comentário da API do Zoho
+        projeto_id: ID do projeto ao qual o comentário pertence
+    
+    Returns:
+        str: ID do comentário inserido/atualizado
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Extrai informações do autor
+    posted_by = comentario_data.get('posted_by', {})
+    autor_zpuid = posted_by.get('zpuid')
+    autor_nome = posted_by.get('full_name') or posted_by.get('name', 'Desconhecido')
+    autor_email = posted_by.get('email')
+    
+    params = {
+        'id': comentario_data.get('id'),
+        'projeto_id': projeto_id,
+        'conteudo': comentario_data.get('content', ''),
+        'autor_zpuid': autor_zpuid,
+        'autor_nome': autor_nome,
+        'autor_email': autor_email,
+        'data_criacao': comentario_data.get('created_time'),
+        'data_modificacao': comentario_data.get('last_modified_time'),
+        'adicionado_via': comentario_data.get('added_via', 'UNKNOWN'),
+        'full_data_json': json.dumps(comentario_data)
+    }
+    
+    sql = '''
+        INSERT INTO comentarios (
+            id, projeto_id, conteudo, autor_zpuid, autor_nome, autor_email,
+            data_criacao, data_modificacao, adicionado_via, full_data_json
+        )
+        VALUES (
+            :id, :projeto_id, :conteudo, :autor_zpuid, :autor_nome, :autor_email,
+            :data_criacao, :data_modificacao, :adicionado_via, :full_data_json
+        )
+        ON CONFLICT(id) DO UPDATE SET
+            conteudo = excluded.conteudo,
+            data_modificacao = excluded.data_modificacao,
+            full_data_json = excluded.full_data_json
+    '''
+    
+    cursor.execute(sql, params)
+    conn.commit()
+    conn.close()
+    
+    # Atualiza a data do último comentário no projeto
+    atualizar_data_ultimo_comentario(projeto_id)
+    
+    return params['id']
+
+
+def get_comentarios_projeto(projeto_id, limit=None, offset=0):
+    """
+    Busca comentários de um projeto ordenados por data (mais recentes primeiro).
+    
+    Args:
+        projeto_id: ID do projeto
+        limit: Número máximo de comentários a retornar (None = todos)
+        offset: Número de comentários a pular (para paginação)
+    
+    Returns:
+        list: Lista de comentários (sqlite3.Row objects)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    sql = '''
+        SELECT * FROM comentarios 
+        WHERE projeto_id = ? 
+        ORDER BY data_criacao DESC
+    '''
+    
+    if limit:
+        sql += f' LIMIT {limit} OFFSET {offset}'
+    
+    cursor.execute(sql, (projeto_id,))
+    comentarios = cursor.fetchall()
+    conn.close()
+    
+    return comentarios
+
+
+def get_ultimo_comentario_projeto(projeto_id):
+    """
+    Busca o comentário mais recente de um projeto.
+    
+    Args:
+        projeto_id: ID do projeto
+    
+    Returns:
+        sqlite3.Row: Comentário mais recente ou None
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT * FROM comentarios 
+        WHERE projeto_id = ? 
+        ORDER BY data_criacao DESC 
+        LIMIT 1
+    ''', (projeto_id,))
+    
+    comentario = cursor.fetchone()
+    conn.close()
+    
+    return comentario
+
+
+def atualizar_data_ultimo_comentario(projeto_id, data_comentario=None):
+    """
+    Atualiza a coluna data_ultimo_comentario na tabela projects
+    com a data do comentário mais recente.
+    
+    Args:
+        projeto_id: ID do projeto
+        data_comentario: Data específica para atualizar. Se None, busca a mais recente.
+                        Use string vazia '' para forçar NULL.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Se data_comentario não foi fornecida, busca a mais recente
+    if data_comentario is None:
+        cursor.execute('''
+            SELECT MAX(data_criacao) 
+            FROM comentarios 
+            WHERE projeto_id = ?
+        ''', (projeto_id,))
+        
+        row = cursor.fetchone()
+        data_ultimo = row[0] if row and row[0] else None
+    elif data_comentario == '':
+        # String vazia significa forçar NULL
+        data_ultimo = None
+    else:
+        # Usa a data fornecida
+        data_ultimo = data_comentario
+    
+    # Atualiza o projeto
+    cursor.execute('''
+        UPDATE projects 
+        SET data_ultimo_comentario = ? 
+        WHERE id = ?
+    ''', (data_ultimo, projeto_id))
+    
+    conn.commit()
+    conn.close()
+
+
+def contar_comentarios_projeto(projeto_id):
+    """
+    Conta o número total de comentários de um projeto.
+    
+    Args:
+        projeto_id: ID do projeto
+    
+    Returns:
+        int: Número de comentários
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT COUNT(*) FROM comentarios 
+        WHERE projeto_id = ?
+    ''', (projeto_id,))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    return row[0] if row else 0
+
+
+def limpar_comentarios_projeto(projeto_id):
+    """
+    Remove todos os comentários de um projeto específico.
+    
+    Args:
+        projeto_id: ID do projeto
+    
+    Returns:
+        int: Número de comentários removidos
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('DELETE FROM comentarios WHERE projeto_id = ?', (projeto_id,))
+    linhas_afetadas = cursor.rowcount
+    
+    # Atualiza data_ultimo_comentario para NULL
+    cursor.execute('UPDATE projects SET data_ultimo_comentario = NULL WHERE id = ?', (projeto_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return linhas_afetadas
+
+
 def count_open_impediments(projeto_id: str) -> int:
     """Conta tarefas abertas (não concluídas) do projeto na fase de impeditivos.
     Observação: como sincronizamos apenas tarefas da fase de impeditivos,
@@ -599,6 +827,11 @@ def _migrate_database(cursor):
         if 'implantador_pacs' not in columns:
             cursor.execute("ALTER TABLE projects ADD COLUMN implantador_pacs TEXT")
             print("Migração: Coluna 'implantador_pacs' adicionada à tabela projects")
+        
+        # Migração 5: Adicionar coluna data_ultimo_comentario se não existir
+        if 'data_ultimo_comentario' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN data_ultimo_comentario TEXT")
+            print("Migração: Coluna 'data_ultimo_comentario' adicionada à tabela projects")
             
     except Exception as e:
         print(f"Erro durante migração do banco de dados: {e}")
