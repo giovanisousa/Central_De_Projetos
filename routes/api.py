@@ -2577,7 +2577,8 @@ def obter_progresso_fases(project_id):
             'NR': None,
             'AP': None,
             'IMP': None,
-            'INT': None
+            'INT': None,
+            'INFRA': None
         }
         
         # Mapear fases para as barras
@@ -2600,7 +2601,9 @@ def obter_progresso_fases(project_id):
             
             # Mapear para as categorias (verificações mais específicas primeiro)
             # Priorizar "Implantação" sobre "Homologação" para evitar sobrescrita
-            if 'implanta' in nome_normalizado and 'ris' in nome_normalizado:
+            if 'infraestrutura' in nome_normalizado or nome_normalizado == 'infra':
+                resultado['INFRA'] = round(percentual, 1)
+            elif 'implanta' in nome_normalizado and 'ris' in nome_normalizado:
                 resultado['NR'] = round(percentual, 1)
             elif 'implanta' in nome_normalizado and 'pacs' in nome_normalizado:
                 resultado['AP'] = round(percentual, 1)
@@ -2620,7 +2623,7 @@ def obter_progresso_fases(project_id):
         return jsonify({
             'sucesso': False,
             'erro': str(e),
-            'progresso': {'NR': None, 'AP': None, 'IMP': None, 'INT': None}
+            'progresso': {'NR': None, 'AP': None, 'IMP': None, 'INT': None, 'INFRA': None}
         }), 500
 
 

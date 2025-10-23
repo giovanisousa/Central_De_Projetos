@@ -756,6 +756,7 @@
         async function renderizarProgresso(projetoId, cardElement, coluna) {
             // Define as colunas onde as barras de progresso devem ser exibidas
             const colunasPermitidas = [
+                'Falta Liberar Servidor Infra',
                 'Em Andamento - Implantação',
                 'Em Homologação',
                 'Em Virada'
@@ -776,13 +777,23 @@
                 const progresso = data.progresso;
                 let progressoHtml = '';
                 
-                // Ordem de exibição: NR, AP, IMP, INT
-                const fases = [
-                    { key: 'NR', label: 'NR' },
-                    { key: 'AP', label: 'AP' },
-                    { key: 'IMP', label: 'IMP' },
-                    { key: 'INT', label: 'INT' }
-                ];
+                // Definir quais fases exibir baseado na coluna
+                let fases = [];
+                
+                if (coluna === 'Falta Liberar Servidor Infra') {
+                    // Apenas fase Infraestrutura
+                    fases = [
+                        { key: 'INFRA', label: 'Infra' }
+                    ];
+                } else {
+                    // Ordem de exibição para outras colunas: NR, AP, IMP, INT
+                    fases = [
+                        { key: 'NR', label: 'NR' },
+                        { key: 'AP', label: 'AP' },
+                        { key: 'IMP', label: 'IMP' },
+                        { key: 'INT', label: 'INT' }
+                    ];
+                }
                 
                 fases.forEach(fase => {
                     const percentual = progresso[fase.key];
