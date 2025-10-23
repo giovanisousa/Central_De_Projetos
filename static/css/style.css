@@ -387,7 +387,7 @@ body.kanban-page {
 .modal .modal-footer { padding: 16px 20px; display: flex; gap: 10px; justify-content: flex-end; }
 
 .btn-primary {
-    background: linear-gradient(135deg, #f4ec24, #e6d822);
+    background: linear-gradient(135deg, #b8b814, #a6a312);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -954,8 +954,8 @@ body.kanban-page {
 .kanban-page .falta-liberar-servidor .project-card .add-comment-btn { background-color: #E67E22; }
 .kanban-page .falta-liberar-servidor .project-card .add-comment-btn:hover { background-color: #d68910; }
 
-.kanban-page .aguardando-cronograma .project-card .add-comment-btn { background-color: #f4ec24; }
-.kanban-page .aguardando-cronograma .project-card .add-comment-btn:hover { background-color: #e6d822; }
+.kanban-page .aguardando-cronograma .project-card .add-comment-btn { background-color: #b8b814; }
+.kanban-page .aguardando-cronograma .project-card .add-comment-btn:hover { background-color: #a6a312; }
 
 .kanban-page .aguardando-cronograma-implantacao .project-card .add-comment-btn { background-color: #17a2b8; }
 .kanban-page .aguardando-cronograma-implantacao .project-card .add-comment-btn:hover { background-color: #138496; }
@@ -973,7 +973,7 @@ body.kanban-page {
 .kanban-page .em-operacao .project-card .add-comment-btn { background-color: #3498DB; }
 .kanban-page .em-operacao .project-card .add-comment-btn:hover { background-color: #2980b9; }
 
-.kanban-page .finalizado .project-card .add-comment-btn { background-color: #e6d822; }
+.kanban-page .finalizado .project-card .add-comment-btn { background-color: #229954; }
 .kanban-page .finalizado .project-card .add-comment-btn:hover { background-color: #229954; }
 
 .kanban-page .parado .project-card .add-comment-btn { background-color: #DC143C; }
@@ -1401,7 +1401,7 @@ body.kanban-page {
 .modal .modal-footer { padding: 16px 20px; display: flex; gap: 10px; justify-content: flex-end; }
 
 .btn-primary {
-    background: linear-gradient(135deg, #f4ec24, #e6d822);
+    background: linear-gradient(135deg, #b8b814, #a6a312);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -1965,11 +1965,11 @@ body.kanban-page {
 .kanban-page .aguardando-onboarding .project-card .add-comment-btn { background-color: #6c757d; }
 .kanban-page .aguardando-onboarding .project-card .add-comment-btn:hover { background-color: #5a6268; }
 
-.kanban-page .falta-liberar-servidor .project-card .add-comment-btn { background-color: #e6d822; }
+.kanban-page .falta-liberar-servidor .project-card .add-comment-btn { background-color: #a6a312; }
 .kanban-page .falta-liberar-servidor .project-card .add-comment-btn:hover { background-color: #d68910; }
 
-.kanban-page .aguardando-cronograma .project-card .add-comment-btn { background-color: #f4ec24; }
-.kanban-page .aguardando-cronograma .project-card .add-comment-btn:hover { background-color: #e6d822; }
+.kanban-page .aguardando-cronograma .project-card .add-comment-btn { background-color: #b8b814; }
+.kanban-page .aguardando-cronograma .project-card .add-comment-btn:hover { background-color: #a6a312; }
 
 .kanban-page .aguardando-cronograma-implantacao .project-card .add-comment-btn { background-color: #17a2b8; }
 .kanban-page .aguardando-cronograma-implantacao .project-card .add-comment-btn:hover { background-color: #138496; }
@@ -1983,7 +1983,7 @@ body.kanban-page {
 .kanban-page .em-operacao .project-card .add-comment-btn { background-color: #3498DB; }
 .kanban-page .em-operacao .project-card .add-comment-btn:hover { background-color: #2980b9; }
 
-.kanban-page .finalizado .project-card .add-comment-btn { background-color: #e6d822; }
+.kanban-page .finalizado .project-card .add-comment-btn { background-color: #229954; }
 .kanban-page .finalizado .project-card .add-comment-btn:hover { background-color: #229954; }
 
 .kanban-page .parado .project-card .add-comment-btn { background-color: #DC143C; }
@@ -2024,14 +2024,14 @@ body.kanban-page {
 /* Cores das colunas */
 .kanban-page .column-header.aguardando-onboarding { background: linear-gradient(135deg, #6c757d, #5a6268); }
 .kanban-page .column-header.falta-liberar-servidor { background: #E67E22; }
-.kanban-page .column-header.aguardando-cronograma { background: linear-gradient(135deg, #f4ec24, #e6d822); }
+.kanban-page .column-header.aguardando-cronograma { background: linear-gradient(135deg, #b8b814, #a6a312); }
 /* Em Andamento - Implantação should keep its green color */
 .kanban-page .column-header.em-andamento-implantacao { background: linear-gradient(135deg, #2ECC71, #27ae60); }
 .kanban-page .column-header.aguardando-cronograma-implantacao { background: linear-gradient(135deg, #2ECC71, #27ae60); }
 .kanban-page .column-header.em-homologacao { background: linear-gradient(135deg, #1ABC9C, #16a085); }
 .kanban-page .column-header.em-virada { background: linear-gradient(135deg, #1ABC9C, #16a085); }
 .kanban-page .column-header.em-operacao { background: linear-gradient(135deg, #3498DB, #2980b9); }
-.kanban-page .column-header.finalizado { background: linear-gradient(135deg, #e6d822, #229954); }
+.kanban-page .column-header.finalizado { background: #229954; }
 .kanban-page .column-header.parado { background: linear-gradient(135deg, #DC143C, #b91c3c); }
 .kanban-page .column-header.status-desconhecido { background: linear-gradient(135deg, #95A5A6, #7f8c8d); }
 /* Cancelado: cinza claro com texto preto */
@@ -2045,13 +2045,13 @@ body.kanban-page {
 /* Bordas dos cards baseadas na coluna */
 .kanban-page .aguardando-onboarding .project-card { border-left-color: #6c757d; }
 .kanban-page .falta-liberar-servidor .project-card { border-left-color: #E67E22; }
-.kanban-page .aguardando-cronograma .project-card { border-left-color: #f4ec24; }
+.kanban-page .aguardando-cronograma .project-card { border-left-color: #b8b814; }
 .kanban-page .aguardando-cronograma-implantacao .project-card { border-left-color: #17a2b8; }
 .kanban-page .em-andamento-implantacao .project-card { border-left-color: #2ECC71; }
 .kanban-page .em-homologacao .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-virada .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-operacao .project-card { border-left-color: #3498DB; }
-.kanban-page .finalizado .project-card { border-left-color: #e6d822; }
+.kanban-page .finalizado .project-card { border-left-color: #229954; }
 .kanban-page .parado .project-card { border-left-color: #DC143C; }
 .kanban-page .status-desconhecido .project-card { border-left-color: #95A5A6; }
 /* Aguardando Encerramento (roxo/lilás) */
@@ -2246,7 +2246,7 @@ body.kanban-page {
 .project-card .play-btn {
     background: none;
     border: none;
-    color: #e6d822; /* Amarelo, combinando com a coluna "Aguardando Cronograma" */
+    color: #a6a312; /* Amarelo, combinando com a coluna "Aguardando Cronograma" */
     font-size: 20px; /* Tamanho do ícone reduzido */
     cursor: pointer;
     transition: color 0.2s ease;
@@ -2401,11 +2401,11 @@ body.login-page {
 }
 
 .kanban-page .column-header.falta-liberar-servidor { background: #E67E22; }
-.kanban-page .column-header.aguardando-cronograma { background: linear-gradient(135deg, #f4ec24, #e6d822); }
+.kanban-page .column-header.aguardando-cronograma { background: linear-gradient(135deg, #b8b814, #a6a312); }
 .kanban-page .column-header.em-homologacao { background: linear-gradient(135deg, #1ABC9C, #16a085); }
 .kanban-page .column-header.em-virada { background: linear-gradient(135deg, #1ABC9C, #16a085); }
 .kanban-page .column-header.em-operacao { background: linear-gradient(135deg, #3498DB, #2980b9); }
-.kanban-page .column-header.finalizado { background: linear-gradient(135deg, #e6d822, #229954); }
+.kanban-page .column-header.finalizado { background: #229954; }
 .kanban-page .column-header.parado { background: linear-gradient(135deg, #DC143C, #b91c3c); }
 .kanban-page .column-header.status-desconhecido { background: linear-gradient(135deg, #95A5A6, #7f8c8d); }
 /* Cancelado: cinza claro com texto preto */
@@ -2419,12 +2419,12 @@ body.login-page {
 /* Bordas dos cards baseadas na coluna */
 .kanban-page .aguardando-onboarding .project-card { border-left-color: #6c757d; }
 .kanban-page .falta-liberar-servidor .project-card { border-left-color: #E67E22; }
-.kanban-page .aguardando-cronograma .project-card { border-left-color: #f4ec24; }
+.kanban-page .aguardando-cronograma .project-card { border-left-color: #b8b814; }
 .kanban-page .aguardando-cronograma-implantacao .project-card { border-left-color: #17a2b8; }
 .kanban-page .em-homologacao .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-virada .project-card { border-left-color: #1ABC9C; }
 .kanban-page .em-operacao .project-card { border-left-color: #3498DB; }
-.kanban-page .finalizado .project-card { border-left-color: #e6d822; }
+.kanban-page .finalizado .project-card { border-left-color: #229954; }
 .kanban-page .parado .project-card { border-left-color: #DC143C; }
 .kanban-page .status-desconhecido .project-card { border-left-color: #95A5A6; }
 /* Aguardando Encerramento (roxo/lilás) */
@@ -2619,7 +2619,7 @@ body.login-page {
 .project-card .play-btn {
     background: none;
     border: none;
-    color: #e6d822; /* Amarelo, combinando com a coluna "Aguardando Cronograma" */
+    color: #a6a312; /* Amarelo, combinando com a coluna "Aguardando Cronograma" */
     font-size: 20px; /* Tamanho do ícone reduzido */
     cursor: pointer;
     transition: color 0.2s ease;
