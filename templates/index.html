@@ -331,7 +331,7 @@
         const COLUNAS = [
             { nome: "Aguardando Onboarding", class: "aguardando-onboarding" },
             { nome: "Falta Liberar Servidor Infra", class: "falta-liberar-servidor" },
-            { nome: "Em Andamento", class: "em-andamento" },
+            { nome: "Aguardando Cronograma", class: "aguardando-cronograma" },
             { nome: "Em Andamento - Implantação", class: "em-andamento-implantacao" },
             { nome: "Em Homologação", class: "em-homologacao" },
             { nome: "Em Virada", class: "em-virada" },
@@ -358,7 +358,7 @@
             switch (colunaNome) {
                 case 'Aguardando Onboarding': return 5;
                 case 'Falta Liberar Servidor Infra': return 10;
-                case 'Em Andamento': return temNetRIS ? 90 : 30; // netRIS 90, somente PACS 30
+                case 'Aguardando Cronograma': return temNetRIS ? 90 : 30; // netRIS 90, somente PACS 30
                 case 'Em Andamento - Implantação': return temNetRIS ? 90 : 30; // netRIS 90, somente PACS 30
                 case 'Em Homologação': return 15;
                 case 'Em Virada': return 10;
@@ -905,7 +905,7 @@
 
             // 4. Botão de Play (se aplicável)
             let playButtonHtml = '';
-            if (coluna === 'Em Andamento') {
+            if (coluna === 'Aguardando Cronograma') {
                 playButtonHtml = `
                     <button class="play-btn" title="Registrar atividade">
                         <i class="fas fa-play"></i>

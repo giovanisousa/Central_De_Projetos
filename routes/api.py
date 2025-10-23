@@ -20,6 +20,7 @@ from config import (
     TAG_EM_VIRADA_ID,
     TAG_PARADO_ID,
     TAG_AGUARDANDO_ENCERRAMENTO_ID,
+    TAG_AGUARDANDO_CRONOGRAMA,
 )
 
 # Variável para custom view de tarefas (pode ser None se não configurada)
@@ -587,7 +588,7 @@ def carregar_projetos():
         
         projetos_por_status = {}
         colunas_validas = {
-            "Aguardando Onboarding", "Falta Liberar Servidor Infra", "Em Andamento",
+            "Aguardando Onboarding", "Falta Liberar Servidor Infra", "Aguardando Cronograma",
             "Em Andamento - Implantação", "Em Homologação", "Em Virada", 
             "Em Operação Assistida", "Aguardando Encerramento", "Projeto Parado", 
             "Finalizado", "Cancelado", "Status Desconhecido"
@@ -854,8 +855,8 @@ def api_mover_projeto():
         finally:
             conn.close()
 
-        # Tratamento específico para transição Infra → Em Andamento
-        if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
+        # Tratamento específico para transição Infra → Aguardando Cronograma
+        if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Aguardando Cronograma":
             conn = database.get_db_connection()
             cursor = conn.cursor()
             try:
@@ -1268,7 +1269,7 @@ def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhe
     add_tags = info_dest.get("zohoTagsToAdd", []) or []
     remove_tags = info_dest.get("zohoTagsToRemove", []) or []
 
-    if coluna_destino == "Em Andamento":
+    if coluna_destino == "Aguardando Cronograma":
         # Remove all tags
         payload_tags = {"tags": []}
         response_tags = requests.patch(base_url, headers=headers, json=payload_tags, timeout=45)
@@ -1569,7 +1570,7 @@ def _atualizar_planilha(
                     coletor_mensagens.append(f'Aviso: Falha ao atualizar coluna "{nome_coluna}": {e}')
 
     # Atualizações específicas por transição após descobrir o cliente correto (mantido para compatibilidade)
-    if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
+    if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Aguardando Cronograma":
         hoje_ddmmyyyy = datetime.now().strftime('%d/%m/%Y')
         print(f"[DEBUG][SHEET] Atualizando Lib.Servidor para cliente '{chave_busca}' com data '{hoje_ddmmyyyy}'")
         try:
@@ -1809,7 +1810,7 @@ def iniciar_implantacao():
                     access_token=access_token,
                     detalhes_zoho=detalhes_zoho,
                     coletor_mensagens=mensagens_zoho,
-                    coluna_origem="Em Andamento"  # Assumindo que vem de "Em Andamento"
+                    coluna_origem="Aguardando Cronograma"  # Assumindo que vem de "Aguardando Cronograma"
                 )
                 print(f"[DEBUG][INICIAR_IMPLANTACAO] Zoho atualizado com sucesso. Mensagens: {mensagens_zoho}")
             except Exception as zoho_error:
@@ -2290,7 +2291,7 @@ def mover_projeto():
         mapeamento_colunas = {
             "Aguardando Onboarding": {"tag_id": TAG_AGUARDANDO_ONBOARDING_ID},
             "Falta Liberar Servidor Infra": {"tag_id": TAG_AGUARDANDO_INFRA_ID},
-            "Em Andamento": {"status_id": STATUS_EM_ANDAMENTO_ID},
+            "Aguardando Cronograma": {"tag_id": TAG_AGUARDANDO_CRONOGRAMA},
             "Em Homologação": {"tag_id": TAG_EM_HOMOLOGACAO_ID},
             "Em Virada": {"tag_id": TAG_EM_VIRADA_ID},
             "Em Operação Assistida": {"status_id": STATUS_OPERACAO_ASSISTIDA_ID},
@@ -2317,9 +2318,9 @@ def mover_projeto():
                 "Content-Type": "application/json"
             }
             
-            # 1. Se movendo para Em Andamento, remover TODAS as tags primeiro
-            if coluna_destino == "Em Andamento":
-                print(f"[DEBUG] Obtendo tags atuais do projeto {projeto_id}")
+            # 1. Se movendo para Aguardando Cronograma, adicionar tag específica
+            if coluna_destino == "Aguardando Cronograma":
+                print(f"[DEBUG] Adicionando TAG_AGUARDANDO_CRONOGRAMA ao projeto {projeto_id}")
                 tags_resp = requests.get(tags_url, headers=headers, timeout=30)
                 if tags_resp.status_code == 200:
                     tags = tags_resp.json().get('tags', [])
@@ -2386,9 +2387,9 @@ def mover_projeto():
         # Sincronizar projeto específico
         _sincronizar_db_local(projeto_id, access_token, mensagens)
 
-        # Ações especiais para transição de Falta Liberar Servidor Infra para Em Andamento
+        # Ações especiais para transição de Falta Liberar Servidor Infra para Aguardando Cronograma
         print(f"[DEBUG] Verificando transição especial: origem={coluna_origem}, destino={coluna_destino}")
-        if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Em Andamento":
+        if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Aguardando Cronograma":
             logger.debug("Executando ações especiais para liberação de servidor")
             from datetime import date, datetime
             data_atual = date.today().strftime('%Y-%m-%d')
@@ -2464,9 +2465,9 @@ def mover_projeto():
                                 range_status = f"'{NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}"
                                 updates.append({
                                     'range': range_status,
-                                    'values': [["Em Andamento"]]
+                                    'values': [["Aguardando Cronograma"]]
                                 })
-                                print(f"[DEBUG] Adicionada atualização de status: {range_status} = Em Andamento")
+                                print(f"[DEBUG] Adicionada atualização de status: {range_status} = Aguardando Cronograma")
                             
                             if col_libservidor_idx is not None:
                                 letra_col_lib = utils.indice_para_letra_coluna(col_libservidor_idx)
@@ -2531,7 +2532,7 @@ def mover_projeto():
                     creds = utils.build_google_credentials_from_session()
                     sheets_service = build('sheets', 'v4', credentials=creds)
                     # Atualizar Status Principal
-                    utils.atualizar_status_principal_planilha_por_cliente(sheets_service, cliente_sheet, "Em Andamento")
+                    utils.atualizar_status_principal_planilha_por_cliente(sheets_service, cliente_sheet, "Aguardando Cronograma")
                     mensagens.append("Status Principal atualizado na planilha")
                     # Atualizar Lib.Servidor
                     utils.atualizar_coluna_planilha_por_cliente(sheets_service, cliente_sheet, "Lib.Servidor", data_atual)

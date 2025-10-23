@@ -426,7 +426,7 @@ def calcular_dias_na_fase(info_min: dict | None, coluna_hint: str | None = None)
         cand = _parse_date_any(info_min.get('data_virada'))
     elif h == 'em operação assistida':
         cand = _parse_date_any(info_min.get('data_inicio_oa'))
-    elif h == 'em andamento' or h == 'em andamento - implantação':
+    elif h == 'aguardando cronograma' or h == 'em andamento - implantação':
         cand = _parse_date_any(info_min.get('data_inicio_implantacao')) or _parse_date_any(info_min.get('data_inicio'))
     elif h == 'aguardando encerramento':
         cand = _parse_date_any(info_min.get('data_homologacao'))
@@ -508,8 +508,8 @@ def determinar_coluna_projeto(projeto: dict) -> str:
             return 'Aguardando Onboarding'
 
         # Status padrão
-        if status_id in {STATUS_EM_ANDAMENTO_ID, STATUS_ABERTO_ID} or status_nm in {'em andamento', 'aberto'}:
-            return 'Em Andamento'
+        if status_id in {STATUS_EM_ANDAMENTO_ID, STATUS_ABERTO_ID} or status_nm in {'aguardando cronograma', 'aberto'}:
+            return 'Aguardando Cronograma'
     except Exception:
         pass
     return 'Status Desconhecido'
@@ -1439,7 +1439,7 @@ def determinar_coluna_projeto(projeto):
     if status_id == STATUS_PENDENCIA_ID and TAG_PARADO_ID in tag_ids:
         return "Projeto Parado"
     status_map = {
-        STATUS_EM_ANDAMENTO_ID: "Em Andamento",
+        STATUS_EM_ANDAMENTO_ID: "Aguardando Cronograma",
         STATUS_FINALIZADO_ID: "Finalizado",
         STATUS_OPERACAO_ASSISTIDA_ID: "Em Operação Assistida"
     }
@@ -1572,12 +1572,12 @@ def map_status_to_coluna(status_nome: str) -> str:
         return None
     s = str(status_nome).strip().lower()
     mapa = {
-        'em andamento': 'Em Andamento',
+        'aguardando cronograma': 'Aguardando Cronograma',
         'finalizado': 'Finalizado',
         'operação assistida': 'Em Operação Assistida',
         'em operação assistida': 'Em Operação Assistida',
         'cancelado': 'Cancelado',
-        'ativo': 'Em Andamento',
+        'ativo': 'Aguardando Cronograma',
     }
     return mapa.get(s)
 
@@ -1801,7 +1801,7 @@ def obter_data_ultima_mudanca_status_para_coluna(project_id, access_token, colun
         nome_status_para_id = {
             'aberto': STATUS_ABERTO_ID,
             'ativo': STATUS_ABERTO_ID,
-            'em andamento': STATUS_EM_ANDAMENTO_ID,
+            'aguardando cronograma': STATUS_EM_ANDAMENTO_ID,
             'finalizado': STATUS_FINALIZADO_ID,
             'operação assistida': STATUS_OPERACAO_ASSISTIDA_ID,
             'em operação assistida': STATUS_OPERACAO_ASSISTIDA_ID,
@@ -2843,7 +2843,7 @@ def determinar_coluna_projeto(project_data: dict) -> str:
     # Mapeamento de fallback baseado no status
     status_fallback = {
         '2376502000000020089': 'Aguardando Onboarding',  # Aberto
-        '2376502000000020092': 'Em Andamento',            # Em Andamento
+        '2376502000000020092': 'Aguardando Cronograma',   # Aguardando Cronograma
         '2376502000000020104': 'Projeto Parado',          # Pendência
         '2376502000000020119': 'Em Operação Assistida',   # Em Operação Assistida
         '2376502000000020116': 'Finalizado',              # Completed

@@ -43,10 +43,10 @@
       }
     ]
   },
-  "Em Andamento": {
-    "sheetStatus": "Em Andamento",
+  "Aguardando Cronograma": {
+    "sheetStatus": "Aguardando Cronograma",
     "zohoStatusId": "2376502000000020092",
-    "zohoTagsToAdd": [],
+    "zohoTagsToAdd": ["2376502000006124423"],
     "zohoTagsToRemove": ["2376502000000958355"],
     "zohoCustomFields": {
       "data_liberacao_servidor": "CURRENT_DATE"
@@ -61,10 +61,10 @@
     }
   },
   "Em Andamento - Implantação": {
-    "sheetStatus": "Em Andamento",
+    "sheetStatus": "Aguardando Cronograma",
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000000188201"],
-    "zohoTagsToRemove": [],
+    "zohoTagsToRemove": ["2376502000006124423"],
     "zohoCustomFields": {
       "data_de_inicio_da_implantacao": "CURRENT_DATE"
     },
