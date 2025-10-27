@@ -349,7 +349,7 @@ body.kanban-page {
     border-bottom: 1px solid #bfdbfe;
     display: flex;
     align-items: center;
-
+    justify-content: space-between;
 }
 .modal .modal-header h2 {
     margin: 0;
@@ -1363,7 +1363,7 @@ body.kanban-page {
     border-bottom: 1px solid #bfdbfe;
     display: flex;
     align-items: center;
-
+    justify-content: space-between;
 }
 .modal .modal-header h2 {
     margin: 0;
@@ -3152,3 +3152,108 @@ body.login-page {
     box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.2), 0 10px 30px rgba(220, 38, 38, 0.3);
 }
 
+/* FIX: Garante que .hidden sobrescreva #playModal .form-group { display: flex } */
+#playModal .form-group.hidden {
+    display: none !important;
+}
+
+/* === Loading no botão de Agendar Implantação === */
+#btn-agendar-implantacao {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+#btn-agendar-implantacao .btn-text,
+#btn-agendar-implantacao .btn-loading {
+    display: inline-block;
+}
+
+#btn-agendar-implantacao .btn-loading.hidden {
+    display: none;
+}
+
+#btn-agendar-implantacao:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background-color: #9ca3af;
+}
+
+#btn-agendar-implantacao .fa-spinner {
+    margin-right: 0.5rem;
+}
+
+/* === Destaque para projetos próximos da homologação === */
+.kanban-page .project-card.proximo-homologacao {
+    border: 3px solid transparent;
+    border-image: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 75%, #f5576c 100%) 1;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: pulseHomologacao 2s ease-in-out infinite;
+}
+
+.kanban-page .project-card.proximo-homologacao:hover {
+    border-image: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 75%, #f5576c 100%) 1;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.25), 0 10px 30px rgba(245, 87, 108, 0.3);
+    transform: translateY(-5px);
+}
+
+/* Animação de pulso sutil */
+@keyframes pulseHomologacao {
+    0%, 100% {
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(245, 87, 108, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+}
+
+/* Badge de alerta dentro da data de homologação */
+.badge-alerta-homologacao {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 75%, #f5576c 100%);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 12px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+    animation: pulseAlerta 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseAlerta {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+}
+
+/* === Layout de duas linhas no footer do card === */
+.kanban-page .project-footer {
+    display: flex !important;
+    flex-direction: column !important; /* Duas linhas: contadores + data homologação */
+    gap: 6px !important;
+    align-items: flex-start !important;
+}
+
+.kanban-page .project-footer .footer-row-top {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+/* Data de homologação na segunda linha (sem width: 100%) */
+.kanban-page .data-homologacao-prevista {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    position: relative !important; /* Sobrescreve position: absolute */
+    bottom: auto !important;
+    right: auto !important;
+}

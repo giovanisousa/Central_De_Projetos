@@ -1,8 +1,6 @@
 /* Estilo para Data de Homologação Prevista nos cards */
 .data-homologacao-prevista {
-    position: absolute;
-    bottom: 8px;
-    right: 42px; /* À esquerda do botão de comentário */
+    /* Removido position: absolute para integrar ao footer */
     display: flex;
     align-items: center;
     gap: 4px;
@@ -13,10 +11,21 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: #856404;
-    z-index: 1;
+    width: fit-content; /* Ajusta ao conteúdo */
 }
 
 .data-homologacao-prevista i {
     color: #ffc107;
     font-size: 0.85rem;
+}
+
+/* Estado de ATRASO - fundo vermelho igual ao indicador de dias_fase */
+.data-homologacao-prevista.em-atraso {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    border: 1px solid #991b1b;
+    color: white;
+}
+
+.data-homologacao-prevista.em-atraso i {
+    color: white;
 }
