@@ -250,7 +250,7 @@ playForm.addEventListener('submit', async (ev) => {
 | Campo no Zoho | Tipo | Descrição | Calculado Como |
 |--------------|------|-----------|----------------|
 | `data_de_inicio_da_implantacao` | date | Data de início da implantação | Selecionada pelo usuário |
-| `data_de_termino_original` | date | **Data de Homologação Prevista** | Início + 95 dias (netRIS) ou 35 dias (PACS) → segunda-feira |
+| `data_de_termino_original` | date | **Data de Homologação Prevista** | Início + 60 dias (netRIS) ou 35 dias (PACS) → segunda-feira |
 | `data_de_virada_original` | date | **Data de Virada Prevista** | Homologação + 7 dias → segunda-feira |
 
 ### Eventos do Google Calendar:

@@ -6,7 +6,7 @@
 
 | Produto Contratado | Prazo até Homologação | Observação |
 |-------------------|----------------------|------------|
-| **netRIS** (com ou sem AP) | **95 dias corridos** | Projeto mais complexo |
+| **netRIS** (com ou sem AP) | **60 dias corridos** | Projeto mais complexo |
 | **Apenas AnimatiPACS** | **35 dias corridos** | Projeto mais simples |
 
 ### Lógica de Identificação:
@@ -20,9 +20,10 @@
    - Usado apenas se `produtos_contratados` estiver vazio
    - Identifica por: ` - NR`, ` - AP`, ` - NR/AP`
 
-3. **Padrão Conservador**: 95 dias
+3. **Padrão Conservador**: 60 dias
    - Usado se nenhum método conseguir identificar
    - Evita prazos irrealistas
+
 
 ---
 
@@ -91,11 +92,11 @@ else:
     "daysRules": {
       "netRIS": 95,
       "AnimatiPACS": 35,
-      "default": 95
+      "default": 60
     },
     "determinedBy": "produtos_contratados",
     "adjustToMonday": true,
-    "description": "Data de Homologação Prevista - Varia conforme produtos: netRIS (95 dias corridos) ou apenas AnimatiPACS (35 dias corridos)"
+    "description": "Data de Homologação Prevista - Varia conforme produtos: netRIS (60 dias corridos) ou apenas AnimatiPACS (35 dias corridos)"
   }
 }
 ```
@@ -118,13 +119,14 @@ else:
 **Resultado**:
 ```
 ✅ tem_netris = True (encontrou 'netris' em produtos_normalized)
-✅ dias_ate_homologacao = 95
+✅ dias_ate_homologacao = 60
 ✅ tipo_projeto_label = "netRIS"
 ```
 
 **Datas Calculadas** (início: 20/10/2025):
-- Homologação: 20/10 + 95 dias = 23/01/2026 → Ajusta para segunda: **27/01/2026**
-- Virada: 27/01 + 7 dias = 03/02/2026 (segunda-feira) ✅
+- Homologação: 20/10 + 60 dias = 19/12/2025 → Ajusta para segunda: **22/12/2025**
+- Virada: 22/12 + 7 dias = 29/12/2025 (segunda-feira) ✅
+
 
 ---
 
@@ -199,13 +201,13 @@ else:
 
 ## 🧪 Logs de Debug
 
-### Projeto com netRIS (95 dias):
+### Projeto com netRIS (60 dias):
 
 ```
-[DEBUG][INICIAR_IMPLANTACAO] Projeto com netRIS detectado (produtos: ['netRIS', 'AnimatiPACS']) - Prazo: 95 dias
+[DEBUG][INICIAR_IMPLANTACAO] Projeto com netRIS detectado (produtos: ['netRIS', 'AnimatiPACS']) - Prazo: 60 dias
 [DEBUG][INICIAR_IMPLANTACAO] Datas calculadas:
 [DEBUG][INICIAR_IMPLANTACAO]   📅 Início Implantação: 2025-10-20
-[DEBUG][INICIAR_IMPLANTACAO]   📅 Homologação Prevista (data_termino_original): 2026-01-27
+[DEBUG][INICIAR_IMPLANTACAO]   📅 Homologação Prevista (data_termino_original): 2025-12-22
 [DEBUG][INICIAR_IMPLANTACAO]   📅 Virada Prevista (data_de_termino_original): 2026-02-03
 ```
 
@@ -222,11 +224,11 @@ else:
 ### Fallback por Nome:
 
 ```
-[WARN][INICIAR_IMPLANTACAO] Produtos não identificados no BD. Usando nome do projeto - Prazo: 95 dias
+[WARN][INICIAR_IMPLANTACAO] Produtos não identificados no BD. Usando nome do projeto - Prazo: 60 dias
 [DEBUG][INICIAR_IMPLANTACAO] Datas calculadas:
 [DEBUG][INICIAR_IMPLANTACAO]   📅 Início Implantação: 2025-10-20
-[DEBUG][INICIAR_IMPLANTACAO]   📅 Homologação Prevista (data_termino_original): 2026-01-27
-[DEBUG][INICIAR_IMPLANTACAO]   📅 Virada Prevista (data_de_termino_original): 2026-02-03
+[DEBUG][INICIAR_IMPLANTACAO]   📅 Homologação Prevista (data_termino_original): 2025-12-22
+[DEBUG][INICIAR_IMPLANTACAO]   📅 Virada Prevista (data_de_termino_original): 2025-12-29
 ```
 
 ---
@@ -327,10 +329,10 @@ tem_netris = any('netris' in p.lower() for p in produtos_list)
 
 - [x] Lógica lê `produtos_contratados` do banco
 - [x] Normalização case-insensitive
-- [x] Detecção de netRIS: 95 dias
+- [x] Detecção de netRIS: 60 dias
 - [x] Detecção de apenas PACS: 35 dias
 - [x] Fallback por nome do projeto
-- [x] Padrão conservador: 95 dias
+- [x] Padrão conservador: 60 dias
 - [x] Logs informativos em cada caso
 - [x] Documentação no `mapeamento_colunas.json`
 - [ ] **Teste com projeto netRIS real**

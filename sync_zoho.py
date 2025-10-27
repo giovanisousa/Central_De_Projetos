@@ -291,6 +291,15 @@ def synchronize_single_project(project_id, access_token):
             
             upsert_project(project)
             print(f"Sincronizado projeto único: {project.get('name')} (ID: {project.get('id')})")
+            
+            # Sincronizar também as fases/milestones do projeto
+            print(f"  - Sincronizando fases do projeto {project_id}...")
+            try:
+                sync_fases(project_id, access_token)
+                print(f"  - Fases sincronizadas com sucesso para o projeto {project_id}")
+            except Exception as e:
+                print(f"  - Erro ao sincronizar fases do projeto {project_id}: {e}")
+            
             return True
         else:
             print(f"Projeto {project_id} não encontrado na resposta da API")

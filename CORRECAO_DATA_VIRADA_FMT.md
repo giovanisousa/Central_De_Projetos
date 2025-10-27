@@ -158,7 +158,7 @@ except Exception as e:
 ### Teste 2: Verificar Zoho Projects
 - [ ] Campo "Data de Homologação Prevista" preenchido
 - [ ] Campo "Data de Virada Prevista" preenchido
-- [ ] Ambas as datas calculadas corretamente (95 ou 35 dias)
+- [ ] Ambas as datas calculadas corretamente (60 ou 35 dias)
 
 ### Teste 3: Verificar Google Calendar
 - [ ] Evento de Homologação criado
