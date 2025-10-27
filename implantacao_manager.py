@@ -42,22 +42,27 @@ class ImplantacaoManager:
             logger.error(f"Erro ao carregar equipe de implantação: {e}")
             return {"Implantação RIS": [], "Implantação PACS": []}
     
-    def carregar_tarefas(self, tipo: str) -> List[str]:
+    def carregar_tarefas(self, tipo: str, arquivo_customizado: str = None) -> List[str]:
         """
         Carrega as tarefas do arquivo JSON
         
         Args:
             tipo: 'RIS' ou 'PACS'
+            arquivo_customizado: Caminho para arquivo JSON customizado (opcional)
         
         Returns:
             Lista de nomes de tarefas
         """
-        arquivo = f'tarefas_{tipo.lower()}.json'
+        if arquivo_customizado:
+            arquivo = arquivo_customizado
+        else:
+            arquivo = f'tarefas_{tipo.lower()}.json'
+        
         try:
             with open(arquivo, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            logger.error(f"Erro ao carregar tarefas de {tipo}: {e}")
+            logger.error(f"Erro ao carregar tarefas de {arquivo}: {e}")
             return []
     
     def adicionar_usuario_ao_projeto(
@@ -585,7 +590,8 @@ def adicionar_implantador_e_atribuir_tarefas(
     nome_implantador: str,
     tipo_projeto: str,
     access_token: str,
-    portal_id: str = "868230290"
+    portal_id: str = "868230290",
+    arquivo_tarefas: str = None
 ) -> Dict:
     """
     Adiciona UM implantador específico ao projeto e atribui tarefas correspondentes
@@ -596,6 +602,7 @@ def adicionar_implantador_e_atribuir_tarefas(
         tipo_projeto: 'RIS' ou 'PACS'
         access_token: Token de acesso OAuth
         portal_id: ID do portal (padrão: 868230290)
+        arquivo_tarefas: Arquivo JSON customizado com lista de tarefas (opcional)
     
     Returns:
         Dicionário com resultado da operação
@@ -692,7 +699,7 @@ def adicionar_implantador_e_atribuir_tarefas(
         logger.info(f"✅ {nome} adicionado com sucesso")
         
         # 4. Carregar tarefas do tipo de projeto
-        tarefas_para_atribuir = manager.carregar_tarefas(tipo_projeto)
+        tarefas_para_atribuir = manager.carregar_tarefas(tipo_projeto, arquivo_customizado=arquivo_tarefas)
         logger.info(f"📋 {len(tarefas_para_atribuir)} tarefas para atribuir")
         
         # LOG: Lista de tarefas

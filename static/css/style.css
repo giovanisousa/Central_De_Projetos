@@ -3257,3 +3257,19 @@ body.login-page {
     bottom: auto !important;
     right: auto !important;
 }
+
+/* Botão de Agendar Homologação */
+.project-card .homolog-btn {
+    background: none;
+    border: none;
+    color: #4CAF50; /* Verde, indicando homologação */
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s ease, transform 0.2s ease;
+    padding: 0;
+}
+
+.project-card .homolog-btn:hover {
+    color: #45a049; /* Verde mais escuro no hover */
+    transform: scale(1.1);
+}
