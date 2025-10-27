@@ -612,20 +612,17 @@ def carregar_projetos():
                 or "Cliente não informado"
             )
             nome_projeto = projeto.get('name', '')
-            produto_info = ''
-            if ' - NR/AP' in nome_projeto:
-                produto_info = 'netRIS e AnimatiPACS'
-            elif ' - NR' in nome_projeto:
-                produto_info = 'netRIS'
-            elif ' - AP' in nome_projeto:
-                produto_info = 'AnimatiPACS'
-
-            # Busca data_mudanca_status e data_homologacao_prevista do banco
             projeto_id = projeto.get('id')
+            
+            # Busca dados do banco incluindo produtos contratados
             data_mudanca_status = None
             data_homologacao_prevista = None
             implantador_ris = None
             implantador_pacs = None
+            produtos_contratados_json = None
+            tem_ris = False
+            tem_pacs = False
+            
             try:
                 project_row = database.get_project_by_id(projeto_id)
                 if project_row:
@@ -635,16 +632,74 @@ def carregar_projetos():
                         data_homologacao_prevista = project_row['data_homologacao_prevista']
                         implantador_ris = project_row['implantador_ris']
                         implantador_pacs = project_row['implantador_pacs']
+                        produtos_contratados_json = project_row['produtos_contratados']
                     except (KeyError, IndexError):
-                        data_mudanca_status = None
-                        data_homologacao_prevista = None
-                        implantador_ris = None
-                        implantador_pacs = None
+                        pass
             except Exception as e:
                 print(f"[WARN] Erro ao buscar dados do projeto {projeto_id}: {e}")
             
+            # Determina produtos contratados (prioriza dados do banco)
+            produto_info = ''
+            if produtos_contratados_json:
+                try:
+                    produtos_lista = json.loads(produtos_contratados_json) if isinstance(produtos_contratados_json, str) else produtos_contratados_json
+                    if isinstance(produtos_lista, list):
+                        # Verifica se tem RIS ou PACS na lista
+                        for produto in produtos_lista:
+                            produto_lower = str(produto).lower()
+                            if 'ris' in produto_lower:
+                                tem_ris = True
+                            if 'pacs' in produto_lower:
+                                tem_pacs = True
+                        
+                        # Monta string de exibição
+                        if tem_ris and tem_pacs:
+                            produto_info = 'netRIS e AnimatiPACS'
+                        elif tem_ris:
+                            produto_info = 'netRIS'
+                        elif tem_pacs:
+                            produto_info = 'AnimatiPACS'
+                        
+                        # LOG de debug
+                        print(f"[DEBUG][CARREGAR_PROJETOS] Projeto {projeto_id} ({nome_projeto}): produtos_lista={produtos_lista}, tem_ris={tem_ris}, tem_pacs={tem_pacs}, produto_info='{produto_info}'")
+                except Exception as e:
+                    print(f"[WARN] Erro ao parsear produtos_contratados para projeto {projeto_id}: {e}")
+            
+            # Fallback: se não conseguiu determinar do banco, usa o nome do projeto
+            if not produto_info:  # String vazia ou None
+                print(f"[DEBUG][CARREGAR_PROJETOS] Usando fallback para projeto {projeto_id} ({nome_projeto})")
+                if ' - NR/AP' in nome_projeto:
+                    produto_info = 'netRIS e AnimatiPACS'
+                    tem_ris = True
+                    tem_pacs = True
+                elif ' - NR' in nome_projeto:
+                    produto_info = 'netRIS'
+                    tem_ris = True
+                elif ' - AP' in nome_projeto:
+                    produto_info = 'AnimatiPACS'
+                    tem_pacs = True
+            
             # Calcula dias_na_fase dinamicamente
             dias_na_fase_calc = utils.calcular_dias_na_fase_from_status(data_mudanca_status)
+            
+            # ✅ Verifica se está próximo da data de homologação (para destacar no kanban)
+            proximo_homologacao = False
+            dias_ate_homologacao = None
+            
+            if status_kanban == 'Em Andamento - Implantação' and data_homologacao_prevista:
+                try:
+                    from datetime import datetime
+                    data_hoje = datetime.now().date()
+                    data_homol_dt = datetime.strptime(data_homologacao_prevista, '%Y-%m-%d').date()
+                    dias_ate_homologacao = (data_homol_dt - data_hoje).days
+                    
+                    # Lógica de proximidade baseada no tipo de produto
+                    if tem_ris and dias_ate_homologacao <= 30:
+                        proximo_homologacao = True
+                    elif not tem_ris and tem_pacs and dias_ate_homologacao <= 15:
+                        proximo_homologacao = True
+                except (ValueError, TypeError):
+                    pass
             
             info_projeto = {
                 'id': projeto_id,
@@ -658,10 +713,14 @@ def carregar_projetos():
                 'dias_total': utils.calcular_dias_total_projeto(projeto.get('start_date', ''), projeto.get('created_time', '')),
                 'status_atual': status_kanban,
                 'produto': produto_info,
+                'tem_ris': tem_ris,  # ✅ Flag se tem RIS contratado
+                'tem_pacs': tem_pacs,  # ✅ Flag se tem PACS contratado
                 'data_mudanca_status': data_mudanca_status,  # Para debug/auditoria
                 'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
                 'implantador_ris': implantador_ris,  # ✅ Nome do implantador RIS
-                'implantador_pacs': implantador_pacs  # ✅ Nome do implantador PACS
+                'implantador_pacs': implantador_pacs,  # ✅ Nome do implantador PACS
+                'proximo_homologacao': proximo_homologacao,  # ✅ Flag se está próximo da homologação
+                'dias_ate_homologacao': dias_ate_homologacao  # ✅ Dias restantes até homologação
             }
             projetos_por_status[status_kanban].append(info_projeto)
 

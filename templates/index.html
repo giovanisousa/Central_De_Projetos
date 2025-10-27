@@ -315,7 +315,12 @@
                             </div>
                         </fieldset>
                     </div>
-                    <button type="submit" class="submit-button" style="margin-top: 1.5rem;">Agendar Implantação</button>
+                    <button type="submit" id="btn-agendar-implantacao" class="submit-button" style="margin-top: 1.5rem;">
+                        <span class="btn-text">Agendar Implantação</span>
+                        <span class="btn-loading hidden">
+                            <i class="fas fa-spinner fa-spin"></i> Processando...
+                        </span>
+                    </button>
                 </form>
             </div>
         </div>
@@ -836,6 +841,11 @@
             card.style.transform = 'translateY(20px)';
             card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
 
+            // ✅ Adicionar classe se está próximo da homologação
+            if (projeto.proximo_homologacao === true) {
+                card.classList.add('proximo-homologacao');
+            }
+
             // Truncar nome do projeto se muito longo
             const nomeExibido = projeto.nome.length > 50 ? 
                 projeto.nome.substring(0, 50) + '...' : 
@@ -853,10 +863,30 @@
             let dataHomologacaoPrevistaHtml = '';
             if (coluna === 'Em Andamento - Implantação' && projeto.data_homologacao_prevista) {
                 const dataFormatada = formatDateToDDMMYYYY(projeto.data_homologacao_prevista);
+                
+                // ✅ Verificar se está em atraso (dias negativos)
+                const diasRestantes = projeto.dias_ate_homologacao;
+                const emAtraso = diasRestantes != null && diasRestantes < 0;
+                const classeAtraso = emAtraso ? ' em-atraso' : '';
+                
+                // ✅ Adicionar badge de alerta se estiver próximo da homologação
+                let badgeProximidade = '';
+                if (projeto.proximo_homologacao === true && diasRestantes != null) {
+                    // Só mostrar badge se dias restantes > 0 (não mostrar se em atraso)
+                    if (diasRestantes > 0) {
+                        const textoAlerta = diasRestantes === 1 ? '1 dia!' : `${diasRestantes} dias`;
+                        badgeProximidade = `<span class="badge-alerta-homologacao" title="Dias até homologação">⏰ ${textoAlerta}</span>`;
+                    } else if (diasRestantes === 0) {
+                        badgeProximidade = `<span class="badge-alerta-homologacao" title="Homologação hoje!">⏰ HOJE!</span>`;
+                    }
+                    // Se diasRestantes < 0 (atrasado), não mostra badge
+                }
+                
                 dataHomologacaoPrevistaHtml = `
-                    <div class="data-homologacao-prevista" title="Data de Homologação Prevista">
+                    <div class="data-homologacao-prevista${classeAtraso}" title="Data de Homologação Prevista${emAtraso ? ' - ATRASADO!' : ''}">
                         <i class="fas fa-flag-checkered"></i>
                         <span>${dataFormatada}</span>
+                        ${badgeProximidade}
                     </div>
                 `;
             }
@@ -938,16 +968,18 @@
                     ${playButtonHtml}
                 </div>
                 <div class="project-footer">
-                    <div class="day-counter stage-days" title="Dias na etapa atual">
-                        <i class="fa-solid fa-hourglass-half"></i>
-                        <span class="dias-na-fase" data-projeto-id="${projeto.id}" data-coluna="${coluna}" data-produtos="${(projeto.produtos || projeto.produto || projeto.produtos_contratados || '').toString()}">${projeto.dias_na_fase ? projeto.dias_na_fase : '...'}</span>
+                    <div class="footer-row-top">
+                        <div class="day-counter stage-days" title="Dias na etapa atual">
+                            <i class="fa-solid fa-hourglass-half"></i>
+                            <span class="dias-na-fase" data-projeto-id="${projeto.id}" data-coluna="${coluna}" data-produtos="${(projeto.produtos || projeto.produto || projeto.produtos_contratados || '').toString()}">${projeto.dias_na_fase ? projeto.dias_na_fase : '...'}</span>
+                        </div>
+                        <div class="day-counter total-days" title="Total de dias do projeto">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span>${projeto.dias_total || ''}</span>
+                        </div>
                     </div>
-                    <div class="day-counter total-days" title="Total de dias do projeto">
-                        <i class="fa-solid fa-calendar-days"></i>
-                        <span>${projeto.dias_total || ''}</span>
-                    </div>
+                    ${dataHomologacaoPrevistaHtml}
                 </div>
-                ${dataHomologacaoPrevistaHtml}
                 ${addCommentBtnHtml}
             `;
 
@@ -982,13 +1014,23 @@
                 const inputId = document.getElementById('play-project-id');
                 if (inputId) inputId.value = projeto.id || '';
 
-                // Mostrar selects certos conforme produtos
-                const temRIS = /ris/i.test(projeto.produto || projeto.produtos || projeto.produtos_contratados || projeto.nome || '');
-                const temPACS = /pacs/i.test(projeto.produto || projeto.produtos || projeto.produtos_contratados || projeto.nome || '');
+                // Mostrar selects certos conforme produtos contratados (usa flags do backend)
+                const temRIS = projeto.tem_ris === true || projeto.tem_ris === 1;
+                const temPACS = projeto.tem_pacs === true || projeto.tem_pacs === 1;
+                
                 const risGroup = document.getElementById('implantador-ris-group');
                 const pacsGroup = document.getElementById('implantador-pacs-group');
-                if (risGroup) risGroup.classList.toggle('hidden', !temRIS);
-                if (pacsGroup) pacsGroup.classList.toggle('hidden', !temPACS);
+                
+                // Reset: remove hidden de ambos primeiro
+                if (risGroup) {
+                    risGroup.classList.remove('hidden');
+                    if (!temRIS) risGroup.classList.add('hidden');
+                }
+                
+                if (pacsGroup) {
+                    pacsGroup.classList.remove('hidden');
+                    if (!temPACS) pacsGroup.classList.add('hidden');
+                }
 
                 modal.classList.remove('hidden');
 
@@ -1005,7 +1047,22 @@
                 if (playForm && !playForm.dataset.bound) {
                     playForm.addEventListener('submit', async (ev) => {
                         ev.preventDefault();
+                        
+                        // Elementos do botão de loading
+                        const btnSubmit = document.getElementById('btn-agendar-implantacao');
+                        const btnText = btnSubmit?.querySelector('.btn-text');
+                        const btnLoading = btnSubmit?.querySelector('.btn-loading');
+                        
                         try {
+                            // Ativar loading
+                            if (btnSubmit) btnSubmit.disabled = true;
+                            if (btnText) btnText.classList.add('hidden');
+                            if (btnLoading) btnLoading.classList.remove('hidden');
+                            
+                            // Desabilitar todos os inputs do formulário
+                            const inputs = playForm.querySelectorAll('input, select');
+                            inputs.forEach(input => input.disabled = true);
+                            
                             const projectId = document.getElementById('play-project-id').value;
                             const dataInicio = document.getElementById('data_inicio_implantacao').value; // yyyy-mm-dd
                             const implRIS = document.getElementById('implantador_ris')?.value || '';
@@ -1040,6 +1097,15 @@
                         } catch (err) {
                             console.error('Erro no agendamento de implantação:', err);
                             alert('Erro no agendamento de implantação: ' + err.message);
+                        } finally {
+                            // Desativar loading (sempre executa)
+                            if (btnSubmit) btnSubmit.disabled = false;
+                            if (btnText) btnText.classList.remove('hidden');
+                            if (btnLoading) btnLoading.classList.add('hidden');
+                            
+                            // Reabilitar todos os inputs do formulário
+                            const inputs = playForm.querySelectorAll('input, select');
+                            inputs.forEach(input => input.disabled = false);
                         }
                     });
                     playForm.dataset.bound = '1';
@@ -1416,33 +1482,8 @@
         // Removida para evitar duplicidade; toda a lógica está em static/js/script_registro.js
 
         // ===== Modal de Play =====
-        function abrirModalPlay(projeto) {
-            const modal = document.getElementById('playModal');
-            if (!modal) return;
-
-            // Preencher o ID e o nome do projeto
-            document.getElementById('play-project-id').value = projeto.id;
-            document.getElementById('play-modal-project-name').textContent = projeto.nome;
-
-            // Resetar o formulário
-            document.getElementById('play-form').reset();
-
-            // Lógica para exibir campos de implantador
-            const produtos = (projeto.produto || projeto.produtos_contratados || '').toLowerCase();
-            const temNetRis = produtos.includes('netris');
-            const temPacs = produtos.includes('pacs');
-
-            const risGroup = document.getElementById('implantador-ris-group');
-            const pacsGroup = document.getElementById('implantador-pacs-group');
-            const implantadoresFieldset = document.getElementById('implantadores-fieldset');
-
-            risGroup.classList.toggle('hidden', !temNetRis);
-            pacsGroup.classList.toggle('hidden', !temPacs);
-            implantadoresFieldset.classList.toggle('hidden', !temNetRis && !temPacs);
-
-
-            modal.classList.remove('hidden');
-        }
+        // Função abrirModalPlay() definida anteriormente no código (linha ~976)
+        // Removida duplicata para evitar sobrescrita
 
         function fecharModalPlay() {
             const modal = document.getElementById('playModal');
