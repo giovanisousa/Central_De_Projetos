@@ -326,6 +326,68 @@
         </div>
     </div>
 
+    <!-- Modal: Agendar Homologação -->
+    <div id="homologModal" class="modal hidden">
+        <div class="modal-content project-modal">
+            <div class="modal-header">
+                <div>
+                    <h2>📅 Agendar Homologação</h2>
+                    <p id="homolog-modal-project-name" style="font-size: 0.9rem; color: #555; margin-top: 4px;"></p>
+                </div>
+                <button type="button" id="closeHomologModal" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="homolog-form">
+                    <input type="hidden" id="homolog-project-id" name="project_id">
+                    <div class="form-grid-play">
+                        <fieldset>
+                            <legend><i class="fas fa-calendar-check"></i> Data de Homologação</legend>
+                            <div class="form-group date-container">
+                                <label for="data_homologacao">Data da Homologação: *</label>
+                                <input type="date" id="data_homologacao" name="data_homologacao" required>
+                                <small style="color: #666; display: block; margin-top: 4px;">
+                                    Selecione a data em que a homologação será realizada
+                                </small>
+                            </div>
+                        </fieldset>
+                        <fieldset id="implantadores-homolog-fieldset">
+                            <legend><i class="fas fa-users"></i> Implantadores Responsáveis</legend>
+                            <div class="implantadores-grid">
+                                <div id="implantador-ris-homolog-group" class="form-group hidden">
+                                    <label for="implantador_ris_homolog">Implantador RIS:</label>
+                                    <select id="implantador_ris_homolog" name="implantador_ris">
+                                        <option value="">Selecione...</option>
+                                        {% for implantador in implantadores_ris %}
+                                        <option value="{{ implantador.name }}">{{ implantador.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div id="implantador-pacs-homolog-group" class="form-group hidden">
+                                    <label for="implantador_pacs_homolog">Implantador PACS:</label>
+                                    <select id="implantador_pacs_homolog" name="implantador_pacs">
+                                        <option value="">Selecione...</option>
+                                        {% for implantador in implantadores_pacs %}
+                                        <option value="{{ implantador.name }}">{{ implantador.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 8px;">
+                                Os implantadores selecionados serão adicionados ao projeto e responsáveis pelas tarefas de homologação
+                            </small>
+                        </fieldset>
+                    </div>
+                    <button type="submit" id="btn-agendar-homologacao" class="submit-button" style="margin-top: 1.5rem;">
+                        <span class="btn-text">Agendar Homologação</span>
+                        <span class="btn-loading hidden">
+                            <i class="fas fa-spinner fa-spin"></i> Processando...
+                        </span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Sinaliza autenticação para o JS
         window.LOGGED_IN = {{ 'true' if logged_in else 'false' }};
@@ -937,8 +999,17 @@
             let playButtonHtml = '';
             if (coluna === 'Aguardando Cronograma') {
                 playButtonHtml = `
-                    <button class="play-btn" title="Registrar atividade">
+                    <button class="play-btn" title="Iniciar Implantação">
                         <i class="fas fa-play"></i>
+                    </button>
+                `;
+            }
+            
+            // 5. Botão de Agendar Homologação (se aplicável)
+            if (coluna === 'Em Andamento - Implantação') {
+                playButtonHtml = `
+                    <button class="homolog-btn" title="Agendar Homologação">
+                        <i class="fas fa-calendar-check"></i>
                     </button>
                 `;
             }
@@ -1112,10 +1183,210 @@
                 }
             }
 
+            // Adicionar evento ao botão de homologação (se existir no card)
+            const homologBtn = card.querySelector('.homolog-btn');
+            if (homologBtn) {
+                homologBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    abrirModalHomologacao(projeto);
+                });
+            }
+
             // Buscar e renderizar progresso das fases (apenas para colunas específicas)
             renderizarProgresso(projeto.id, card, coluna);
 
             return card;
+        }
+
+        // Modal de Agendar Homologação (MOVIDO PARA ESCOPO GLOBAL)
+        function abrirModalHomologacao(projetoOuId, movimento = null) {
+            const modal = document.getElementById('homologModal');
+            if (!modal) return;
+            
+            // Se recebeu movimento pendente, armazenar para uso posterior
+            if (movimento) {
+                modal.dataset.movimentoPendente = JSON.stringify(movimento);
+            } else {
+                delete modal.dataset.movimentoPendente;
+            }
+            
+            // Se recebeu apenas o ID, buscar o projeto nos dados salvos
+            let projeto = projetoOuId;
+            if (typeof projetoOuId === 'string' || typeof projetoOuId === 'number') {
+                const projetoId = String(projetoOuId);
+                // Buscar em todas as colunas
+                for (const coluna in projetosSalvos) {
+                    const lista = projetosSalvos[coluna] || [];
+                    const encontrado = lista.find(p => String(p.id) === projetoId);
+                    if (encontrado) {
+                        projeto = encontrado;
+                        break;
+                    }
+                }
+            }
+            
+            // Preenche informações do modal
+            const nameEl = document.getElementById('homolog-modal-project-name');
+            if (nameEl) nameEl.textContent = projeto.nome || '';
+            const inputId = document.getElementById('homolog-project-id');
+            if (inputId) inputId.value = projeto.id || '';
+
+            // Mostrar selects conforme produtos contratados
+            const temRIS = projeto.tem_ris === true || projeto.tem_ris === 1;
+            const temPACS = projeto.tem_pacs === true || projeto.tem_pacs === 1;
+            
+            const risGroup = document.getElementById('implantador-ris-homolog-group');
+            const pacsGroup = document.getElementById('implantador-pacs-homolog-group');
+            
+            // Reset: remove hidden de ambos primeiro
+            if (risGroup) {
+                risGroup.classList.remove('hidden');
+                if (!temRIS) risGroup.classList.add('hidden');
+            }
+            
+            if (pacsGroup) {
+                pacsGroup.classList.remove('hidden');
+                if (!temPACS) pacsGroup.classList.add('hidden');
+            }
+
+            // Definir data mínima como hoje
+            const dataInput = document.getElementById('data_homologacao');
+            if (dataInput) {
+                const hoje = new Date().toISOString().split('T')[0];
+                dataInput.setAttribute('min', hoje);
+            }
+
+            modal.classList.remove('hidden');
+
+            // Fechar modal
+            const closeBtn = document.getElementById('closeHomologModal');
+            if (closeBtn && !closeBtn.dataset.bound) {
+                closeBtn.addEventListener('click', () => {
+                    modal.classList.add('hidden');
+                    // Se cancelar e tinha movimento pendente, limpar
+                    if (modal.dataset.movimentoPendente) {
+                        delete modal.dataset.movimentoPendente;
+                        movimentoPendente = null;
+                    }
+                });
+                modal.addEventListener('click', (e) => { 
+                    if (e.target === modal) {
+                        modal.classList.add('hidden');
+                        // Se cancelar e tinha movimento pendente, limpar
+                        if (modal.dataset.movimentoPendente) {
+                            delete modal.dataset.movimentoPendente;
+                            movimentoPendente = null;
+                        }
+                    }
+                });
+                closeBtn.dataset.bound = '1';
+            }
+
+            // Bind submit do formulário
+            const homologForm = document.getElementById('homolog-form');
+            if (homologForm && !homologForm.dataset.bound) {
+                homologForm.addEventListener('submit', async (ev) => {
+                    ev.preventDefault();
+                    
+                    // Verificar se veio de um drag&drop ou do botão
+                    const temMovimento = modal.dataset.movimentoPendente;
+                    
+                    if (temMovimento) {
+                        // Se veio do drag&drop, abrir modal de confirmação
+                        const movimento = JSON.parse(temMovimento);
+                        
+                        // Armazenar dados do formulário temporariamente
+                        const formData = new FormData(homologForm);
+                        window.dadosHomologacaoTemp = {
+                            project_id: formData.get('project_id'),
+                            data_homologacao: formData.get('data_homologacao'),
+                            implantador_ris: formData.get('implantador_ris') || '',
+                            implantador_pacs: formData.get('implantador_pacs') || ''
+                        };
+                        
+                        // Fechar modal de homologação
+                        modal.classList.add('hidden');
+                        
+                        // Abrir modal de confirmação
+                        abrirModalConfirmacaoMovimento(movimento);
+                    } else {
+                        // Se veio do botão (homolog-btn), executar diretamente
+                        await executarAgendamentoHomologacao(homologForm);
+                    }
+                });
+                homologForm.dataset.bound = '1';
+            }
+        }
+        
+        // Função auxiliar para executar o agendamento de homologação
+        async function executarAgendamentoHomologacao(homologForm) {
+            const modal = document.getElementById('homologModal');
+            const btnSubmit = document.getElementById('btn-agendar-homologacao');
+            const btnText = btnSubmit?.querySelector('.btn-text');
+            const btnLoading = btnSubmit?.querySelector('.btn-loading');
+            
+            try {
+                // Ativar loading
+                if (btnSubmit) btnSubmit.disabled = true;
+                if (btnText) btnText.classList.add('hidden');
+                if (btnLoading) btnLoading.classList.remove('hidden');
+                
+                // Desabilitar todos os inputs do formulário
+                const inputs = homologForm.querySelectorAll('input, select');
+                inputs.forEach(input => input.disabled = true);
+
+                const formData = new FormData(homologForm);
+                const payload = {
+                    project_id: formData.get('project_id'),
+                    data_homologacao: formData.get('data_homologacao'),
+                    implantador_ris: formData.get('implantador_ris') || '',
+                    implantador_pacs: formData.get('implantador_pacs') || ''
+                };
+
+                console.log('[HOMOLOG] Enviando payload:', payload);
+
+                const response = await fetch('/api/agendar_homologacao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                console.log('[HOMOLOG] Resposta do servidor:', result);
+
+                if (!response.ok || !result.sucesso) {
+                    throw new Error(result.erro || 'Erro ao agendar homologação');
+                }
+                
+                // Sucesso - Fechar modal e recarregar projetos
+                if (modal) modal.classList.add('hidden');
+                if (window.mostrarToast) {
+                    window.mostrarToast('Homologação agendada com sucesso!', 'success');
+                } else {
+                    alert('Homologação agendada com sucesso!');
+                }
+                
+                // Mostrar detalhes se disponíveis
+                if (result.detalhes && result.detalhes.length > 0) {
+                    console.log('[HOMOLOG] Detalhes:', result.detalhes);
+                }
+                
+                // Recarregar os projetos para atualizar o kanban
+                await carregarProjetos();
+                
+            } catch (err) {
+                console.error('[HOMOLOG] Erro:', err);
+                alert('Erro ao agendar homologação: ' + err.message);
+            } finally {
+                // Desativar loading (sempre executa)
+                if (btnSubmit) btnSubmit.disabled = false;
+                if (btnText) btnText.classList.remove('hidden');
+                if (btnLoading) btnLoading.classList.add('hidden');
+                
+                // Reabilitar todos os inputs do formulário
+                const inputs = homologForm.querySelectorAll('input, select');
+                inputs.forEach(input => input.disabled = false);
+            }
         }
 
         // Manipuladores de eventos de drag and drop
@@ -1194,7 +1465,25 @@
                 return false;
             }
 
-            // Solicitar confirmação antes de mover
+            // Verificar se o destino é "Em Homologação" e origem é "Em Andamento - Implantação"
+            if (nomeColunaDest === 'Em Homologação' && nomeColumnaOrig === 'Em Andamento - Implantação') {
+                // Abrir modal de Agendar Homologação ao invés do modal de confirmação
+                movimentoPendente = {
+                    card: elementoSendoArrastado,
+                    origem: nomeColumnaOrig,
+                    destino: nomeColunaDest,
+                    nomeProjeto: (elementoSendoArrastado.querySelector('.project-name')?.textContent || 'Projeto').replace('📋 ', '').trim()
+                };
+                
+                const projetoId = elementoSendoArrastado.dataset.projetoId;
+                abrirModalHomologacao(projetoId, movimentoPendente);
+                
+                // Remover highlight
+                colunaDestino.classList.remove('drag-over');
+                return false;
+            }
+
+            // Solicitar confirmação antes de mover (para outras transições)
             movimentoPendente = {
                 card: elementoSendoArrastado,
                 origem: nomeColumnaOrig,
@@ -1222,12 +1511,85 @@
         function fecharModalConfirmacaoMovimento() {
             const modal = document.getElementById('confirmMoveModal');
             modal.classList.add('hidden');
+            
+            // Se cancelar confirmação e tinha dados de homologação, reabrir modal de homologação
+            if (window.dadosHomologacaoTemp && movimentoPendente) {
+                const projetoId = window.dadosHomologacaoTemp.project_id;
+                delete window.dadosHomologacaoTemp; // Limpar dados temporários
+                
+                // Reabrir modal de homologação
+                setTimeout(() => {
+                    abrirModalHomologacao(projetoId, movimentoPendente);
+                }, 100);
+                return; // Não limpar movimentoPendente ainda
+            }
+            
             movimentoPendente = null;
         }
-        function confirmarMovimentacao() {
+        
+        async function confirmarMovimentacao() {
             if (!movimentoPendente) return;
-            moverCardVisualmente(movimentoPendente.card, movimentoPendente.origem, movimentoPendente.destino);
-            fecharModalConfirmacaoMovimento();
+            
+            // Verificar se tem dados de homologação para executar
+            if (window.dadosHomologacaoTemp) {
+                const payload = window.dadosHomologacaoTemp;
+                delete window.dadosHomologacaoTemp; // Limpar dados temporários
+                
+                fecharModalConfirmacaoMovimento();
+                
+                // Mostrar toast de loading
+                if (window.mostrarToast) {
+                    window.mostrarToast('Processando agendamento de homologação...', 'info');
+                }
+                
+                try {
+                    console.log('[HOMOLOG] Executando agendamento após confirmação:', payload);
+
+                    const response = await fetch('/api/agendar_homologacao', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    console.log('[HOMOLOG] Resposta do servidor:', result);
+
+                    if (!response.ok || !result.sucesso) {
+                        throw new Error(result.erro || 'Erro ao agendar homologação');
+                    }
+                    
+                    // Sucesso
+                    if (window.mostrarToast) {
+                        window.mostrarToast('Homologação agendada com sucesso!', 'success');
+                    } else {
+                        alert('Homologação agendada com sucesso!');
+                    }
+                    
+                    // Mostrar detalhes se disponíveis
+                    if (result.detalhes && result.detalhes.length > 0) {
+                        console.log('[HOMOLOG] Detalhes:', result.detalhes);
+                        // Opcionalmente mostrar resumo das tarefas atribuídas
+                        if (result.detalhes.some(d => d.includes('tarefas'))) {
+                            console.log('[HOMOLOG] Tarefas atribuídas com sucesso');
+                        }
+                    }
+                    
+                    // Recarregar os projetos para atualizar o kanban
+                    await carregarProjetos();
+                    
+                } catch (err) {
+                    console.error('[HOMOLOG] Erro:', err);
+                    if (window.mostrarToast) {
+                        window.mostrarToast('Erro ao agendar homologação: ' + err.message, 'error');
+                    } else {
+                        alert('Erro ao agendar homologação: ' + err.message);
+                    }
+                }
+            } else {
+                // Movimento normal sem agendamento
+                moverCardVisualmente(movimentoPendente.card, movimentoPendente.origem, movimentoPendente.destino);
+                fecharModalConfirmacaoMovimento();
+            }
         }
         function cancelarMovimentacao() {
             fecharModalConfirmacaoMovimento();

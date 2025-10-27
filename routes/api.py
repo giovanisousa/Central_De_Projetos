@@ -40,6 +40,7 @@ from googleapiclient.discovery import build
 from datetime import datetime, date
 from typing import Any
 import json
+import copy
 import re
 import requests
 import sqlite3
@@ -1621,13 +1622,14 @@ def _atualizar_planilha(
         f"Planilha atualizada na coluna '{coluna_utilizada}' para '{sheet_status}'."
     )
     coletor_mensagens.append(mensagem)
-    _log_move_info("[MOVE][SHEET]", projeto_id, coluna_destino, mensagem)
+    _log_move_info("[MOVE][SHEET]", projeto_id, coluna_destino, mensagem, coluna_origem)
 
     # Processar atualizações de colunas específicas através de onTransition
     if coluna_origem:
         on_transition = info_dest.get("onTransition", {})
-        # Normalizar nome da coluna de origem removendo espaços especiais
-        coluna_origem_key = f"from_{coluna_origem.replace(' ', '_').replace('-', '_')}"
+        # Normalizar nome da coluna de origem: substitui apenas espaços por underscore, mantém hífens como "_-_"
+        # Exemplo: "Em Andamento - Implantação" -> "Em_Andamento_-_Implantação"
+        coluna_origem_key = f"from_{coluna_origem.replace(' ', '_')}"
         transition_config = on_transition.get(coluna_origem_key, {})
         sheet_columns = transition_config.get("sheetColumns", {})
         
@@ -2244,6 +2246,250 @@ def iniciar_implantacao():
             "sucesso": True, 
             "mensagem": "Implantação iniciada com sucesso! Zoho Projects e planilha atualizados.", 
             "detalhes": detalhes_msg
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+
+@api_bp.route('/agendar_homologacao', methods=['POST'])
+def agendar_homologacao():
+    """
+    Agenda a homologação de um projeto, movendo-o para 'Em Homologação',
+    atribuindo implantadores às tarefas de homologação e preenchendo a data.
+    """
+    try:
+        if 'credentials' not in session:
+            return jsonify({"sucesso": False, "erro": "Não autenticado."}), 401
+
+        data = request.get_json(silent=True) or {}
+        project_id = str(data.get('project_id') or '').strip()
+        data_homologacao = (data.get('data_homologacao') or '').strip()  # esperado yyyy-mm-dd
+        implantador_ris = (data.get('implantador_ris') or '').strip()
+        implantador_pacs = (data.get('implantador_pacs') or '').strip()
+
+        if not project_id or not data_homologacao:
+            return jsonify({"sucesso": False, "erro": "Parâmetros inválidos. project_id e data_homologacao são obrigatórios."}), 400
+
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Iniciando agendamento de homologação")
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Projeto: {project_id}")
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Data Homologação: {data_homologacao}")
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Implantador RIS: {implantador_ris or 'Não selecionado'}")
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Implantador PACS: {implantador_pacs or 'Não selecionado'}")
+
+        project_row = database.get_project_by_id(project_id)
+        if not project_row:
+            return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
+        
+        detalhes_zoho = json.loads(project_row['full_data_json'])
+        
+        # Obter access token
+        try:
+            access_token = utils.obter_access_token()
+            print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Access token obtido com sucesso")
+        except Exception as e:
+            erro_msg = f"Falha ao obter access token: {e}"
+            print(f"[ERROR][AGENDAR_HOMOLOGACAO] {erro_msg}")
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
+
+        mensagens = []
+
+        # ==== 1. MOVER PARA "EM HOMOLOGAÇÃO" ====
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Movendo projeto para 'Em Homologação'")
+        
+        colmap = utils.carregar_mapeamento_colunas()
+        info_dest = colmap.get("Em Homologação", {})
+        
+        if not info_dest:
+            return jsonify({"sucesso": False, "erro": "Configuração 'Em Homologação' não encontrada no mapeamento."}), 500
+
+        # Modificar temporariamente a data_de_homologacao para usar a data informada
+        info_dest_modificada = copy.deepcopy(info_dest)
+        if "zohoCustomFields" not in info_dest_modificada:
+            info_dest_modificada["zohoCustomFields"] = {}
+        
+        info_dest_modificada["zohoCustomFields"]["data_de_homologacao"] = data_homologacao
+        
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Configuração modificada com data: {data_homologacao}")
+
+        try:
+            # Atualizar Zoho (status, tags, custom fields)
+            _atualizar_zoho(
+                projeto_id=project_id,
+                coluna_destino="Em Homologação",
+                info_dest=info_dest_modificada,
+                access_token=access_token,
+                detalhes_zoho=detalhes_zoho,
+                coletor_mensagens=mensagens,
+                coluna_origem="Em Andamento - Implantação"
+            )
+            print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Zoho atualizado com sucesso")
+        except Exception as e:
+            erro_msg = f"Falha ao atualizar Zoho: {e}"
+            print(f"[ERROR][AGENDAR_HOMOLOGACAO] {erro_msg}")
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
+
+        # ==== 1.5. ATUALIZAR CAMPOS CUSTOMIZADOS DE HOMOLOGAÇÃO ====
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Atualizando campos de homologação no Zoho...")
+        
+        try:
+            # Montar payload apenas com campos preenchidos
+            # Tentaremos AMBOS os formatos de nome dos campos
+            custom_fields_homologacao = {}
+            
+            if implantador_ris:
+                # Tentar ambos os formatos
+                custom_fields_homologacao["Homologação RIS"] = implantador_ris
+                custom_fields_homologacao["homologacao_ris"] = implantador_ris
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Incluindo Homologação RIS no payload: {implantador_ris}")
+            
+            if implantador_pacs:
+                # Tentar ambos os formatos
+                custom_fields_homologacao["Homologação PACS"] = implantador_pacs
+                custom_fields_homologacao["homologacao_pacs"] = implantador_pacs
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Incluindo Homologação PACS no payload: {implantador_pacs}")
+            
+            # Apenas fazer a chamada se houver pelo menos um implantador
+            if custom_fields_homologacao:
+                url_patch_homologacao = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+                headers_patch = {
+                    "Authorization": f"Zoho-oauthtoken {access_token}",
+                    "Content-Type": "application/json"
+                }
+                
+                payload_homologacao = {
+                    "custom_fields": custom_fields_homologacao
+                }
+                # Adicionar também no root level (padrão que funciona com outros campos)
+                payload_homologacao.update(custom_fields_homologacao)
+                
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Enviando payload de homologação: {json.dumps(payload_homologacao, indent=2, ensure_ascii=False)}")
+                
+                response_homolog = requests.patch(
+                    url_patch_homologacao,
+                    headers=headers_patch,
+                    json=payload_homologacao,
+                    timeout=30
+                )
+                
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Status da atualização de campos: {response_homolog.status_code}")
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Resposta: {response_homolog.text}")
+                
+                if response_homolog.status_code in [200, 201]:
+                    mensagens.append("Campos de homologação atualizados com sucesso")
+                    print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Campos de homologação atualizados com sucesso")
+                else:
+                    mensagens.append(f"Aviso: Campos de homologação podem não ter sido atualizados (status {response_homolog.status_code})")
+                    print(f"[WARN][AGENDAR_HOMOLOGACAO] Possível falha ao atualizar campos: {response_homolog.text}")
+        
+        except Exception as e:
+            print(f"[WARN][AGENDAR_HOMOLOGACAO] Erro ao atualizar campos de homologação: {e}")
+            mensagens.append(f"Aviso: Não foi possível atualizar campos de homologação: {e}")
+
+        # ==== 2. ADICIONAR IMPLANTADORES E ATRIBUIR TAREFAS ====
+        try:
+            from implantacao_manager import adicionar_implantador_e_atribuir_tarefas
+            
+            resultados_homologacao = []
+            
+            # Processar implantador RIS se selecionado
+            if implantador_ris:
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Processando homologação RIS: {implantador_ris}")
+                resultado_ris = adicionar_implantador_e_atribuir_tarefas(
+                    project_id=project_id,
+                    nome_implantador=implantador_ris,
+                    tipo_projeto='RIS',
+                    access_token=access_token,
+                    portal_id=ZOHO_PORTAL_ID,
+                    arquivo_tarefas='tarefas_homologacao_ris.json'
+                )
+                resultados_homologacao.append(f"RIS ({implantador_ris}): {resultado_ris['mensagem']}")
+                mensagens.append(f"Homologação RIS - {resultado_ris['mensagem']}")
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] RIS - {resultado_ris['mensagem']}")
+                
+                if not resultado_ris['sucesso']:
+                    print(f"[WARN][AGENDAR_HOMOLOGACAO] Falha parcial no RIS: {resultado_ris.get('erro', 'Erro desconhecido')}")
+            
+            # Processar implantador PACS se selecionado
+            if implantador_pacs:
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Processando homologação PACS: {implantador_pacs}")
+                resultado_pacs = adicionar_implantador_e_atribuir_tarefas(
+                    project_id=project_id,
+                    nome_implantador=implantador_pacs,
+                    tipo_projeto='PACS',
+                    access_token=access_token,
+                    portal_id=ZOHO_PORTAL_ID,
+                    arquivo_tarefas='tarefas_homologacao_pacs.json'
+                )
+                resultados_homologacao.append(f"PACS ({implantador_pacs}): {resultado_pacs['mensagem']}")
+                mensagens.append(f"Homologação PACS - {resultado_pacs['mensagem']}")
+                print(f"[DEBUG][AGENDAR_HOMOLOGACAO] PACS - {resultado_pacs['mensagem']}")
+                
+                if not resultado_pacs['sucesso']:
+                    print(f"[WARN][AGENDAR_HOMOLOGACAO] Falha parcial no PACS: {resultado_pacs.get('erro', 'Erro desconhecido')}")
+            
+            if not implantador_ris and not implantador_pacs:
+                print(f"[WARN][AGENDAR_HOMOLOGACAO] Nenhum implantador selecionado para homologação")
+            
+        except Exception as e:
+            print(f"[WARN][AGENDAR_HOMOLOGACAO] Erro ao processar implantadores de homologação: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            mensagens.append(f"Aviso: Implantadores de homologação não puderam ser adicionados automaticamente ({str(e)})")
+
+        # ==== 3. ATUALIZAR PLANILHA PRINCIPAL ====
+        try:
+            creds = utils.build_google_credentials_from_session()
+            from googleapiclient.discovery import build
+            sheets_service = build('sheets', 'v4', credentials=creds)
+
+            # Extrair nome do cliente
+            chave_busca = utils.extrair_cliente_planilha(detalhes_zoho.get('name', ''))
+            if not chave_busca:
+                chave_busca = project_row.get('cliente', '')
+            
+            print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Atualizando planilha para cliente: {chave_busca}")
+
+            # Atualizar Status Principal
+            utils.update_col_value_by_cliente_tolerant(
+                sheets_service,
+                chave_busca,
+                'Status Principal',
+                'Em Homologação'
+            )
+
+            # Atualizar Dt Homolog com a data informada (formato DD/MM/YYYY)
+            from datetime import datetime
+            data_formatada = datetime.strptime(data_homologacao, '%Y-%m-%d').strftime('%d/%m/%Y')
+            
+            utils.update_col_value_by_cliente_tolerant(
+                sheets_service,
+                chave_busca,
+                'Dt Homolog',
+                data_formatada
+            )
+            
+            mensagens.append(f"Planilha atualizada: Status='Em Homologação', Dt Homolog='{data_formatada}'")
+            print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Planilha atualizada com sucesso")
+
+        except Exception as e:
+            erro_msg = f"Falha ao atualizar planilha: {e}"
+            print(f"[ERROR][AGENDAR_HOMOLOGACAO] {erro_msg}")
+            mensagens.append(f"Aviso: {erro_msg}")
+
+        # ==== 5. SINCRONIZAR BANCO LOCAL ====
+        print(f"[DEBUG][AGENDAR_HOMOLOGACAO] Sincronizando banco de dados local")
+        try:
+            _sincronizar_db_local_forcado(project_id, access_token, mensagens)
+        except Exception as e:
+            print(f"[WARN][AGENDAR_HOMOLOGACAO] Falha na sincronização do banco: {e}")
+            mensagens.append("Aviso: Falha na sincronização do cache local")
+
+        return jsonify({
+            "sucesso": True,
+            "mensagem": "Homologação agendada com sucesso!",
+            "detalhes": mensagens
         })
 
     except Exception as e:
