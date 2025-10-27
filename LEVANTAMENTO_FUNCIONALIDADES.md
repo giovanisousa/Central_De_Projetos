@@ -184,7 +184,7 @@
 - ✅ Seleção de implantador PACS (se aplicável)
 - ✅ Detecção automática de tipo de projeto (RIS/PACS/Ambos)
 - ✅ Cálculo automático de datas previstas:
-  - Data de homologação prevista (35 ou 95 dias)
+  - Data de homologação prevista (35 ou 60 dias)
   - Data de virada prevista (+7 dias após homologação)
   - Ajuste para segunda-feira (início de semana)
 - ✅ Movimentação para "Em Andamento - Implantação"
@@ -197,7 +197,7 @@
 - ✅ Sistema de priorização de tarefas (alta/média/baixa)
 
 #### Regras de Cálculo:
-- **Projeto netRIS:** 95 dias corridos até homologação
+- **Projeto netRIS:** 60 dias corridos até homologação
 - **Projeto PACS:** 35 dias corridos até homologação
 - **Virada:** Sempre +7 dias após homologação
 - **Ajustes:** Sempre na segunda-feira seguinte

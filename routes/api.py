@@ -1049,6 +1049,9 @@ def _atualizar_zoho(
     coluna_origem: str | None = None
 ) -> None:
     """Atualiza o projeto no Zoho conforme o mapeamento da coluna destino."""
+    print(f"[DEBUG][ZOHO] ==== INÍCIO _atualizar_zoho ====")
+    print(f"[DEBUG][ZOHO] projeto_id={projeto_id}, coluna_destino={coluna_destino}, coluna_origem={coluna_origem}")
+    
     headers = {
         "Authorization": f"Zoho-oauthtoken {access_token}",
         "Content-Type": "application/json",
@@ -1056,6 +1059,7 @@ def _atualizar_zoho(
     }
 
     base_url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}"
+    print(f"[DEBUG][ZOHO] base_url={base_url}")
 
     # 1) Atualiza status e campos customizados
     payload_patch: dict = {}
@@ -1108,7 +1112,17 @@ def _atualizar_zoho(
             _sincronizar_custom_fields_banco(projeto_id, resolved_fields, coletor_mensagens)
 
     # 2) Ajuste de tags
+    print("=" * 80)
+    print(f"[DEBUG][TAGS] >>>>>> ENTRANDO NO AJUSTE DE TAGS <<<<<<")
+    print(f"[DEBUG][TAGS] Coluna destino: {coluna_destino}")
+    print(f"[DEBUG][TAGS] info_dest keys: {list(info_dest.keys())}")
+    print(f"[DEBUG][TAGS] zohoTagsToAdd: {info_dest.get('zohoTagsToAdd', 'NÃO DEFINIDO')}")
+    print(f"[DEBUG][TAGS] zohoTagsToRemove: {info_dest.get('zohoTagsToRemove', 'NÃO DEFINIDO')}")
+    print("=" * 80)
+    
     _ajustar_tags_projeto(base_url, headers, info_dest, detalhes_zoho, coluna_destino)
+    
+    print(f"[DEBUG][TAGS] >>>>>> SAINDO DO AJUSTE DE TAGS <<<<<<")
 
     # 3) Disparo de triggers configurados
     triggers = info_dest.get("triggers", []) or []
@@ -1328,17 +1342,9 @@ def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhe
     add_tags = info_dest.get("zohoTagsToAdd", []) or []
     remove_tags = info_dest.get("zohoTagsToRemove", []) or []
 
-    if coluna_destino == "Aguardando Cronograma":
-        # Remove all tags
-        payload_tags = {"tags": []}
-        response_tags = requests.patch(base_url, headers=headers, json=payload_tags, timeout=45)
-        if response_tags.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Falha ao remover tags: {response_tags.status_code} - {response_tags.text[:400]}"
-            )
-        return
-
+    # Se não há tags para adicionar ou remover, não fazer nada
     if not add_tags and not remove_tags:
+        print(f"[DEBUG][TAGS] Nenhuma tag para adicionar ou remover em '{coluna_destino}'")
         return
 
     def _normalize_tag(tag_val):
@@ -1355,7 +1361,9 @@ def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhe
             return {"id": tag_str}
         return {"name": tag_str}
 
+    # Carregar tags atuais do projeto
     atuais = _carregar_tags_atuais(base_url, headers, detalhes_zoho)
+    print(f"[DEBUG][TAGS] Tags atuais do projeto: {atuais}")
 
     def _tag_key(entry: dict) -> tuple[str, str]:
         value = entry.get("id")
@@ -1363,6 +1371,7 @@ def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhe
             return ("id", str(value))
         return ("name", str(entry.get("name", "")).strip().lower())
 
+    # Criar dicionário de tags por chave
     tags_por_chave: dict[tuple[str, str], dict] = {}
     for tag in atuais:
         normalizada = _normalize_tag(tag)
@@ -1370,25 +1379,39 @@ def _ajustar_tags_projeto(base_url: str, headers: dict, info_dest: dict, detalhe
             continue
         tags_por_chave[_tag_key(normalizada)] = normalizada
 
+    # Remover tags especificadas
     for tag in remove_tags:
         normalizada = _normalize_tag(tag)
         if not normalizada:
             continue
-        tags_por_chave.pop(_tag_key(normalizada), None)
+        chave = _tag_key(normalizada)
+        if chave in tags_por_chave:
+            print(f"[DEBUG][TAGS] Removendo tag: {tags_por_chave[chave]}")
+            tags_por_chave.pop(chave, None)
 
+    # Adicionar tags especificadas
     for tag in add_tags:
         normalizada = _normalize_tag(tag)
         if not normalizada:
             continue
-        tags_por_chave[_tag_key(normalizada)] = normalizada
+        chave = _tag_key(normalizada)
+        print(f"[DEBUG][TAGS] Adicionando tag: {normalizada}")
+        tags_por_chave[chave] = normalizada
 
+    # Construir lista final de tags
     novas_tags = list(tags_por_chave.values())
+    print(f"[DEBUG][TAGS] Tags finais para '{coluna_destino}': {novas_tags}")
+    
     payload_tags = {"tags": novas_tags}
     response_tags = requests.patch(base_url, headers=headers, json=payload_tags, timeout=45)
+    
     if response_tags.status_code not in (200, 201):
+        print(f"[ERROR][TAGS] Falha ao ajustar tags: {response_tags.status_code} - {response_tags.text[:400]}")
         raise RuntimeError(
             f"Falha ao ajustar tags: {response_tags.status_code} - {response_tags.text[:400]}"
         )
+    
+    print(f"[DEBUG][TAGS] Tags atualizadas com sucesso para '{coluna_destino}'")
 
 
 def _executar_triggers(
@@ -1746,7 +1769,7 @@ def iniciar_implantacao():
         
         # ==== IDENTIFICAR FERRAMENTAS CONTRATADAS DO BANCO DE DADOS ====
         # Regras de negócio:
-        # - Projetos com netRIS (independente de ter AP ou não): 95 dias corridos
+        # - Projetos com netRIS (independente de ter AP ou não): 60 dias corridos
         # - Projetos apenas AnimatiPACS: 35 dias corridos
         
         # sqlite3.Row usa acesso por índice/coluna, não .get()
@@ -1771,7 +1794,7 @@ def iniciar_implantacao():
         tem_apenas_ap = any('pacs' in p or 'animatipacs' in p for p in produtos_normalized) and not tem_netris
         
         if tem_netris:
-            dias_ate_homologacao = 95
+            dias_ate_homologacao = 60
             tipo_projeto_label = "netRIS"
             print(f"[DEBUG][INICIAR_IMPLANTACAO] Projeto com netRIS detectado (produtos: {produtos_list}) - Prazo: {dias_ate_homologacao} dias")
         elif tem_apenas_ap:
@@ -1785,7 +1808,7 @@ def iniciar_implantacao():
             tem_apenas_ap_nome = ' - AP' in proj_name and not tem_netris_nome
             
             if tem_netris_nome:
-                dias_ate_homologacao = 95
+                dias_ate_homologacao = 60
                 tipo_projeto_label = "netRIS (fallback por nome)"
                 print(f"[WARN][INICIAR_IMPLANTACAO] Produtos não identificados no BD. Usando nome do projeto - Prazo: {dias_ate_homologacao} dias")
             elif tem_apenas_ap_nome:
@@ -1794,7 +1817,7 @@ def iniciar_implantacao():
                 print(f"[WARN][INICIAR_IMPLANTACAO] Produtos não identificados no BD. Usando nome do projeto - Prazo: {dias_ate_homologacao} dias")
             else:
                 # Padrão conservador: assume prazo maior
-                dias_ate_homologacao = 95
+                dias_ate_homologacao = 60
                 tipo_projeto_label = "padrão (conservador)"
                 print(f"[WARN][INICIAR_IMPLANTACAO] Ferramentas não identificadas - Usando prazo conservador: {dias_ate_homologacao} dias")
         
@@ -2370,78 +2393,79 @@ def mover_projeto():
 
         mensagens = []
 
-        # Remover tags antigas e atualizar status
+        # Processar tags e status baseado na configuração da coluna de destino
         try:
             headers = {
                 "Authorization": f"Zoho-oauthtoken {access_token}",
                 "Content-Type": "application/json"
             }
             
-            # 1. Se movendo para Aguardando Cronograma, adicionar tag específica
-            if coluna_destino == "Aguardando Cronograma":
-                print(f"[DEBUG] Adicionando TAG_AGUARDANDO_CRONOGRAMA ao projeto {projeto_id}")
-                tags_resp = requests.get(tags_url, headers=headers, timeout=30)
-                if tags_resp.status_code == 200:
-                    tags = tags_resp.json().get('tags', [])
-                    print(f"[DEBUG] Tags encontradas: {tags}")
-                    for tag in tags:
-                        tag_id = tag.get('id')
-                        if tag_id:
-                            print(f"[DEBUG] Removendo tag {tag_id}")
-                            del_resp = requests.delete(del_url, headers=headers, timeout=30)
-                            print(f"[DEBUG] Resposta remoção tag {tag_id}: {del_resp.status_code}")
-                            if del_resp.status_code in (200, 204):
-                                mensagens.append(f"Tag {tag.get('name', tag_id)} removida do Zoho")
-                            else:
-                                mensagens.append(f"Aviso: Falha ao remover tag {tag.get('name', tag_id)} ({del_resp.status_code})")
-                else:
-                    print(f"[WARNING] Falha ao obter tags: {tags_resp.status_code}")
+            # 1. Se a coluna de destino usa TAG, remover tags antigas e adicionar a nova
+            if 'tag_id' in config_destino:
+                tag_id_destino = config_destino['tag_id']
+                print(f"[DEBUG] Processando tags para movimentação para '{coluna_destino}' (tag_id: {tag_id_destino})")
+                
+                # Remover todas as tags antigas do projeto
+                try:
+                    current_tags = utils.get_project_tags_strict(access_token, projeto_id)
+                    if current_tags:
+                        print(f"[DEBUG] Tags atuais encontradas: {current_tags}")
+                        for tag in current_tags:
+                            tag_id = tag.get('id')
+                            if tag_id and str(tag_id) != str(tag_id_destino):  # Não remover se já for a tag destino
+                                print(f"[DEBUG] Removendo tag '{tag.get('name', tag_id)}' (ID: {tag_id})")
+                                utils.remove_project_tag(access_token, projeto_id, tag_id)
+                                mensagens.append(f"Tag '{tag.get('name', tag_id)}' removida")
+                    else:
+                        print(f"[DEBUG] Nenhuma tag encontrada no projeto")
+                except Exception as tag_error:
+                    print(f"[WARNING] Erro ao remover tags antigas: {tag_error}")
+                
+                # Adicionar a tag da coluna de destino
+                try:
+                    print(f"[DEBUG] Adicionando tag '{coluna_destino}' (ID: {tag_id_destino}) ao projeto")
+                    utils.add_project_tag(access_token, projeto_id, tag_id_destino)
+                    mensagens.append(f"Tag '{coluna_destino}' adicionada ao Zoho")
+                    print(f"[DEBUG] Tag '{coluna_destino}' adicionada com sucesso")
+                except Exception as tag_error:
+                    print(f"[ERROR] Erro ao adicionar tag '{coluna_destino}': {tag_error}")
+                    mensagens.append(f"Aviso: Falha ao adicionar tag '{coluna_destino}': {tag_error}")
 
-            # 2. Atualizar status do projeto
-            print(f"[DEBUG] Atualizando status do projeto para {coluna_destino}")
-            status_payload = {
-                "status": {"id": STATUS_EM_ANDAMENTO_ID}
-            }
-            status_resp = requests.patch(status_url, headers=headers, json=status_payload, timeout=30)
-            print(f"[DEBUG] Resposta atualização status: {status_resp.status_code}")
-            if status_resp.status_code in (200, 201):
-                mensagens.append("Status atualizado para Em Andamento no Zoho")
-            else:
-                print(f"[ERROR] Falha ao atualizar status: {status_resp.text}")
-                mensagens.append(f"Aviso: Falha ao atualizar status ({status_resp.status_code})")
+            # 2. Se a coluna de destino usa STATUS_ID, atualizar o status
+            if 'status_id' in config_destino:
+                status_id_destino = config_destino['status_id']
+                print(f"[DEBUG] Atualizando status do projeto para '{coluna_destino}' (status_id: {status_id_destino})")
+                url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/"
+                status_payload = {
+                    "status": {"id": status_id_destino}
+                }
+                status_resp = requests.patch(url, headers=headers, json=status_payload, timeout=30)
+                print(f"[DEBUG] Resposta atualização status: {status_resp.status_code}")
+                if status_resp.status_code in (200, 201):
+                    mensagens.append(f"Status atualizado para '{coluna_destino}' no Zoho")
+                else:
+                    print(f"[ERROR] Falha ao atualizar status: {status_resp.text}")
+                    mensagens.append(f"Aviso: Falha ao atualizar status ({status_resp.status_code})")
+            
+            # 3. Se a coluna de destino é "Aguardando Cronograma", também atualizar status para Em Andamento
+            # (necessário pois essa coluna usa tag mas também precisa do status Em Andamento)
+            if coluna_destino == "Aguardando Cronograma":
+                print(f"[DEBUG] Atualizando status do projeto para Em Andamento (complemento para Aguardando Cronograma)")
+                url = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/"
+                status_payload = {
+                    "status": {"id": STATUS_EM_ANDAMENTO_ID}
+                }
+                status_resp = requests.patch(url, headers=headers, json=status_payload, timeout=30)
+                print(f"[DEBUG] Resposta atualização status: {status_resp.status_code}")
+                if status_resp.status_code in (200, 201):
+                    mensagens.append("Status atualizado para Em Andamento no Zoho")
+                else:
+                    print(f"[ERROR] Falha ao atualizar status: {status_resp.text}")
 
         except Exception as e:
             print(f"[ERROR] Erro ao manipular projeto no Zoho: {str(e)}")
             traceback.print_exc()
             mensagens.append(f"Erro ao manipular projeto no Zoho: {str(e)}")
-
-        # Atualizar status/tag no Zoho
-        if 'status_id' in config_destino:
-            status_id = config_destino['status_id']
-            # PATCH project status
-            headers = {
-                "Authorization": f"Zoho-oauthtoken {access_token}",
-                "Content-Type": "application/json"
-            }
-            payload = {"status": {"id": status_id}}
-            resp = requests.put(url, headers=headers, json=payload, timeout=30)
-            if resp.status_code not in (200, 201):
-                mensagens.append(f"Aviso: Falha ao atualizar status ({resp.status_code})")
-            else:
-                mensagens.append("Status atualizado no Zoho")
-
-        if 'tag_id' in config_destino:
-            tag_id = config_destino['tag_id']
-            # Adicionar tag ao projeto
-            headers = {
-                "Authorization": f"Zoho-oauthtoken {access_token}",
-                "Content-Type": "application/json"
-            }
-            resp = requests.post(url, headers=headers, timeout=30)
-            if resp.status_code not in (200, 201):
-                mensagens.append(f"Aviso: Falha ao adicionar tag ({resp.status_code})")
-            else:
-                mensagens.append("Tag adicionada no Zoho")
 
         # Sincronizar projeto específico
         _sincronizar_db_local(projeto_id, access_token, mensagens)
