@@ -620,6 +620,8 @@ def carregar_projetos():
             data_homologacao_prevista = None
             implantador_ris = None
             implantador_pacs = None
+            implantador_homologacao_ris = None
+            implantador_homologacao_pacs = None
             produtos_contratados_json = None
             tem_ris = False
             tem_pacs = False
@@ -633,6 +635,8 @@ def carregar_projetos():
                         data_homologacao_prevista = project_row['data_homologacao_prevista']
                         implantador_ris = project_row['implantador_ris']
                         implantador_pacs = project_row['implantador_pacs']
+                        implantador_homologacao_ris = project_row['implantador_homologacao_ris']
+                        implantador_homologacao_pacs = project_row['implantador_homologacao_pacs']
                         produtos_contratados_json = project_row['produtos_contratados']
                     except (KeyError, IndexError):
                         pass
@@ -720,6 +724,8 @@ def carregar_projetos():
                 'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
                 'implantador_ris': implantador_ris,  # ✅ Nome do implantador RIS
                 'implantador_pacs': implantador_pacs,  # ✅ Nome do implantador PACS
+                'implantador_homologacao_ris': implantador_homologacao_ris,  # ✅ Nome do implantador homologação RIS
+                'implantador_homologacao_pacs': implantador_homologacao_pacs,  # ✅ Nome do implantador homologação PACS
                 'proximo_homologacao': proximo_homologacao,  # ✅ Flag se está próximo da homologação
                 'dias_ate_homologacao': dias_ate_homologacao  # ✅ Dias restantes até homologação
             }

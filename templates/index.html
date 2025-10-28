@@ -992,6 +992,44 @@
                 }
             }
 
+            // 2.2. Implantadores de Homologação (apenas para coluna "Em Homologação")
+            if (coluna === 'Em Homologação') {
+                // Extrair apenas o primeiro nome dos implantadores
+                const extrairPrimeiroNome = (nomeCompleto) => {
+                    if (!nomeCompleto) return null;
+                    return nomeCompleto.split(' ')[0];
+                };
+                
+                const implantadorHomologRIS = extrairPrimeiroNome(projeto.implantador_homologacao_ris);
+                const implantadorHomologPACS = extrairPrimeiroNome(projeto.implantador_homologacao_pacs);
+                
+                console.log('Implantadores Homologação para projeto', projeto.id, ':', {
+                    ris_completo: projeto.implantador_homologacao_ris,
+                    pacs_completo: projeto.implantador_homologacao_pacs,
+                    ris_primeiro: implantadorHomologRIS,
+                    pacs_primeiro: implantadorHomologPACS
+                });
+                
+                if (implantadorHomologRIS || implantadorHomologPACS) {
+                    let implantadoresText = '';
+                    
+                    if (implantadorHomologRIS) {
+                        implantadoresText += `<span class="implantador-badge ris-badge" title="Homologação RIS: ${projeto.implantador_homologacao_ris}">📱 ${implantadorHomologRIS}</span>`;
+                    }
+                    
+                    if (implantadorHomologPACS) {
+                        implantadoresText += `<span class="implantador-badge pacs-badge" title="Homologação PACS: ${projeto.implantador_homologacao_pacs}">💻 ${implantadorHomologPACS}</span>`;
+                    }
+                    
+                    implantadoresHtml = `
+                        <div class="project-detail implantadores-detail">
+                            <span class="icon">🔍</span>
+                            <span class="implantadores-badges">${implantadoresText}</span>
+                        </div>
+                    `;
+                }
+            }
+
             // 3. Botão de adicionar comentário
             const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;
 
