@@ -420,6 +420,13 @@ def upsert_project(project_data):
     implantador_ris = implantador_ris_raw if isinstance(implantador_ris_raw, str) else (_formatar_implantadores(implantador_ris_raw) if implantador_ris_raw else None)
     implantador_pacs = implantador_pacs_raw if isinstance(implantador_pacs_raw, str) else (_formatar_implantadores(implantador_pacs_raw) if implantador_pacs_raw else None)
 
+    # Implantadores de Homologação
+    implantador_homologacao_ris_raw = project_data.get('homologacao_ris')
+    implantador_homologacao_pacs_raw = project_data.get('homologacao_pacs')
+    
+    implantador_homologacao_ris = implantador_homologacao_ris_raw if isinstance(implantador_homologacao_ris_raw, str) else (_formatar_implantadores(implantador_homologacao_ris_raw) if implantador_homologacao_ris_raw else None)
+    implantador_homologacao_pacs = implantador_homologacao_pacs_raw if isinstance(implantador_homologacao_pacs_raw, str) else (_formatar_implantadores(implantador_homologacao_pacs_raw) if implantador_homologacao_pacs_raw else None)
+
     params = {
         'id': project_id,
         'nome': project_data.get('name', 'N/A'),
@@ -448,6 +455,8 @@ def upsert_project(project_data):
         'tags': tags_str,
         'implantador_ris': implantador_ris,
         'implantador_pacs': implantador_pacs,
+        'implantador_homologacao_ris': implantador_homologacao_ris,
+        'implantador_homologacao_pacs': implantador_homologacao_pacs,
         'full_data_json': json.dumps(project_data)
     }
 
@@ -827,6 +836,15 @@ def _migrate_database(cursor):
         if 'implantador_pacs' not in columns:
             cursor.execute("ALTER TABLE projects ADD COLUMN implantador_pacs TEXT")
             print("Migração: Coluna 'implantador_pacs' adicionada à tabela projects")
+        
+        # Migração 4.5: Adicionar colunas de implantadores de homologação
+        if 'implantador_homologacao_ris' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN implantador_homologacao_ris TEXT")
+            print("Migração: Coluna 'implantador_homologacao_ris' adicionada à tabela projects")
+        
+        if 'implantador_homologacao_pacs' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN implantador_homologacao_pacs TEXT")
+            print("Migração: Coluna 'implantador_homologacao_pacs' adicionada à tabela projects")
         
         # Migração 5: Adicionar coluna data_ultimo_comentario se não existir
         if 'data_ultimo_comentario' not in columns:
