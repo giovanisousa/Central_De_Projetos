@@ -3273,3 +3273,20 @@ body.login-page {
     color: #45a049; /* Verde mais escuro no hover */
     transform: scale(1.1);
 }
+
+/* Botão de Ticket */
+.project-card .ticket-btn {
+    background: none;
+    border: none;
+    color: #FF5722; /* Laranja/vermelho, indicando ticket/suporte */
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.2s ease, transform 0.2s ease;
+    padding: 0;
+    margin-left: 8px; /* Espaçamento entre botões */
+}
+
+.project-card .ticket-btn:hover {
+    color: #E64A19; /* Laranja mais escuro no hover */
+    transform: scale(1.1);
+}

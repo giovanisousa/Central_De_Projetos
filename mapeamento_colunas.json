@@ -139,7 +139,7 @@
     "sheetStatus": "Em Virada",
     "zohoStatusId": "2376502000000020092",
     "zohoTagsToAdd": ["2376502000001228741"],
-    "zohoTagsToRemove": [],
+    "zohoTagsToRemove": ["2376502000000983053"],
     "zohoCustomFields": {},
     "triggers": []
   },

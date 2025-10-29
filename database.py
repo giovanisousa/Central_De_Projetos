@@ -427,6 +427,16 @@ def upsert_project(project_data):
     implantador_homologacao_ris = implantador_homologacao_ris_raw if isinstance(implantador_homologacao_ris_raw, str) else (_formatar_implantadores(implantador_homologacao_ris_raw) if implantador_homologacao_ris_raw else None)
     implantador_homologacao_pacs = implantador_homologacao_pacs_raw if isinstance(implantador_homologacao_pacs_raw, str) else (_formatar_implantadores(implantador_homologacao_pacs_raw) if implantador_homologacao_pacs_raw else None)
 
+    # Implantadores de Virada
+    implantador_virada_ris_raw = project_data.get('virada_ris')
+    implantador_virada_pacs_raw = project_data.get('virada_pacs')
+    
+    implantador_virada_ris = implantador_virada_ris_raw if isinstance(implantador_virada_ris_raw, str) else (_formatar_implantadores(implantador_virada_ris_raw) if implantador_virada_ris_raw else None)
+    implantador_virada_pacs = implantador_virada_pacs_raw if isinstance(implantador_virada_pacs_raw, str) else (_formatar_implantadores(implantador_virada_pacs_raw) if implantador_virada_pacs_raw else None)
+    
+    # Data de Virada
+    data_de_virada = _get_custom_field(project_data, 'Data de Virada')
+
     params = {
         'id': project_id,
         'nome': project_data.get('name', 'N/A'),
@@ -444,6 +454,7 @@ def upsert_project(project_data):
         'data_homologacao': data_homologacao,
         'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
         'data_virada': data_virada, # Campo estruturado
+        'data_de_virada': data_de_virada, # Campo customizado
         'data_inicio_oa': data_inicio_oa,
         'data_de_onboarding': _get_custom_field(project_data, 'Data de Onboarding'),
         'status_atual': project_data.get('status', {}).get('name'),
@@ -457,6 +468,8 @@ def upsert_project(project_data):
         'implantador_pacs': implantador_pacs,
         'implantador_homologacao_ris': implantador_homologacao_ris,
         'implantador_homologacao_pacs': implantador_homologacao_pacs,
+        'implantador_virada_ris': implantador_virada_ris,
+        'implantador_virada_pacs': implantador_virada_pacs,
         'full_data_json': json.dumps(project_data)
     }
 
@@ -845,6 +858,19 @@ def _migrate_database(cursor):
         if 'implantador_homologacao_pacs' not in columns:
             cursor.execute("ALTER TABLE projects ADD COLUMN implantador_homologacao_pacs TEXT")
             print("Migração: Coluna 'implantador_homologacao_pacs' adicionada à tabela projects")
+        
+        # Migração 4.6: Adicionar colunas de virada
+        if 'data_de_virada' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN data_de_virada TEXT")
+            print("Migração: Coluna 'data_de_virada' adicionada à tabela projects")
+        
+        if 'implantador_virada_ris' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN implantador_virada_ris TEXT")
+            print("Migração: Coluna 'implantador_virada_ris' adicionada à tabela projects")
+        
+        if 'implantador_virada_pacs' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN implantador_virada_pacs TEXT")
+            print("Migração: Coluna 'implantador_virada_pacs' adicionada à tabela projects")
         
         # Migração 5: Adicionar coluna data_ultimo_comentario se não existir
         if 'data_ultimo_comentario' not in columns:
