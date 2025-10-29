@@ -618,10 +618,13 @@ def carregar_projetos():
             # Busca dados do banco incluindo produtos contratados
             data_mudanca_status = None
             data_homologacao_prevista = None
+            data_de_virada = None
             implantador_ris = None
             implantador_pacs = None
             implantador_homologacao_ris = None
             implantador_homologacao_pacs = None
+            implantador_virada_ris = None
+            implantador_virada_pacs = None
             produtos_contratados_json = None
             tem_ris = False
             tem_pacs = False
@@ -633,10 +636,13 @@ def carregar_projetos():
                     try:
                         data_mudanca_status = project_row['data_mudanca_status']
                         data_homologacao_prevista = project_row['data_homologacao_prevista']
+                        data_de_virada = project_row['data_de_virada']
                         implantador_ris = project_row['implantador_ris']
                         implantador_pacs = project_row['implantador_pacs']
                         implantador_homologacao_ris = project_row['implantador_homologacao_ris']
                         implantador_homologacao_pacs = project_row['implantador_homologacao_pacs']
+                        implantador_virada_ris = project_row['implantador_virada_ris']
+                        implantador_virada_pacs = project_row['implantador_virada_pacs']
                         produtos_contratados_json = project_row['produtos_contratados']
                     except (KeyError, IndexError):
                         pass
@@ -722,10 +728,13 @@ def carregar_projetos():
                 'tem_pacs': tem_pacs,  # ✅ Flag se tem PACS contratado
                 'data_mudanca_status': data_mudanca_status,  # Para debug/auditoria
                 'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
+                'data_de_virada': data_de_virada,  # Data de virada
                 'implantador_ris': implantador_ris,  # ✅ Nome do implantador RIS
                 'implantador_pacs': implantador_pacs,  # ✅ Nome do implantador PACS
                 'implantador_homologacao_ris': implantador_homologacao_ris,  # ✅ Nome do implantador homologação RIS
                 'implantador_homologacao_pacs': implantador_homologacao_pacs,  # ✅ Nome do implantador homologação PACS
+                'implantador_virada_ris': implantador_virada_ris,  # ✅ Nome do implantador virada RIS
+                'implantador_virada_pacs': implantador_virada_pacs,  # ✅ Nome do implantador virada PACS
                 'proximo_homologacao': proximo_homologacao,  # ✅ Flag se está próximo da homologação
                 'dias_ate_homologacao': dias_ate_homologacao  # ✅ Dias restantes até homologação
             }
@@ -2495,6 +2504,268 @@ def agendar_homologacao():
         return jsonify({
             "sucesso": True,
             "mensagem": "Homologação agendada com sucesso!",
+            "detalhes": mensagens
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
+
+
+@api_bp.route('/agendar_virada', methods=['POST'])
+def agendar_virada():
+    """
+    Endpoint para agendar a virada de um projeto.
+    Realiza as seguintes ações:
+    1. Move o projeto para a coluna "Em Virada"
+    2. Atualiza o campo 'data_de_virada' com a data informada
+    3. Preenche os campos 'virada_ris' e 'virada_pacs' com os implantadores
+    4. Adiciona os implantadores ao projeto
+    5. Atribui as tarefas de virada para os implantadores
+    6. Atualiza a planilha principal (Status Principal = "Em virada", Dt Virada)
+    7. Sincroniza o banco de dados local
+    """
+    try:
+        data = request.get_json()
+        project_id = data.get('project_id')
+        data_virada = data.get('data_virada')
+        implantador_ris = (data.get('implantador_ris') or '').strip()
+        implantador_pacs = (data.get('implantador_pacs') or '').strip()
+        
+        mensagens = []
+        
+        # Validações básicas
+        if not project_id:
+            return jsonify({"sucesso": False, "erro": "ID do projeto não informado"}), 400
+        
+        if not data_virada:
+            return jsonify({"sucesso": False, "erro": "Data de virada não informada"}), 400
+        
+        print(f"[DEBUG][AGENDAR_VIRADA] Iniciando agendamento de virada")
+        print(f"[DEBUG][AGENDAR_VIRADA] Projeto: {project_id}")
+        print(f"[DEBUG][AGENDAR_VIRADA] Data Virada: {data_virada}")
+        print(f"[DEBUG][AGENDAR_VIRADA] Implantador RIS: {implantador_ris or 'Não selecionado'}")
+        print(f"[DEBUG][AGENDAR_VIRADA] Implantador PACS: {implantador_pacs or 'Não selecionado'}")
+        
+        # Obter dados do projeto
+        project_row = database.get_project_by_id(project_id)
+        if not project_row:
+            return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
+        
+        detalhes_zoho = json.loads(project_row['full_data_json'])
+        
+        # Obter access token
+        try:
+            access_token = utils.obter_access_token()
+            print(f"[DEBUG][AGENDAR_VIRADA] Access token obtido com sucesso")
+        except Exception as e:
+            erro_msg = f"Falha ao obter access token: {e}"
+            print(f"[ERROR][AGENDAR_VIRADA] {erro_msg}")
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
+        
+        mensagens = []
+
+        # ==== 1. MOVER PARA "EM VIRADA" ====
+        print(f"[DEBUG][AGENDAR_VIRADA] Movendo projeto para 'Em Virada'")
+        
+        colmap = utils.carregar_mapeamento_colunas()
+        info_dest = colmap.get("Em Virada", {})
+        
+        if not info_dest:
+            return jsonify({"sucesso": False, "erro": "Configuração 'Em Virada' não encontrada no mapeamento."}), 500
+
+        # Modificar temporariamente a data_de_virada para usar a data informada
+        info_dest_modificada = copy.deepcopy(info_dest)
+        if "zohoCustomFields" not in info_dest_modificada:
+            info_dest_modificada["zohoCustomFields"] = {}
+        
+        info_dest_modificada["zohoCustomFields"]["data_de_virada"] = data_virada
+        
+        print(f"[DEBUG][AGENDAR_VIRADA] Configuração modificada com data: {data_virada}")
+
+        try:
+            # Atualizar Zoho (status, tags, custom fields)
+            _atualizar_zoho(
+                projeto_id=project_id,
+                coluna_destino="Em Virada",
+                info_dest=info_dest_modificada,
+                access_token=access_token,
+                detalhes_zoho=detalhes_zoho,
+                coletor_mensagens=mensagens,
+                coluna_origem="Em Homologação"
+            )
+            print(f"[DEBUG][AGENDAR_VIRADA] Zoho atualizado com sucesso")
+        except Exception as e:
+            erro_msg = f"Falha ao atualizar Zoho: {e}"
+            print(f"[ERROR][AGENDAR_VIRADA] {erro_msg}")
+            return jsonify({"sucesso": False, "erro": erro_msg}), 500
+
+        # ==== 1.5. ATUALIZAR CAMPOS CUSTOMIZADOS DE VIRADA ====
+        print(f"[DEBUG][AGENDAR_VIRADA] Atualizando campos de virada no Zoho...")
+        
+        try:
+            # Montar payload apenas com campos preenchidos
+            custom_fields_virada = {}
+            
+            # Campo de data de virada
+            custom_fields_virada["Data de Virada"] = data_virada
+            custom_fields_virada["data_de_virada"] = data_virada
+            print(f"[DEBUG][AGENDAR_VIRADA] Incluindo Data de Virada no payload: {data_virada}")
+            
+            if implantador_ris:
+                # Tentar ambos os formatos
+                custom_fields_virada["Virada RIS"] = implantador_ris
+                custom_fields_virada["virada_ris"] = implantador_ris
+                print(f"[DEBUG][AGENDAR_VIRADA] Incluindo Virada RIS no payload: {implantador_ris}")
+            
+            if implantador_pacs:
+                # Tentar ambos os formatos
+                custom_fields_virada["Virada PACS"] = implantador_pacs
+                custom_fields_virada["virada_pacs"] = implantador_pacs
+                print(f"[DEBUG][AGENDAR_VIRADA] Incluindo Virada PACS no payload: {implantador_pacs}")
+            
+            # Fazer a chamada para atualizar os campos customizados
+            url_patch_virada = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+            headers_patch = {
+                "Authorization": f"Zoho-oauthtoken {access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            payload_virada = {
+                "custom_fields": custom_fields_virada
+            }
+            # Adicionar também no root level (padrão que funciona com outros campos)
+            payload_virada.update(custom_fields_virada)
+            
+            print(f"[DEBUG][AGENDAR_VIRADA] Enviando payload de virada: {json.dumps(payload_virada, indent=2, ensure_ascii=False)}")
+            
+            response_virada = requests.patch(
+                url_patch_virada,
+                headers=headers_patch,
+                json=payload_virada,
+                timeout=30
+            )
+            
+            print(f"[DEBUG][AGENDAR_VIRADA] Status da atualização de campos: {response_virada.status_code}")
+            print(f"[DEBUG][AGENDAR_VIRADA] Resposta: {response_virada.text}")
+            
+            if response_virada.status_code in [200, 201]:
+                mensagens.append("Campos de virada atualizados com sucesso")
+                print(f"[DEBUG][AGENDAR_VIRADA] Campos de virada atualizados com sucesso")
+            else:
+                mensagens.append(f"Aviso: Campos de virada podem não ter sido atualizados (status {response_virada.status_code})")
+                print(f"[WARN][AGENDAR_VIRADA] Possível falha ao atualizar campos: {response_virada.text}")
+        
+        except Exception as e:
+            print(f"[WARN][AGENDAR_VIRADA] Erro ao atualizar campos de virada: {e}")
+            mensagens.append(f"Aviso: Não foi possível atualizar campos de virada: {e}")
+
+        # ==== 2. ADICIONAR IMPLANTADORES E ATRIBUIR TAREFAS ====
+        try:
+            from implantacao_manager import adicionar_implantador_e_atribuir_tarefas
+            
+            resultados_virada = []
+            
+            # Processar implantador RIS se selecionado
+            if implantador_ris:
+                print(f"[DEBUG][AGENDAR_VIRADA] Processando virada RIS: {implantador_ris}")
+                resultado_ris = adicionar_implantador_e_atribuir_tarefas(
+                    project_id=project_id,
+                    nome_implantador=implantador_ris,
+                    tipo_projeto='RIS',
+                    access_token=access_token,
+                    portal_id=ZOHO_PORTAL_ID,
+                    arquivo_tarefas='tarefas_virada_ris.json'
+                )
+                resultados_virada.append(f"RIS ({implantador_ris}): {resultado_ris['mensagem']}")
+                mensagens.append(f"Virada RIS - {resultado_ris['mensagem']}")
+                print(f"[DEBUG][AGENDAR_VIRADA] RIS - {resultado_ris['mensagem']}")
+                
+                if not resultado_ris['sucesso']:
+                    print(f"[WARN][AGENDAR_VIRADA] Falha parcial no RIS: {resultado_ris.get('erro', 'Erro desconhecido')}")
+            
+            # Processar implantador PACS se selecionado
+            if implantador_pacs:
+                print(f"[DEBUG][AGENDAR_VIRADA] Processando virada PACS: {implantador_pacs}")
+                resultado_pacs = adicionar_implantador_e_atribuir_tarefas(
+                    project_id=project_id,
+                    nome_implantador=implantador_pacs,
+                    tipo_projeto='PACS',
+                    access_token=access_token,
+                    portal_id=ZOHO_PORTAL_ID,
+                    arquivo_tarefas='tarefas_virada_pacs.json'
+                )
+                resultados_virada.append(f"PACS ({implantador_pacs}): {resultado_pacs['mensagem']}")
+                mensagens.append(f"Virada PACS - {resultado_pacs['mensagem']}")
+                print(f"[DEBUG][AGENDAR_VIRADA] PACS - {resultado_pacs['mensagem']}")
+                
+                if not resultado_pacs['sucesso']:
+                    print(f"[WARN][AGENDAR_VIRADA] Falha parcial no PACS: {resultado_pacs.get('erro', 'Erro desconhecido')}")
+            
+            # Validar que pelo menos um implantador foi selecionado
+            if not implantador_ris and not implantador_pacs:
+                mensagens.append("Aviso: Nenhum implantador foi selecionado")
+            else:
+                mensagens.extend(resultados_virada)
+                print(f"[DEBUG][AGENDAR_VIRADA] Implantadores adicionados e tarefas atribuídas")
+        
+        except Exception as e:
+            erro_msg = f"Erro ao adicionar implantadores: {e}"
+            print(f"[ERROR][AGENDAR_VIRADA] {erro_msg}")
+            traceback.print_exc()
+            mensagens.append(f"Aviso: {erro_msg}")
+
+        # ==== 3. ATUALIZAR PLANILHA PRINCIPAL ====
+        try:
+            creds = utils.build_google_credentials_from_session()
+            from googleapiclient.discovery import build
+            sheets_service = build('sheets', 'v4', credentials=creds)
+
+            # Extrair nome do cliente
+            chave_busca = utils.extrair_cliente_planilha(detalhes_zoho.get('name', ''))
+            if not chave_busca:
+                chave_busca = project_row.get('cliente', '')
+            
+            print(f"[DEBUG][AGENDAR_VIRADA] Atualizando planilha para cliente: {chave_busca}")
+
+            # Atualizar Status Principal
+            utils.update_col_value_by_cliente_tolerant(
+                sheets_service,
+                chave_busca,
+                'Status Principal',
+                'Em virada'
+            )
+
+            # Atualizar Dt Virada com a data informada (formato DD/MM/YYYY)
+            from datetime import datetime
+            data_formatada = datetime.strptime(data_virada, '%Y-%m-%d').strftime('%d/%m/%Y')
+            
+            utils.update_col_value_by_cliente_tolerant(
+                sheets_service,
+                chave_busca,
+                'Dt Virada',
+                data_formatada
+            )
+            
+            mensagens.append(f"Planilha atualizada: Status='Em virada', Dt Virada='{data_formatada}'")
+            print(f"[DEBUG][AGENDAR_VIRADA] Planilha atualizada com sucesso")
+
+        except Exception as e:
+            erro_msg = f"Falha ao atualizar planilha: {e}"
+            print(f"[ERROR][AGENDAR_VIRADA] {erro_msg}")
+            mensagens.append(f"Aviso: {erro_msg}")
+
+        # ==== 4. SINCRONIZAR BANCO LOCAL ====
+        print(f"[DEBUG][AGENDAR_VIRADA] Sincronizando banco de dados local")
+        try:
+            _sincronizar_db_local_forcado(project_id, access_token, mensagens)
+        except Exception as e:
+            print(f"[WARN][AGENDAR_VIRADA] Falha na sincronização do banco: {e}")
+            mensagens.append("Aviso: Falha na sincronização do cache local")
+
+        return jsonify({
+            "sucesso": True,
+            "mensagem": "Virada agendada com sucesso!",
             "detalhes": mensagens
         })
 

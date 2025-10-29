@@ -388,6 +388,68 @@
         </div>
     </div>
 
+    <!-- Modal Agendar Virada -->
+    <div id="viradaModal" class="modal hidden">
+        <div class="modal-content project-modal">
+            <div class="modal-header">
+                <div>
+                    <h2>🚀 Agendar Virada</h2>
+                    <p id="virada-modal-project-name" style="font-size: 0.9rem; color: #555; margin-top: 4px;"></p>
+                </div>
+                <button type="button" id="closeViradaModal" class="modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="virada-form">
+                    <input type="hidden" id="virada-project-id" name="project_id">
+                    <div class="form-grid-play">
+                        <fieldset>
+                            <legend><i class="fas fa-calendar-alt"></i> Data de Virada</legend>
+                            <div class="form-group date-container">
+                                <label for="data_virada">Data da Virada: *</label>
+                                <input type="date" id="data_virada" name="data_virada" required>
+                                <small style="color: #666; display: block; margin-top: 4px;">
+                                    Selecione a data em que a virada será realizada
+                                </small>
+                            </div>
+                        </fieldset>
+                        <fieldset id="implantadores-virada-fieldset">
+                            <legend><i class="fas fa-users"></i> Implantadores Responsáveis</legend>
+                            <div class="implantadores-grid">
+                                <div id="implantador-ris-virada-group" class="form-group hidden">
+                                    <label for="implantador_ris_virada">Implantador RIS:</label>
+                                    <select id="implantador_ris_virada" name="implantador_ris">
+                                        <option value="">Selecione...</option>
+                                        {% for implantador in implantadores_ris %}
+                                        <option value="{{ implantador.name }}">{{ implantador.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div id="implantador-pacs-virada-group" class="form-group hidden">
+                                    <label for="implantador_pacs_virada">Implantador PACS:</label>
+                                    <select id="implantador_pacs_virada" name="implantador_pacs">
+                                        <option value="">Selecione...</option>
+                                        {% for implantador in implantadores_pacs %}
+                                        <option value="{{ implantador.name }}">{{ implantador.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 8px;">
+                                Os implantadores selecionados serão adicionados ao projeto e responsáveis pelas tarefas de virada
+                            </small>
+                        </fieldset>
+                    </div>
+                    <button type="submit" id="btn-agendar-virada" class="submit-button" style="margin-top: 1.5rem;">
+                        <span class="btn-text">Agendar Virada</span>
+                        <span class="btn-loading hidden">
+                            <i class="fas fa-spinner fa-spin"></i> Processando...
+                        </span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Sinaliza autenticação para o JS
         window.LOGGED_IN = {{ 'true' if logged_in else 'false' }};
@@ -1030,6 +1092,44 @@
                 }
             }
 
+            // 2.3. Implantadores de Virada (apenas para coluna "Em Virada")
+            if (coluna === 'Em Virada') {
+                // Extrair apenas o primeiro nome dos implantadores
+                const extrairPrimeiroNome = (nomeCompleto) => {
+                    if (!nomeCompleto) return null;
+                    return nomeCompleto.split(' ')[0];
+                };
+                
+                const implantadorViradaRIS = extrairPrimeiroNome(projeto.implantador_virada_ris);
+                const implantadorViradaPACS = extrairPrimeiroNome(projeto.implantador_virada_pacs);
+                
+                console.log('Implantadores Virada para projeto', projeto.id, ':', {
+                    ris_completo: projeto.implantador_virada_ris,
+                    pacs_completo: projeto.implantador_virada_pacs,
+                    ris_primeiro: implantadorViradaRIS,
+                    pacs_primeiro: implantadorViradaPACS
+                });
+                
+                if (implantadorViradaRIS || implantadorViradaPACS) {
+                    let implantadoresText = '';
+                    
+                    if (implantadorViradaRIS) {
+                        implantadoresText += `<span class="implantador-badge ris-badge" title="Virada RIS: ${projeto.implantador_virada_ris}">📱 ${implantadorViradaRIS}</span>`;
+                    }
+                    
+                    if (implantadorViradaPACS) {
+                        implantadoresText += `<span class="implantador-badge pacs-badge" title="Virada PACS: ${projeto.implantador_virada_pacs}">💻 ${implantadorViradaPACS}</span>`;
+                    }
+                    
+                    implantadoresHtml = `
+                        <div class="project-detail implantadores-detail">
+                            <span class="icon">🚀</span>
+                            <span class="implantadores-badges">${implantadoresText}</span>
+                        </div>
+                    `;
+                }
+            }
+
             // 3. Botão de adicionar comentário
             const addCommentBtnHtml = `<button class="add-comment-btn" title="Adicionar comentário">+</button>`;
 
@@ -1048,6 +1148,16 @@
                 playButtonHtml = `
                     <button class="homolog-btn" title="Agendar Homologação">
                         <i class="fas fa-calendar-check"></i>
+                    </button>
+                `;
+            }
+
+            // 6. Botão de Ticket (para colunas específicas)
+            let ticketButtonHtml = '';
+            if (coluna === 'Em Virada' || coluna === 'Em Operação Assistida') {
+                ticketButtonHtml = `
+                    <button class="ticket-btn" title="Abrir Ticket">
+                        <i class="fas fa-tools"></i>
                     </button>
                 `;
             }
@@ -1075,6 +1185,7 @@
                 </div>
                 <div class="play-btn-container">
                     ${playButtonHtml}
+                    ${ticketButtonHtml}
                 </div>
                 <div class="project-footer">
                     <div class="footer-row-top">
@@ -1227,6 +1338,17 @@
                 homologBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     abrirModalHomologacao(projeto);
+                });
+            }
+
+            // Adicionar evento ao botão de ticket (se existir no card)
+            const ticketBtn = card.querySelector('.ticket-btn');
+            if (ticketBtn) {
+                ticketBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // TODO: Implementar lógica de abertura de ticket
+                    console.log('[TICKET] Botão de ticket clicado para projeto:', projeto.id, projeto.nome);
+                    alert('Funcionalidade de ticket será implementada em breve!');
                 });
             }
 
@@ -1427,6 +1549,197 @@
             }
         }
 
+        // Modal de Agendar Virada (SEGUINDO PADRÃO DE HOMOLOGAÇÃO)
+        function abrirModalVirada(projetoOuId, movimento = null) {
+            const modal = document.getElementById('viradaModal');
+            if (!modal) return;
+            
+            // Se recebeu movimento pendente, armazenar para uso posterior
+            if (movimento) {
+                modal.dataset.movimentoPendente = JSON.stringify(movimento);
+            } else {
+                delete modal.dataset.movimentoPendente;
+            }
+            
+            // Se recebeu apenas o ID, buscar o projeto nos dados salvos
+            let projeto = projetoOuId;
+            if (typeof projetoOuId === 'string' || typeof projetoOuId === 'number') {
+                const projetoId = String(projetoOuId);
+                // Buscar em todas as colunas
+                for (const coluna in projetosSalvos) {
+                    const lista = projetosSalvos[coluna] || [];
+                    const encontrado = lista.find(p => String(p.id) === projetoId);
+                    if (encontrado) {
+                        projeto = encontrado;
+                        break;
+                    }
+                }
+            }
+            
+            // Preenche informações do modal
+            const nameEl = document.getElementById('virada-modal-project-name');
+            if (nameEl) nameEl.textContent = projeto.nome || '';
+            const inputId = document.getElementById('virada-project-id');
+            if (inputId) inputId.value = projeto.id || '';
+
+            // Mostrar selects conforme produtos contratados
+            const temRIS = projeto.tem_ris === true || projeto.tem_ris === 1;
+            const temPACS = projeto.tem_pacs === true || projeto.tem_pacs === 1;
+            
+            const risGroup = document.getElementById('implantador-ris-virada-group');
+            const pacsGroup = document.getElementById('implantador-pacs-virada-group');
+            
+            // Reset: remove hidden de ambos primeiro
+            if (risGroup) {
+                risGroup.classList.remove('hidden');
+                if (!temRIS) risGroup.classList.add('hidden');
+            }
+            
+            if (pacsGroup) {
+                pacsGroup.classList.remove('hidden');
+                if (!temPACS) pacsGroup.classList.add('hidden');
+            }
+
+            // Definir data mínima como hoje
+            const dataInput = document.getElementById('data_virada');
+            if (dataInput) {
+                const hoje = new Date().toISOString().split('T')[0];
+                dataInput.setAttribute('min', hoje);
+            }
+
+            modal.classList.remove('hidden');
+
+            // Fechar modal
+            const closeBtn = document.getElementById('closeViradaModal');
+            if (closeBtn && !closeBtn.dataset.bound) {
+                closeBtn.addEventListener('click', () => {
+                    modal.classList.add('hidden');
+                    // Se cancelar e tinha movimento pendente, limpar
+                    if (modal.dataset.movimentoPendente) {
+                        delete modal.dataset.movimentoPendente;
+                        movimentoPendente = null;
+                    }
+                });
+                modal.addEventListener('click', (e) => { 
+                    if (e.target === modal) {
+                        modal.classList.add('hidden');
+                        // Se cancelar e tinha movimento pendente, limpar
+                        if (modal.dataset.movimentoPendente) {
+                            delete modal.dataset.movimentoPendente;
+                            movimentoPendente = null;
+                        }
+                    }
+                });
+                closeBtn.dataset.bound = '1';
+            }
+
+            // Bind submit do formulário
+            const viradaForm = document.getElementById('virada-form');
+            if (viradaForm && !viradaForm.dataset.bound) {
+                viradaForm.addEventListener('submit', async (ev) => {
+                    ev.preventDefault();
+                    
+                    // Verificar se veio de um drag&drop ou do botão
+                    const temMovimento = modal.dataset.movimentoPendente;
+                    
+                    if (temMovimento) {
+                        // Se veio do drag&drop, abrir modal de confirmação
+                        const movimento = JSON.parse(temMovimento);
+                        
+                        // Armazenar dados do formulário temporariamente
+                        const formData = new FormData(viradaForm);
+                        window.dadosViradaTemp = {
+                            project_id: formData.get('project_id'),
+                            data_virada: formData.get('data_virada'),
+                            implantador_ris: formData.get('implantador_ris') || '',
+                            implantador_pacs: formData.get('implantador_pacs') || ''
+                        };
+                        
+                        // Fechar modal de virada
+                        modal.classList.add('hidden');
+                        
+                        // Abrir modal de confirmação
+                        abrirModalConfirmacaoMovimento(movimento);
+                    } else {
+                        // Se veio do botão, executar diretamente
+                        await executarAgendamentoVirada(viradaForm);
+                    }
+                });
+                viradaForm.dataset.bound = '1';
+            }
+        }
+        
+        // Função auxiliar para executar o agendamento de virada
+        async function executarAgendamentoVirada(viradaForm) {
+            const modal = document.getElementById('viradaModal');
+            const btnSubmit = document.getElementById('btn-agendar-virada');
+            const btnText = btnSubmit?.querySelector('.btn-text');
+            const btnLoading = btnSubmit?.querySelector('.btn-loading');
+            
+            try {
+                // Ativar loading
+                if (btnSubmit) btnSubmit.disabled = true;
+                if (btnText) btnText.classList.add('hidden');
+                if (btnLoading) btnLoading.classList.remove('hidden');
+                
+                // Desabilitar todos os inputs do formulário
+                const inputs = viradaForm.querySelectorAll('input, select');
+                inputs.forEach(input => input.disabled = true);
+
+                const formData = new FormData(viradaForm);
+                const payload = {
+                    project_id: formData.get('project_id'),
+                    data_virada: formData.get('data_virada'),
+                    implantador_ris: formData.get('implantador_ris') || '',
+                    implantador_pacs: formData.get('implantador_pacs') || ''
+                };
+
+                console.log('[VIRADA] Enviando payload:', payload);
+
+                const response = await fetch('/api/agendar_virada', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                console.log('[VIRADA] Resposta do servidor:', result);
+
+                if (!response.ok || !result.sucesso) {
+                    throw new Error(result.erro || 'Erro ao agendar virada');
+                }
+                
+                // Sucesso - Fechar modal e recarregar projetos
+                if (modal) modal.classList.add('hidden');
+                if (window.mostrarToast) {
+                    window.mostrarToast('Virada agendada com sucesso!', 'success');
+                } else {
+                    alert('Virada agendada com sucesso!');
+                }
+                
+                // Mostrar detalhes se disponíveis
+                if (result.detalhes && result.detalhes.length > 0) {
+                    console.log('[VIRADA] Detalhes:', result.detalhes);
+                }
+                
+                // Recarregar os projetos para atualizar o kanban
+                await carregarProjetos();
+                
+            } catch (err) {
+                console.error('[VIRADA] Erro:', err);
+                alert('Erro ao agendar virada: ' + err.message);
+            } finally {
+                // Desativar loading (sempre executa)
+                if (btnSubmit) btnSubmit.disabled = false;
+                if (btnText) btnText.classList.remove('hidden');
+                if (btnLoading) btnLoading.classList.add('hidden');
+                
+                // Reabilitar todos os inputs do formulário
+                const inputs = viradaForm.querySelectorAll('input, select');
+                inputs.forEach(input => input.disabled = false);
+            }
+        }
+
         // Manipuladores de eventos de drag and drop
         function handleDragStart(e) {
             elementoSendoArrastado = e.target;
@@ -1515,6 +1828,24 @@
                 
                 const projetoId = elementoSendoArrastado.dataset.projetoId;
                 abrirModalHomologacao(projetoId, movimentoPendente);
+                
+                // Remover highlight
+                colunaDestino.classList.remove('drag-over');
+                return false;
+            }
+
+            // Verificar se o destino é "Em Virada" e origem é "Em Homologação"
+            if (nomeColunaDest === 'Em Virada' && nomeColumnaOrig === 'Em Homologação') {
+                // Abrir modal de Agendar Virada ao invés do modal de confirmação
+                movimentoPendente = {
+                    card: elementoSendoArrastado,
+                    origem: nomeColumnaOrig,
+                    destino: nomeColunaDest,
+                    nomeProjeto: (elementoSendoArrastado.querySelector('.project-name')?.textContent || 'Projeto').replace('📋 ', '').trim()
+                };
+                
+                const projetoId = elementoSendoArrastado.dataset.projetoId;
+                abrirModalVirada(projetoId, movimentoPendente);
                 
                 // Remover highlight
                 colunaDestino.classList.remove('drag-over');
@@ -1621,6 +1952,61 @@
                         window.mostrarToast('Erro ao agendar homologação: ' + err.message, 'error');
                     } else {
                         alert('Erro ao agendar homologação: ' + err.message);
+                    }
+                }
+            } else if (window.dadosViradaTemp) {
+                // Verificar se tem dados de virada para executar
+                const payload = window.dadosViradaTemp;
+                delete window.dadosViradaTemp; // Limpar dados temporários
+                
+                fecharModalConfirmacaoMovimento();
+                
+                // Mostrar toast de loading
+                if (window.mostrarToast) {
+                    window.mostrarToast('Processando agendamento de virada...', 'info');
+                }
+                
+                try {
+                    console.log('[VIRADA] Executando agendamento após confirmação:', payload);
+
+                    const response = await fetch('/api/agendar_virada', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    console.log('[VIRADA] Resposta do servidor:', result);
+
+                    if (!response.ok || !result.sucesso) {
+                        throw new Error(result.erro || 'Erro ao agendar virada');
+                    }
+                    
+                    // Sucesso
+                    if (window.mostrarToast) {
+                        window.mostrarToast('Virada agendada com sucesso!', 'success');
+                    } else {
+                        alert('Virada agendada com sucesso!');
+                    }
+                    
+                    // Mostrar detalhes se disponíveis
+                    if (result.detalhes && result.detalhes.length > 0) {
+                        console.log('[VIRADA] Detalhes:', result.detalhes);
+                        // Opcionalmente mostrar resumo das tarefas atribuídas
+                        if (result.detalhes.some(d => d.includes('tarefas'))) {
+                            console.log('[VIRADA] Tarefas atribuídas com sucesso');
+                        }
+                    }
+                    
+                    // Recarregar os projetos para atualizar o kanban
+                    await carregarProjetos();
+                    
+                } catch (err) {
+                    console.error('[VIRADA] Erro:', err);
+                    if (window.mostrarToast) {
+                        window.mostrarToast('Erro ao agendar virada: ' + err.message, 'error');
+                    } else {
+                        alert('Erro ao agendar virada: ' + err.message);
                     }
                 }
             } else {
