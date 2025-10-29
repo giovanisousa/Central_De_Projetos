@@ -47,6 +47,7 @@ def init_db():
             data_ultima_mudanca TEXT,
             link_google TEXT,
             tags TEXT,
+            precisa_comentario INTEGER DEFAULT 1,
             full_data_json TEXT
         )
     ''')
@@ -436,6 +437,9 @@ def upsert_project(project_data):
     
     # Data de Virada
     data_de_virada = _get_custom_field(project_data, 'Data de Virada')
+    
+    # Data de início da OA
+    data_de_inicio_da_oa = _get_custom_field(project_data, 'Data de Início da OA')
 
     params = {
         'id': project_id,
@@ -455,6 +459,7 @@ def upsert_project(project_data):
         'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
         'data_virada': data_virada, # Campo estruturado
         'data_de_virada': data_de_virada, # Campo customizado
+        'data_de_inicio_da_oa': data_de_inicio_da_oa, # Campo customizado
         'data_inicio_oa': data_inicio_oa,
         'data_de_onboarding': _get_custom_field(project_data, 'Data de Onboarding'),
         'status_atual': project_data.get('status', {}).get('name'),
@@ -470,6 +475,7 @@ def upsert_project(project_data):
         'implantador_homologacao_pacs': implantador_homologacao_pacs,
         'implantador_virada_ris': implantador_virada_ris,
         'implantador_virada_pacs': implantador_virada_pacs,
+        'precisa_comentario': 1,
         'full_data_json': json.dumps(project_data)
     }
 
@@ -871,6 +877,11 @@ def _migrate_database(cursor):
         if 'implantador_virada_pacs' not in columns:
             cursor.execute("ALTER TABLE projects ADD COLUMN implantador_virada_pacs TEXT")
             print("Migração: Coluna 'implantador_virada_pacs' adicionada à tabela projects")
+        
+        # Migração 4.7: Adicionar coluna data_de_inicio_da_oa
+        if 'data_de_inicio_da_oa' not in columns:
+            cursor.execute("ALTER TABLE projects ADD COLUMN data_de_inicio_da_oa TEXT")
+            print("Migração: Coluna 'data_de_inicio_da_oa' adicionada à tabela projects")
         
         # Migração 5: Adicionar coluna data_ultimo_comentario se não existir
         if 'data_ultimo_comentario' not in columns:

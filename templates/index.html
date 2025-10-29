@@ -888,7 +888,8 @@
                 'Falta Liberar Servidor Infra',
                 'Em Andamento - Implantação',
                 'Em Homologação',
-                'Em Virada'
+                'Em Virada',
+                'Em Operação Assistida'
             ];
             
             // Verifica se a coluna está na lista de permitidas
@@ -913,6 +914,12 @@
                     // Apenas fase Infraestrutura
                     fases = [
                         { key: 'INFRA', label: 'Infra' }
+                    ];
+                } else if (coluna === 'Em Operação Assistida') {
+                    // Apenas fases IMP e INT para Operação Assistida
+                    fases = [
+                        { key: 'IMP', label: 'IMP' },
+                        { key: 'INT', label: 'INT' }
                     ];
                 } else {
                     // Ordem de exibição para outras colunas: NR, AP, IMP, INT
