@@ -1,0 +1,574 @@
+{
+  "data_execucao": "2025-10-29 10:10:03",
+  "template_id": "2376502000005584766",
+  "gps_alvo": [
+    "Giovani",
+    "willian.anjos"
+  ],
+  "total_projetos": 112,
+  "sucessos": 112,
+  "erros": 0,
+  "projetos_atualizados": [
+    {
+      "id": "2376502000006264023",
+      "nome": "1211 - Clinica Start Diagnósticos - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000006239269",
+      "nome": "1234 - Cliente Dry-Run - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006237137",
+      "nome": "9851 - Teste de projeto - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006182015",
+      "nome": "9859 - Projeto teste - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006131101",
+      "nome": "9861 - Projeto teste tarefas - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006103025",
+      "nome": "1182 - Serviço de Radiodiagnóstico de Londrina - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006105013",
+      "nome": "1185 - Ecocardio Vascular Serviço de Imagenologia - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006099003",
+      "nome": "1183 - Ultra X Diagnósticos por Imagem - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000006084505",
+      "nome": "0986 - IBMED - NR/AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005994875",
+      "nome": "1165 - IDX - Instituto de Diagnóstico Por Imagem - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005993043",
+      "nome": "1208 -Diagmed Centro de Diagnostico em Medicina Ltda - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005972063",
+      "nome": "1206 - ONE MEDICINA DIAGNOSTICA LTDA - NR/AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005824904",
+      "nome": "1205 - RAIO X LAGOS DIAGNÓSTICOS POR IMAGEM - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005827385",
+      "nome": "1191 - Ecos Diagnóstico por Imagem - NR/AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005824705",
+      "nome": "1195 - Hospital de Clínicas de Carazinho - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005834717",
+      "nome": "Registro de Horas NÃO faturáveis - 4° trimestre",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005824069",
+      "nome": "1201 - NDI Núcleo De Diagnósticos Por Imagem - NR/AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005828025",
+      "nome": "1200 - Bio Imagem – Ressonância Magnética - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005758230",
+      "nome": "1199 - CDI Ultrassom - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005726003",
+      "nome": "1192 - Viavita Serviços Médicos - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005705146",
+      "nome": "1194 - Santa Cecília - Centro de Diagnósticos - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005705007",
+      "nome": "1198 - Invasc - Instituto Vascular de Passo Fundo - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005641995",
+      "nome": "1197 - Datamed - AP/NR",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005641687",
+      "nome": "1190 - GSG Imagens - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005641460",
+      "nome": "REIMPLANTAÇÃO - Nova Medical Center",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005542081",
+      "nome": "0548 - Med-X Serviços de Diagnóstico Por Imagem - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005544019",
+      "nome": "1181 - CLINICA RADIOLÓGICA SANTA BARBARA - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005512175",
+      "nome": "1196 - POLIS GESTÃO E TECNOLOGIA DA INFORMAÇÃO - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005523261",
+      "nome": "Reimplantação IMAGO - NR",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005492003",
+      "nome": "1188 - Centro Médico Sapiranga - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005429382",
+      "nome": "1168 - Hospital Nossa Senhora das Dores - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005408025",
+      "nome": "1187 - CEADI Maravilha - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005365003",
+      "nome": "1180 - Hospital da Comunidade - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005330021",
+      "nome": "1174 - Clinica Nina Uruaçu - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005329005",
+      "nome": "1138 - CEPARH - Clínica Elsimar Coutinho - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005312009",
+      "nome": "1179 - Eikon Diagnóstico por Imagem - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005292780",
+      "nome": "1157 - Diagnostik Servicos Médicos Ltda - AP/NR",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005236845",
+      "nome": "1176 - Clínica IndiCare - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000005249866",
+      "nome": "1164 - Tagis Medicina e Diagnóstico - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005236053",
+      "nome": "1178 - Dra Michelle Mendes Grandi - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005235445",
+      "nome": "1117 - Unica Imagem - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005180127",
+      "nome": "1177 - Clinica Leonardo da Vinci - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005155003",
+      "nome": "1175 - Diagcentro Diagnóstico por Imagem e Cardiologia - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000005039203",
+      "nome": "1173 - Clínica Médica Saúde Popular - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004998563",
+      "nome": "1162 - Hospital Evangélico Goiano - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004886545",
+      "nome": "1172 - Hospital Geral Intermunicipal – HGI Dr. Aryzone Mendes de Araújo - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004886413",
+      "nome": "1171 - Hospital Santo Antônio - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004884673",
+      "nome": "1169 - Hospital São Francisco de Paula - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004868147",
+      "nome": "1167 - Vida de Radiologista - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004792003",
+      "nome": "1166 - Futura Diagnósticos por Imagem - AP/NR",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004745039",
+      "nome": "1158 - Unidade Radiologica Mallouk Mizuma - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004720640",
+      "nome": "1064 - Hospital da Reserva - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004659428",
+      "nome": "1149 - Instituto de Medicina Nuclear - AP/NR",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004659302",
+      "nome": "1163 - Valeimagem - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004611869",
+      "nome": "1161 - Master Jaru Hospital - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004527130",
+      "nome": "1156 - Hospital Santa  Terezinha - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004324882",
+      "nome": "1155 - RM Paduá - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004294348",
+      "nome": "293/2024 - Centro Radiológico Goiania - Aditivo Filiais",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004273892",
+      "nome": "1154 - Diagnósticos Clinica - AP/NR",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004263019",
+      "nome": "1145 - Unimed Alto da Serra - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004257006",
+      "nome": "1151 - Serviço de Diagnóstico Santa Paula - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004242191",
+      "nome": "1150 - Hospital e Clínica Santa Paula - AP ",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004231100",
+      "nome": "1143 - Clinica Tirol - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004208739",
+      "nome": "1146 - Hospital São Vicente de Paulo - Campo Belo - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004208431",
+      "nome": "1128 - Acesso Saúde Taguatinga - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004208211",
+      "nome": "Projeto registro de horas NÃO FATURÁVEIS - 3° Trimestre/2025",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004208003",
+      "nome": "1139 - CDI Porto Ferreira - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000004173461",
+      "nome": "1148 - Centro Diagnóstico Valgueiro - AP/NR ",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004053440",
+      "nome": "1142 - Hospital São Vicente de Paulo - AP ",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004053174",
+      "nome": "1141 - Imagem X - AP/NR (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000004009628",
+      "nome": "1137 - Grupo Health - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003928432",
+      "nome": "1118 - DoctorClin - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003930041",
+      "nome": "1136 - Clínica Vivery - AP/NR (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003889423",
+      "nome": "1133 - Interventix - CENTRO DE DIAGNOSTICOS LTDA - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003782377",
+      "nome": "1129 - CDI Registro - Instituto Radio Diagnóstico - AP (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003782093",
+      "nome": "1135 - IMR - INSTITUTO MARQUES DE RADIOLOGIA - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003729268",
+      "nome": "1131 - Associação Hospitalar São José - AP (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003715878",
+      "nome": "1130 - CEMISC - Centro Médico Integrado Santa Catarina - AP (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003640439",
+      "nome": "Registros treinamentos - HM Diagnósticos",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003627002",
+      "nome": "1121 - Clinica Imagem - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003602607",
+      "nome": "1123 - RW Diagnósticos por Imagem Ltda - AP/NR (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003570255",
+      "nome": "0907-4 - PR MD Rio Pardo",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003569201",
+      "nome": "1112 - Hospital Ernesto Dornelles - AP (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000003549073",
+      "nome": "1119 - Policlínica Vida Paraíba - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003539455",
+      "nome": "1067 - INSTITUTO DE ANGIOLOGIA E CARDIOLOGIA DE GOIÂNIA LTDA - AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003459595",
+      "nome": "1120 - Diagnósticos Via Imagem - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003432165",
+      "nome": "1110 - TELERRADIOLOGIA NÚCLEO DIAGNOSTICOS LTDA - AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003432039",
+      "nome": "1114 - Instituto de Soluções Integradas Municipais (SIM) - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003330185",
+      "nome": "1115 - AKC Diagnósticos- NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003330007",
+      "nome": "1106 - Clínica Inova Jacarei - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000003107045",
+      "nome": "1111 - Associação Hospitalar Roque Gonzales - AP - (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000002786156",
+      "nome": "1098 - Gama Imagem - AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002763533",
+      "nome": "1091 - Pro Imagem Diagnóstico - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002763377",
+      "nome": "1097 - Clinica Gemina - Londrina - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002763003",
+      "nome": "1103 - Centro Integrado de Endoscopia Digestiva - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002749419",
+      "nome": "1096 - Unidade de Ultrassonografia de Rôndonia (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002732570",
+      "nome": "1099 - Examina - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002579265",
+      "nome": "1082 - Magnus Imagens Médicas - Alfenas - AP - (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000002579077",
+      "nome": "1092 - Clinica de Imagenologia Neuroscan - NR/AP - (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000002568011",
+      "nome": "1093 - DIS Diagnóstico por Imagem - AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002326783",
+      "nome": "1084 - AMA Diagnóstico - NR/AP (SEM OA)",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000002159327",
+      "nome": "1076 - Hospital Ortopédico de Goiânia LTDA - AP - (Sem OA)",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000001979679",
+      "nome": "1053 - CardioDiagnóstico - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000001701819",
+      "nome": "1075 - CLINUS - Clinica de Imagem Ltda - AP/NR",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000001684361",
+      "nome": "1054 - Hosp. Regional de Santa Maria - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000001593107",
+      "nome": "Complexo Hospitalar Astrogildo de Azevedo - AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000001249141",
+      "nome": "Hugolino Andrade - NR",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000000469131",
+      "nome": "1034 - Centro Clínico Amparo - AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000000436301",
+      "nome": "1043 - Corpscan Serviços Médicos - NR/AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000000351049",
+      "nome": "Clinica Dr. Edson Coltro - NR/AP",
+      "gp": "Giovani"
+    },
+    {
+      "id": "2376502000000269443",
+      "nome": "1033 - C.D.C Nuclear - NR/AP",
+      "gp": "willian.anjos"
+    },
+    {
+      "id": "2376502000000213310",
+      "nome": "0969-PR Instituto José da Luz - NR/AP",
+      "gp": "Giovani"
+    }
+  ],
+  "projetos_com_erro": []
+}

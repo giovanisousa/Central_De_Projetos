@@ -1,0 +1,1122 @@
+[
+  {
+    "id": "2376502000006264023",
+    "name": "1211 - Clinica Start Diagnósticos - AP",
+    "owner": "willian.anjos",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-29T02:18:51.893Z",
+    "start_date": "2025-10-28",
+    "end_date": "2026-01-14"
+  },
+  {
+    "id": "2376502000006239269",
+    "name": "1234 - Cliente Dry-Run - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-28T18:25:58.333Z",
+    "start_date": "2025-09-19",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000006237137",
+    "name": "9851 - Teste de projeto - NR/AP",
+    "owner": "Giovani",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-10-27T10:00:46.384Z",
+    "start_date": "2025-10-27",
+    "end_date": "2026-03-09"
+  },
+  {
+    "id": "2376502000006182015",
+    "name": "9859 - Projeto teste - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-10-22T22:15:26.885Z",
+    "start_date": "2025-10-22",
+    "end_date": "2026-03-03"
+  },
+  {
+    "id": "2376502000006131101",
+    "name": "9861 - Projeto teste tarefas - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-10-19T20:16:12.801Z",
+    "start_date": "2025-10-19",
+    "end_date": "2026-02-26"
+  },
+  {
+    "id": "2376502000006103025",
+    "name": "1182 - Serviço de Radiodiagnóstico de Londrina - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-15T20:43:13.941Z",
+    "start_date": "2025-10-15",
+    "end_date": "2026-02-24"
+  },
+  {
+    "id": "2376502000006105013",
+    "name": "1185 - Ecocardio Vascular Serviço de Imagenologia - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-15T20:34:31.923Z",
+    "start_date": "2025-10-15",
+    "end_date": "2026-02-25"
+  },
+  {
+    "id": "2376502000006099003",
+    "name": "1183 - Ultra X Diagnósticos por Imagem - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-15T20:26:48.966Z",
+    "start_date": "2025-10-15",
+    "end_date": "2026-02-25"
+  },
+  {
+    "id": "2376502000006084505",
+    "name": "0986 - IBMED - NR/AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-10-15T04:31:13.739Z",
+    "start_date": "2025-10-14",
+    "end_date": "2026-02-23"
+  },
+  {
+    "id": "2376502000005994875",
+    "name": "1165 - IDX - Instituto de Diagnóstico Por Imagem - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-13T20:32:33.373Z",
+    "start_date": "2025-10-13",
+    "end_date": "2026-02-23"
+  },
+  {
+    "id": "2376502000005993043",
+    "name": "1208 -Diagmed Centro de Diagnostico em Medicina Ltda - AP",
+    "owner": "willian.anjos",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-11T02:26:42.815Z",
+    "start_date": "2025-10-10",
+    "end_date": "2026-02-20"
+  },
+  {
+    "id": "2376502000005972063",
+    "name": "1206 - ONE MEDICINA DIAGNOSTICA LTDA - NR/AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-10-10T01:24:46.965Z",
+    "start_date": "2025-10-09",
+    "end_date": "2026-03-05"
+  },
+  {
+    "id": "2376502000005824904",
+    "name": "1205 - RAIO X LAGOS DIAGNÓSTICOS POR IMAGEM - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-04T03:49:00.597Z",
+    "start_date": "2025-10-04",
+    "end_date": "2026-02-23"
+  },
+  {
+    "id": "2376502000005827385",
+    "name": "1191 - Ecos Diagnóstico por Imagem - NR/AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-10-04T00:58:24.487Z",
+    "start_date": "2025-10-03",
+    "end_date": "2026-03-05"
+  },
+  {
+    "id": "2376502000005824705",
+    "name": "1195 - Hospital de Clínicas de Carazinho - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-03T04:08:58.020Z",
+    "start_date": "2025-10-03",
+    "end_date": "2026-02-13"
+  },
+  {
+    "id": "2376502000005834717",
+    "name": "Registro de Horas NÃO faturáveis - 4° trimestre",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-02T03:06:22.344Z",
+    "start_date": "2025-10-01",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000005824069",
+    "name": "1201 - NDI Núcleo De Diagnósticos Por Imagem - NR/AP",
+    "owner": "willian.anjos",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-01T02:51:41.262Z",
+    "start_date": "2025-09-30",
+    "end_date": "2026-02-10"
+  },
+  {
+    "id": "2376502000005828025",
+    "name": "1200 - Bio Imagem – Ressonância Magnética - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-10-01T02:41:10.842Z",
+    "start_date": "2025-09-30",
+    "end_date": "2026-02-09"
+  },
+  {
+    "id": "2376502000005758230",
+    "name": "1199 - CDI Ultrassom - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-26T21:54:08.941Z",
+    "start_date": "2025-09-26",
+    "end_date": "2025-12-11"
+  },
+  {
+    "id": "2376502000005726003",
+    "name": "1192 - Viavita Serviços Médicos - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-24T20:21:10.949Z",
+    "start_date": "2025-09-24",
+    "end_date": "2026-02-03"
+  },
+  {
+    "id": "2376502000005705146",
+    "name": "1194 - Santa Cecília - Centro de Diagnósticos - AP",
+    "owner": "willian.anjos",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-24T04:23:11.922Z",
+    "start_date": "2025-09-24",
+    "end_date": "2025-12-08"
+  },
+  {
+    "id": "2376502000005705007",
+    "name": "1198 - Invasc - Instituto Vascular de Passo Fundo - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-24T02:33:55.070Z",
+    "start_date": "2025-09-23",
+    "end_date": "2025-12-09"
+  },
+  {
+    "id": "2376502000005641995",
+    "name": "1197 - Datamed - AP/NR",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-23T04:52:10.561Z",
+    "start_date": "2025-09-17",
+    "end_date": "2026-02-16"
+  },
+  {
+    "id": "2376502000005641687",
+    "name": "1190 - GSG Imagens - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-23T03:27:52.349Z",
+    "start_date": "2025-09-15",
+    "end_date": "2026-03-03"
+  },
+  {
+    "id": "2376502000005641460",
+    "name": "REIMPLANTAÇÃO - Nova Medical Center",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-23T02:36:22.807Z",
+    "start_date": "2025-09-22",
+    "end_date": "2025-10-21"
+  },
+  {
+    "id": "2376502000005542081",
+    "name": "0548 - Med-X Serviços de Diagnóstico Por Imagem - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-16T22:49:58.664Z",
+    "start_date": "2025-09-16",
+    "end_date": "2026-01-30"
+  },
+  {
+    "id": "2376502000005544019",
+    "name": "1181 - CLINICA RADIOLÓGICA SANTA BARBARA - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-16T02:08:40.673Z",
+    "start_date": "2025-09-15",
+    "end_date": "2026-01-30"
+  },
+  {
+    "id": "2376502000005512175",
+    "name": "1196 - POLIS GESTÃO E TECNOLOGIA DA INFORMAÇÃO - AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-13T04:44:42.977Z",
+    "start_date": "2025-09-13",
+    "end_date": "2026-01-23"
+  },
+  {
+    "id": "2376502000005523261",
+    "name": "Reimplantação IMAGO - NR",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-12T20:30:14.410Z",
+    "start_date": "2025-09-15",
+    "end_date": "2025-10-30"
+  },
+  {
+    "id": "2376502000005492003",
+    "name": "1188 - Centro Médico Sapiranga - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-10T20:41:32.223Z",
+    "start_date": "2025-09-09",
+    "end_date": "2025-12-17"
+  },
+  {
+    "id": "2376502000005429382",
+    "name": "1168 - Hospital Nossa Senhora das Dores - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-06T01:42:47.536Z",
+    "start_date": "2025-08-26",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000005408025",
+    "name": "1187 - CEADI Maravilha - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-05T04:26:45.977Z",
+    "start_date": "2025-09-05",
+    "end_date": "2025-11-21"
+  },
+  {
+    "id": "2376502000005365003",
+    "name": "1180 - Hospital da Comunidade - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-02T20:31:12.190Z",
+    "start_date": "2025-09-02",
+    "end_date": "2025-12-05"
+  },
+  {
+    "id": "2376502000005330021",
+    "name": "1174 - Clinica Nina Uruaçu - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-09-02T04:19:15.878Z",
+    "start_date": "2025-09-02",
+    "end_date": "2026-02-18"
+  },
+  {
+    "id": "2376502000005329005",
+    "name": "1138 - CEPARH - Clínica Elsimar Coutinho - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-09-01T21:08:45.064Z",
+    "start_date": "2025-08-29",
+    "end_date": "2026-01-12"
+  },
+  {
+    "id": "2376502000005312009",
+    "name": "1179 - Eikon Diagnóstico por Imagem - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-08-30T01:50:54.828Z",
+    "start_date": "2025-08-29",
+    "end_date": "2025-12-31"
+  },
+  {
+    "id": "2376502000005292780",
+    "name": "1157 - Diagnostik Servicos Médicos Ltda - AP/NR",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-29T02:07:30.492Z",
+    "start_date": "2025-08-21",
+    "end_date": "2026-01-02"
+  },
+  {
+    "id": "2376502000005236845",
+    "name": "1176 - Clínica IndiCare - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-29T01:50:06.037Z",
+    "start_date": "2025-08-28",
+    "end_date": "2025-11-11"
+  },
+  {
+    "id": "2376502000005249866",
+    "name": "1164 - Tagis Medicina e Diagnóstico - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-08-28T19:45:58.651Z",
+    "start_date": "2025-08-19",
+    "end_date": "2025-12-29"
+  },
+  {
+    "id": "2376502000005236053",
+    "name": "1178 - Dra Michelle Mendes Grandi - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-08-27T21:00:14.373Z",
+    "start_date": "2025-08-27",
+    "end_date": "2025-11-10"
+  },
+  {
+    "id": "2376502000005235445",
+    "name": "1117 - Unica Imagem - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-08-27T05:09:53.379Z",
+    "start_date": "2025-06-06",
+    "end_date": "2025-11-27"
+  },
+  {
+    "id": "2376502000005180127",
+    "name": "1177 - Clinica Leonardo da Vinci - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-26T00:58:15.646Z",
+    "start_date": "2025-08-25",
+    "end_date": "2026-02-11"
+  },
+  {
+    "id": "2376502000005155003",
+    "name": "1175 - Diagcentro Diagnóstico por Imagem e Cardiologia - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-21T03:15:14.802Z",
+    "start_date": "2025-08-21",
+    "end_date": "2026-01-01"
+  },
+  {
+    "id": "2376502000005039203",
+    "name": "1173 - Clínica Médica Saúde Popular - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-20T05:08:57.835Z",
+    "start_date": "2025-08-19",
+    "end_date": "2026-01-29"
+  },
+  {
+    "id": "2376502000004998563",
+    "name": "1162 - Hospital Evangélico Goiano - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-20T04:59:14.974Z",
+    "start_date": "2025-08-18",
+    "end_date": "2025-12-30"
+  },
+  {
+    "id": "2376502000004886545",
+    "name": "1172 - Hospital Geral Intermunicipal – HGI Dr. Aryzone Mendes de Araújo - AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-18T22:10:03.664Z",
+    "start_date": "2025-08-18",
+    "end_date": "2025-10-28"
+  },
+  {
+    "id": "2376502000004886413",
+    "name": "1171 - Hospital Santo Antônio - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-08-18T21:14:29.267Z",
+    "start_date": "2025-08-18",
+    "end_date": "2025-12-10"
+  },
+  {
+    "id": "2376502000004884673",
+    "name": "1169 - Hospital São Francisco de Paula - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-18T20:45:18.177Z",
+    "start_date": "2025-08-15",
+    "end_date": "2025-12-26"
+  },
+  {
+    "id": "2376502000004868147",
+    "name": "1167 - Vida de Radiologista - AP",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-08-14T18:44:25.683Z",
+    "start_date": "2025-08-13",
+    "end_date": "2025-12-23"
+  },
+  {
+    "id": "2376502000004792003",
+    "name": "1166 - Futura Diagnósticos por Imagem - AP/NR",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-08T20:28:51.065Z",
+    "start_date": "2025-08-01",
+    "end_date": "2025-12-11"
+  },
+  {
+    "id": "2376502000004745039",
+    "name": "1158 - Unidade Radiologica Mallouk Mizuma - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-06T04:04:45.597Z",
+    "start_date": "2025-08-05",
+    "end_date": "2025-12-12"
+  },
+  {
+    "id": "2376502000004720640",
+    "name": "1064 - Hospital da Reserva - AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-08-05T03:19:38.595Z",
+    "start_date": "2024-12-05",
+    "end_date": "2026-01-02"
+  },
+  {
+    "id": "2376502000004659428",
+    "name": "1149 - Instituto de Medicina Nuclear - AP/NR",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-07-31T05:41:54.479Z",
+    "start_date": "2025-07-30",
+    "end_date": "2025-12-09"
+  },
+  {
+    "id": "2376502000004659302",
+    "name": "1163 - Valeimagem - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-07-31T05:21:04.139Z",
+    "start_date": "2025-07-28",
+    "end_date": "2025-12-08"
+  },
+  {
+    "id": "2376502000004611869",
+    "name": "1161 - Master Jaru Hospital - AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-07-25T04:20:16.370Z",
+    "start_date": "2025-07-22",
+    "end_date": "2025-12-02"
+  },
+  {
+    "id": "2376502000004527130",
+    "name": "1156 - Hospital Santa  Terezinha - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-21T14:39:39.317Z",
+    "start_date": "2025-07-14",
+    "end_date": "2025-11-11"
+  },
+  {
+    "id": "2376502000004324882",
+    "name": "1155 - RM Paduá - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-08T21:06:26.036Z",
+    "start_date": "2025-07-01",
+    "end_date": "2025-11-24"
+  },
+  {
+    "id": "2376502000004294348",
+    "name": "293/2024 - Centro Radiológico Goiania - Aditivo Filiais",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-07T20:27:48.952Z",
+    "start_date": "2024-09-17",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000004273892",
+    "name": "1154 - Diagnósticos Clinica - AP/NR",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-07-04T03:39:04.464Z",
+    "start_date": "2025-07-03",
+    "end_date": "2025-11-24"
+  },
+  {
+    "id": "2376502000004263019",
+    "name": "1145 - Unimed Alto da Serra - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-03T19:26:09.337Z",
+    "start_date": "2025-07-01",
+    "end_date": "2025-11-25"
+  },
+  {
+    "id": "2376502000004257006",
+    "name": "1151 - Serviço de Diagnóstico Santa Paula - AP",
+    "owner": "willian.anjos",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-03T01:08:03.408Z",
+    "start_date": "2025-07-01",
+    "end_date": "2025-11-07"
+  },
+  {
+    "id": "2376502000004242191",
+    "name": "1150 - Hospital e Clínica Santa Paula - AP ",
+    "owner": "willian.anjos",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-02T21:05:08.739Z",
+    "start_date": "2025-07-01",
+    "end_date": "2025-11-07"
+  },
+  {
+    "id": "2376502000004231100",
+    "name": "1143 - Clinica Tirol - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-02T00:38:43.194Z",
+    "start_date": "2025-07-01",
+    "end_date": "2025-11-25"
+  },
+  {
+    "id": "2376502000004208739",
+    "name": "1146 - Hospital São Vicente de Paulo - Campo Belo - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-01T21:40:00.704Z",
+    "start_date": "2025-06-27",
+    "end_date": "2025-11-04"
+  },
+  {
+    "id": "2376502000004208431",
+    "name": "1128 - Acesso Saúde Taguatinga - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-01T20:40:31.358Z",
+    "start_date": "2025-06-17",
+    "end_date": "2025-10-24"
+  },
+  {
+    "id": "2376502000004208211",
+    "name": "Projeto registro de horas NÃO FATURÁVEIS - 3° Trimestre/2025",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-01T20:21:10.966Z",
+    "start_date": "2025-07-01",
+    "end_date": "2025-11-03"
+  },
+  {
+    "id": "2376502000004208003",
+    "name": "1139 - CDI Porto Ferreira - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-07-01T19:23:09.173Z",
+    "start_date": "2025-06-25",
+    "end_date": "2025-10-30"
+  },
+  {
+    "id": "2376502000004173461",
+    "name": "1148 - Centro Diagnóstico Valgueiro - AP/NR ",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-06-28T02:28:48.173Z",
+    "start_date": "2025-06-27",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000004053440",
+    "name": "1142 - Hospital São Vicente de Paulo - AP ",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-06-21T04:17:25.068Z",
+    "start_date": "2025-06-20",
+    "end_date": "2025-11-12"
+  },
+  {
+    "id": "2376502000004053174",
+    "name": "1141 - Imagem X - AP/NR (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-06-21T01:28:36.963Z",
+    "start_date": "2025-06-17",
+    "end_date": "2025-12-08"
+  },
+  {
+    "id": "2376502000004009628",
+    "name": "1137 - Grupo Health - NR/AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-06-18T03:45:44.021Z",
+    "start_date": "2025-06-13",
+    "end_date": "2025-10-10"
+  },
+  {
+    "id": "2376502000003928432",
+    "name": "1118 - DoctorClin - AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-06-13T04:45:39.099Z",
+    "start_date": "2025-06-12",
+    "end_date": "2026-01-20"
+  },
+  {
+    "id": "2376502000003930041",
+    "name": "1136 - Clínica Vivery - AP/NR (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-06-12T21:50:25.774Z",
+    "start_date": "2025-06-05",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000003889423",
+    "name": "1133 - Interventix - CENTRO DE DIAGNOSTICOS LTDA - AP",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-06-12T00:55:31.898Z",
+    "start_date": "2025-06-11",
+    "end_date": "2026-01-30"
+  },
+  {
+    "id": "2376502000003782377",
+    "name": "1129 - CDI Registro - Instituto Radio Diagnóstico - AP (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-06-05T22:35:24.799Z",
+    "start_date": "2025-06-02",
+    "end_date": "2025-11-07"
+  },
+  {
+    "id": "2376502000003782093",
+    "name": "1135 - IMR - INSTITUTO MARQUES DE RADIOLOGIA - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-06-05T20:23:15.138Z",
+    "start_date": "2025-06-04",
+    "end_date": "2025-12-16"
+  },
+  {
+    "id": "2376502000003729268",
+    "name": "1131 - Associação Hospitalar São José - AP (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-05-31T07:16:04.943Z",
+    "start_date": "2025-05-29",
+    "end_date": "2025-11-14"
+  },
+  {
+    "id": "2376502000003715878",
+    "name": "1130 - CEMISC - Centro Médico Integrado Santa Catarina - AP (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-05-31T06:38:25.904Z",
+    "start_date": "2025-05-29",
+    "end_date": "2025-11-19"
+  },
+  {
+    "id": "2376502000003640439",
+    "name": "Registros treinamentos - HM Diagnósticos",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-05-28T02:14:24.403Z",
+    "start_date": "2025-05-26",
+    "end_date": "2025-05-30"
+  },
+  {
+    "id": "2376502000003627002",
+    "name": "1121 - Clinica Imagem - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-05-27T03:10:45.104Z",
+    "start_date": "2025-05-26",
+    "end_date": "2025-10-27"
+  },
+  {
+    "id": "2376502000003602607",
+    "name": "1123 - RW Diagnósticos por Imagem Ltda - AP/NR (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-05-26T20:50:22.585Z",
+    "start_date": "2025-05-26",
+    "end_date": "2026-03-19"
+  },
+  {
+    "id": "2376502000003570255",
+    "name": "0907-4 - PR MD Rio Pardo",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-05-22T21:52:23.014Z",
+    "start_date": "2023-11-10",
+    "end_date": "2024-04-11"
+  },
+  {
+    "id": "2376502000003569201",
+    "name": "1112 - Hospital Ernesto Dornelles - AP (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-05-22T20:37:50.729Z",
+    "start_date": "2025-05-22",
+    "end_date": "2025-09-08"
+  },
+  {
+    "id": "2376502000003549073",
+    "name": "1119 - Policlínica Vida Paraíba - AP",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-05-21T21:38:36.498Z",
+    "start_date": "2025-05-20",
+    "end_date": "2025-10-28"
+  },
+  {
+    "id": "2376502000003539455",
+    "name": "1067 - INSTITUTO DE ANGIOLOGIA E CARDIOLOGIA DE GOIÂNIA LTDA - AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-05-21T01:53:17.146Z",
+    "start_date": "2025-01-31",
+    "end_date": "2025-09-08"
+  },
+  {
+    "id": "2376502000003459595",
+    "name": "1120 - Diagnósticos Via Imagem - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-05-19T19:45:13.965Z",
+    "start_date": "2025-05-16",
+    "end_date": "2026-02-02"
+  },
+  {
+    "id": "2376502000003432165",
+    "name": "1110 - TELERRADIOLOGIA NÚCLEO DIAGNOSTICOS LTDA - AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-05-15T21:27:57.074Z",
+    "start_date": "2025-04-15",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000003432039",
+    "name": "1114 - Instituto de Soluções Integradas Municipais (SIM) - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-05-15T20:49:39.286Z",
+    "start_date": "2025-05-14",
+    "end_date": "2026-01-05"
+  },
+  {
+    "id": "2376502000003330185",
+    "name": "1115 - AKC Diagnósticos- NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-05-09T20:14:52.019Z",
+    "start_date": "2025-05-06",
+    "end_date": "2026-01-06"
+  },
+  {
+    "id": "2376502000003330007",
+    "name": "1106 - Clínica Inova Jacarei - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-05-09T19:43:05.162Z",
+    "start_date": "2025-04-29",
+    "end_date": "2025-10-24"
+  },
+  {
+    "id": "2376502000003107045",
+    "name": "1111 - Associação Hospitalar Roque Gonzales - AP - (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-04-24T22:03:49.072Z",
+    "start_date": "2025-04-24",
+    "end_date": "2025-09-08"
+  },
+  {
+    "id": "2376502000002786156",
+    "name": "1098 - Gama Imagem - AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-04-02T19:21:45.825Z",
+    "start_date": "2025-04-01",
+    "end_date": "2025-09-30"
+  },
+  {
+    "id": "2376502000002763533",
+    "name": "1091 - Pro Imagem Diagnóstico - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-04-01T20:00:48.330Z",
+    "start_date": "2025-04-01",
+    "end_date": "2025-12-22"
+  },
+  {
+    "id": "2376502000002763377",
+    "name": "1097 - Clinica Gemina - Londrina - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-04-01T19:44:05.504Z",
+    "start_date": "2025-04-01",
+    "end_date": "2025-09-10"
+  },
+  {
+    "id": "2376502000002763003",
+    "name": "1103 - Centro Integrado de Endoscopia Digestiva - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-04-01T19:29:36.023Z",
+    "start_date": "2025-03-31",
+    "end_date": "2026-01-26"
+  },
+  {
+    "id": "2376502000002749419",
+    "name": "1096 - Unidade de Ultrassonografia de Rôndonia (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-04-01T01:00:44.415Z",
+    "start_date": "2025-03-27",
+    "end_date": "2025-09-29"
+  },
+  {
+    "id": "2376502000002732570",
+    "name": "1099 - Examina - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Aberto",
+    "layout_id": "",
+    "created_time": "2025-03-31T19:34:33.750Z",
+    "start_date": "2025-03-24",
+    "end_date": "2025-12-22"
+  },
+  {
+    "id": "2376502000002579265",
+    "name": "1082 - Magnus Imagens Médicas - Alfenas - AP - (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-03-21T01:05:45.074Z",
+    "start_date": "2025-03-20",
+    "end_date": "2025-11-04"
+  },
+  {
+    "id": "2376502000002579077",
+    "name": "1092 - Clinica de Imagenologia Neuroscan - NR/AP - (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2025-03-20T20:51:50.912Z",
+    "start_date": "2025-03-20",
+    "end_date": "2026-02-03"
+  },
+  {
+    "id": "2376502000002568011",
+    "name": "1093 - DIS Diagnóstico por Imagem - AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-03-20T18:40:12.342Z",
+    "start_date": "2025-03-19",
+    "end_date": "2025-10-30"
+  },
+  {
+    "id": "2376502000002326783",
+    "name": "1084 - AMA Diagnóstico - NR/AP (SEM OA)",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-03-07T02:48:48.528Z",
+    "start_date": "2025-02-25",
+    "end_date": "2026-01-02"
+  },
+  {
+    "id": "2376502000002159327",
+    "name": "1076 - Hospital Ortopédico de Goiânia LTDA - AP - (Sem OA)",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-02-24T21:13:23.123Z",
+    "start_date": "2025-02-24",
+    "end_date": "2025-11-25"
+  },
+  {
+    "id": "2376502000001979679",
+    "name": "1053 - CardioDiagnóstico - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-02-09T22:09:33.183Z",
+    "start_date": "2024-11-18",
+    "end_date": "2025-10-08"
+  },
+  {
+    "id": "2376502000001701819",
+    "name": "1075 - CLINUS - Clinica de Imagem Ltda - AP/NR",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-01-23T01:20:13.673Z",
+    "start_date": "2025-01-22",
+    "end_date": "2025-10-15"
+  },
+  {
+    "id": "2376502000001684361",
+    "name": "1054 - Hosp. Regional de Santa Maria - AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-01-18T01:19:16.373Z",
+    "start_date": "2025-01-17",
+    "end_date": "2025-04-16"
+  },
+  {
+    "id": "2376502000001593107",
+    "name": "Complexo Hospitalar Astrogildo de Azevedo - AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2025-01-06T13:11:56.261Z",
+    "start_date": "2024-11-29",
+    "end_date": "2025-10-28"
+  },
+  {
+    "id": "2376502000001249141",
+    "name": "Hugolino Andrade - NR",
+    "owner": "Giovani",
+    "status": "Pendência",
+    "layout_id": "",
+    "created_time": "2024-12-06T20:42:45.444Z",
+    "start_date": "2023-05-17",
+    "end_date": "2023-12-07"
+  },
+  {
+    "id": "2376502000000469131",
+    "name": "1034 - Centro Clínico Amparo - AP",
+    "owner": "willian.anjos",
+    "status": "Aguardando o Cliente",
+    "layout_id": "",
+    "created_time": "2024-11-13T11:37:53.839Z",
+    "start_date": "2024-10-02",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000000436301",
+    "name": "1043 - Corpscan Serviços Médicos - NR/AP",
+    "owner": "willian.anjos",
+    "status": "Operação Assistida",
+    "layout_id": "",
+    "created_time": "2024-11-13T09:10:31.472Z",
+    "start_date": "2024-10-04",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000000351049",
+    "name": "Clinica Dr. Edson Coltro - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2024-11-12T20:25:44.032Z",
+    "start_date": "2024-06-20",
+    "end_date": "2025-05-27"
+  },
+  {
+    "id": "2376502000000269443",
+    "name": "1033 - C.D.C Nuclear - NR/AP",
+    "owner": "willian.anjos",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2024-11-12T02:24:05.633Z",
+    "start_date": "2024-10-31",
+    "end_date": ""
+  },
+  {
+    "id": "2376502000000213310",
+    "name": "0969-PR Instituto José da Luz - NR/AP",
+    "owner": "Giovani",
+    "status": "Em Andamento",
+    "layout_id": "",
+    "created_time": "2024-11-09T01:56:04.096Z",
+    "start_date": "2024-02-29",
+    "end_date": "2025-08-26"
+  }
+]

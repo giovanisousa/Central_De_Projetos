@@ -619,6 +619,7 @@ def carregar_projetos():
             data_mudanca_status = None
             data_homologacao_prevista = None
             data_de_virada = None
+            data_de_inicio_da_oa = None
             implantador_ris = None
             implantador_pacs = None
             implantador_homologacao_ris = None
@@ -637,6 +638,7 @@ def carregar_projetos():
                         data_mudanca_status = project_row['data_mudanca_status']
                         data_homologacao_prevista = project_row['data_homologacao_prevista']
                         data_de_virada = project_row['data_de_virada']
+                        data_de_inicio_da_oa = project_row['data_de_inicio_da_oa']
                         implantador_ris = project_row['implantador_ris']
                         implantador_pacs = project_row['implantador_pacs']
                         implantador_homologacao_ris = project_row['implantador_homologacao_ris']
@@ -729,6 +731,7 @@ def carregar_projetos():
                 'data_mudanca_status': data_mudanca_status,  # Para debug/auditoria
                 'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
                 'data_de_virada': data_de_virada,  # Data de virada
+                'data_de_inicio_da_oa': data_de_inicio_da_oa,  # Data de início da OA
                 'implantador_ris': implantador_ris,  # ✅ Nome do implantador RIS
                 'implantador_pacs': implantador_pacs,  # ✅ Nome do implantador PACS
                 'implantador_homologacao_ris': implantador_homologacao_ris,  # ✅ Nome do implantador homologação RIS
@@ -1140,7 +1143,7 @@ def _atualizar_zoho(
     
     print(f"[DEBUG][TAGS] >>>>>> SAINDO DO AJUSTE DE TAGS <<<<<<")
 
-    # 3) Disparo de triggers configurados
+    # 3) Disparo de triggers configurados da coluna de DESTINO (onEnter)
     triggers = info_dest.get("triggers", []) or []
     if triggers:
         _executar_triggers(
@@ -1151,6 +1154,24 @@ def _atualizar_zoho(
             headers=headers,
             access_token=access_token
         )
+
+    # 3.1) Disparo de triggers configurados da coluna de ORIGEM (onExit)
+    if coluna_origem:
+        from utils import carregar_mapeamento_colunas
+        mapeamento = carregar_mapeamento_colunas()
+        config_origem = mapeamento.get(coluna_origem, {})
+        on_exit = config_origem.get("onExit", {})
+        exit_triggers = on_exit.get("triggers", [])
+        if exit_triggers:
+            print(f"[DEBUG][TRIGGERS] Executando triggers onExit da coluna '{coluna_origem}'")
+            _executar_triggers(
+                triggers=exit_triggers,
+                projeto_id=projeto_id,
+                coluna_destino=coluna_origem,  # Contexto da coluna de origem
+                detalhes_zoho=detalhes_zoho,
+                headers=headers,
+                access_token=access_token
+            )
 
     mensagem = f"Projeto atualizado no Zoho para '{coluna_destino}'."
     coletor_mensagens.append(mensagem)
@@ -1186,6 +1207,7 @@ def _sincronizar_custom_fields_banco(projeto_id: str, custom_fields_resolvidos: 
         'data_liberacao_servidor': 'data_liberacao_servidor',
         'data_de_inicio_da_implantacao': 'data_inicio_implantacao',
         'data_de_virada': 'data_virada',
+        'data_de_inicio_da_oa': 'data_de_inicio_da_oa',
     }
     
     updates = {}

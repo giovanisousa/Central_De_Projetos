@@ -1,0 +1,19 @@
+{
+  "data_execucao": "2025-10-29 09:04:52",
+  "template_id": "2376502000005584766",
+  "gps_alvo": [
+    "Giovani",
+    "willian.anjos"
+  ],
+  "total_projetos": 1,
+  "sucessos": 1,
+  "erros": 0,
+  "projetos_atualizados": [
+    {
+      "id": "2376502000000213310",
+      "nome": "0969-PR Instituto José da Luz - NR/AP",
+      "gp": "Giovani"
+    }
+  ],
+  "projetos_com_erro": []
+}
