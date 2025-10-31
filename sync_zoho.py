@@ -208,6 +208,7 @@ def synchronize_projects():
         return'''
 
     print("--- Iniciando sincronização completa do Zoho ---")
+    print(f"[DEBUG] PROPRIETARIOS_VALIDOS: {PROPRIETARIOS_VALIDOS}")
     try:
         access_token = obter_access_token_zoho()
         last_sync_time = get_last_sync_time()
