@@ -1,7 +1,3 @@
-from sqlalchemy import text
-import logging
-logger = logging.getLogger(__name__)
-
 from flask import Blueprint, request, jsonify, session, current_app
 import utils
 import re
@@ -42,6 +38,13 @@ import json
 import copy
 import re
 import requests
+import time
+try:
+    from googleapiclient.discovery import build
+except ImportError:
+    build = None
+import logging
+logger = logging.getLogger("api")
 import sqlite3
 
 # Imports para o cache de banco de dados e sincronização
@@ -552,36 +555,34 @@ def api_criar_projeto():
 @api_bp.route('/carregar_projetos', methods=['POST'])
 def carregar_projetos():
     """Carrega projetos para o Kanban a partir do banco de dados local (cache)."""
+    data = request.json
+    gp_selecionado = data.get('gp')
+    if not gp_selecionado or gp_selecionado not in DONOS_PROJETO:
+        return jsonify({"erro": "GP inválido"}), 400
+
+    id_do_gp = DONOS_PROJETO[gp_selecionado]
+
+    from sqlalchemy import text
+    conn = database.get_db_connection()
     try:
-        data = request.json
-        gp_selecionado = data.get('gp')
-        if not gp_selecionado or gp_selecionado not in DONOS_PROJETO:
-            return jsonify({"erro": "GP inválido"}), 400
-        
-        id_do_gp = DONOS_PROJETO[gp_selecionado]
-
-        # Conecta ao banco de dados para buscar os projetos cacheados
-        conn = database.get_db_connection()
-        # Carrega todos os projetos relevantes do banco de dados
-        # O campo full_data_json contém o JSON original do Zoho
-
-    rows = conn.execute(text('SELECT full_data_json FROM projects')).fetchall()
+        rows = conn.execute(text('SELECT full_data_json FROM projects')).fetchall()
+        lista_completa_projetos = [json.loads(row['full_data_json']) for row in rows]
+    finally:
         conn.close()
 
-        lista_completa_projetos = [json.loads(row['full_data_json']) for row in rows]
-        
-        # O resto da lógica permanece o mesmo, pois opera sobre a estrutura de dados do Zoho
-        projetos_do_gp = [p for p in lista_completa_projetos if p.get('owner', {}).get('zpuid') == id_do_gp]
-        
-        projetos_por_status = {}
-        colunas_validas = {
-            "Aguardando Onboarding", "Falta Liberar Servidor Infra", "Aguardando Cronograma",
-            "Em Andamento - Implantação", "Em Homologação", "Em Virada", 
-            "Em Operação Assistida", "Aguardando Encerramento", "Projeto Parado", 
-            "Finalizado", "Cancelado", "Status Desconhecido"
-        }
-        projetos_nao_mapeados = []
+    # O resto da lógica permanece o mesmo, pois opera sobre a estrutura de dados do Zoho
+    projetos_do_gp = [p for p in lista_completa_projetos if p.get('owner', {}).get('zpuid') == id_do_gp]
 
+    projetos_por_status = {}
+    colunas_validas = {
+        "Aguardando Onboarding", "Falta Liberar Servidor Infra", "Aguardando Cronograma",
+        "Em Andamento - Implantação", "Em Homologação", "Em Virada", 
+        "Em Operação Assistida", "Aguardando Encerramento", "Projeto Parado", 
+        "Finalizado", "Cancelado", "Status Desconhecido"
+    }
+    projetos_nao_mapeados = []
+
+    try:
         for projeto in projetos_do_gp:
             # Ignora projetos finalizados ou cancelados que ainda possam estar no cache
             status_nome = (projeto.get('status', {}).get('name', '') or '').lower()
@@ -771,7 +772,7 @@ def carregar_projetos():
         # Ordena cada coluna por dias_na_fase (DECRESCENTE: mais dias no topo)
         for status, projetos in projetos_por_status.items():
             projetos_por_status[status] = sorted(projetos, key=extrair_dias_numericos, reverse=True)
-            
+
         return jsonify({
             "sucesso": True,
             "projetos": projetos_por_status,
