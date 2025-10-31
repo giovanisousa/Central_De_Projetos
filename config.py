@@ -3,12 +3,16 @@ import os
 import json
 from datetime import timedelta
 
+
 # --- CAMINHOS E DIRETÓRIOS ---
 BASE_DIR = os.environ.get('BASE_DIR', './')
 TEMPLATE_DOCS_PATH = os.environ.get('TEMPLATE_DOCS_PATH', './templates_doc')
 CREDENTIALS_PATH = os.environ.get('CREDENTIALS_PATH', './credentials.json')
 ZOHO_TOKEN_PATH = os.environ.get('ZOHO_TOKEN_PATH', './zoho_refresh_token.txt')
 UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', './uploads')
+
+# --- BANCO DE DADOS ---
+SQLALCHEMY_DATABASE_URI = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///zoho_cache.db')
 
 # --- GOOGLE API ---
 ID_PASTA_PAI_NETRIS = os.environ.get('ID_PASTA_PAI_NETRIS', '1I2dSlvfxmphkBdYIjsovCSxizE3Iu-pc')
