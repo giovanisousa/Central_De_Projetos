@@ -58,8 +58,10 @@ TAG_AGUARDANDO_CRONOGRAMA = os.environ.get('TAG_AGUARDANDO_CRONOGRAMA', '2376502
 BANNED_PROJECT_TAG_IDS = {"2376502000004311812"}  # Impeditivo (fase)
 
 # Outras configs Zoho
-PROPRIETARIOS_VALIDOS = os.environ.get('PROPRIETARIOS_VALIDOS', 'Giovani de Sousa,Willian dos Anjos').split(',')
-PROPRIETARIOS_VALIDOS = os.environ.get('PROPRIETARIOS_VALIDOS', 'Giovani de Sousa,Willian dos Anjos').split(',')
+PROPRIETARIOS_VALIDOS = [
+    'Giovani',
+    'willian.anjos'
+]
 DEFAULT_TASKS_CUSTOM_VIEW_ID = os.environ.get('DEFAULT_TASKS_CUSTOM_VIEW_ID', '2376502000000046003')
 
 # --- MAPEAMENTOS E DADOS DO PROJETO ---
@@ -97,11 +99,11 @@ TEMPO_RELATO = {
 
 class Config:
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-change-me')
-    SESSION_TYPE = 'filesystem'
+    SESSION_TYPE = os.environ.get('SESSION_TYPE', 'filesystem')
     SESSION_FILE_DIR = os.environ.get('SESSION_FILE_DIR', './.flask_session')
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = False  # Mudar para True em produção com HTTPS
+    SESSION_COOKIE_SECURE = True  # Cookies só via HTTPS em produção
     SESSION_COOKIE_SAMESITE = 'Lax'
     UPLOAD_FOLDER = UPLOAD_FOLDER
