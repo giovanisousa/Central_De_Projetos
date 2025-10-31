@@ -131,7 +131,7 @@ def oauth2callback():
             'scopes': credentials.scopes,
         }
         session['user_info'] = {
-            'email': user_from_db.email,,
+            'email': user_from_db.email,
             'name': user_from_db.nome
         }
         return redirect(url_for('main.index'))
