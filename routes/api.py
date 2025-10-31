@@ -3461,7 +3461,7 @@ def api_projetos_sem_atualizacao():
             '''))
         finally:
             session.close()
-    projetos = result.fetchall()
+        projetos = result.fetchall()
         
         # Verifica quais projetos estão sem atualização há mais de 5 dias úteis
         projetos_alerta = []
