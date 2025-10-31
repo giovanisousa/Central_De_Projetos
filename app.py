@@ -55,10 +55,7 @@ logger = logging.getLogger(__name__) # Logger para app.py
 app.config.setdefault('_DIAS_FASE_CACHE', {})
 app.config.setdefault('_CACHE_TTL_SECONDS', 90)
 
-
-from werkzeug.middleware.proxy_fix import ProxyFix
 from routes.main import main_bp
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.register_blueprint(main_bp)
 
 from routes.api import api_bp
@@ -107,6 +104,19 @@ if __name__ == '__main__':
         debug_mode = True
     else:
         debug_mode = False
+
+    # Sincronização automática se o banco estiver vazio
+    try:
+        from database import Session, Project
+        session = Session()
+        projetos_count = session.query(Project).count()
+        session.close()
+        if projetos_count == 0:
+            print("[INFO] Nenhum projeto encontrado no banco. Iniciando sincronização automática com Zoho...")
+            from sync_zoho import synchronize_projects
+            synchronize_projects()
+    except Exception as e:
+        print(f"[ERRO] Falha ao tentar sincronizar projetos automaticamente: {e}")
 
     # use_reloader=False para evitar reinicializações durante requisições
     app.run(debug=debug_mode, port=5000, use_reloader=False)

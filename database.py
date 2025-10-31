@@ -1,9 +1,9 @@
-# Conexão direta para uso em rotas (PostgreSQL via SQLAlchemy)
-def get_db_connection():
-    from sqlalchemy import create_engine
-    engine = create_engine(SQLALCHEMY_DATABASE_URI)
-    conn = engine.connect()
-    return conn
+# Função utilitária para contar projetos
+def count_projects():
+    session = Session()
+    count = session.query(Project).count()
+    session.close()
+    return count
 import os
 import json
 import re
