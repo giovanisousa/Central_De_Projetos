@@ -675,4 +675,4 @@ def get_any_impediments_tasklist_id(projeto_id: str) -> str | None:
 
 # Inicializa o DB na importação do módulo
 init_db()
-insert_initial_users())
+insert_initial_users()
