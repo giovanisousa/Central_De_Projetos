@@ -563,12 +563,12 @@ def carregar_projetos():
     id_do_gp = DONOS_PROJETO[gp_selecionado]
 
     from sqlalchemy import text
-    conn = database.get_db_connection()
+    session = database.Session()
     try:
-        rows = conn.execute(text('SELECT full_data_json FROM projects')).fetchall()
+        rows = session.execute(text('SELECT full_data_json FROM projects')).fetchall()
         lista_completa_projetos = [json.loads(row['full_data_json']) for row in rows]
     finally:
-        conn.close()
+        session.close()
 
     # O resto da lógica permanece o mesmo, pois opera sobre a estrutura de dados do Zoho
     projetos_do_gp = [p for p in lista_completa_projetos if p.get('owner', {}).get('zpuid') == id_do_gp]
