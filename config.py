@@ -58,6 +58,8 @@ TAG_AGUARDANDO_CRONOGRAMA = os.environ.get('TAG_AGUARDANDO_CRONOGRAMA', '2376502
 BANNED_PROJECT_TAG_IDS = {"2376502000004311812"}  # Impeditivo (fase)
 
 # Outras configs Zoho
+PROPRIETARIOS_VALIDOS = os.environ.get('PROPRIETARIOS_VALIDOS', 'Giovani de Sousa,Willian dos Anjos').split(',')
+PROPRIETARIOS_VALIDOS = os.environ.get('PROPRIETARIOS_VALIDOS', 'Giovani de Sousa,Willian dos Anjos').split(',')
 DEFAULT_TASKS_CUSTOM_VIEW_ID = os.environ.get('DEFAULT_TASKS_CUSTOM_VIEW_ID', '2376502000000046003')
 
 # --- MAPEAMENTOS E DADOS DO PROJETO ---
