@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from flask import Blueprint, request, jsonify, session, current_app
 import utils
 import re
