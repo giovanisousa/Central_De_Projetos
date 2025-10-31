@@ -2,8 +2,7 @@
 import json
 from datetime import date, datetime
 
-# Constantes necessárias
-from config import GRUPOS_ZOHO, DONOS_PROJETO, MODELOS_ZOHO
+from config import GRUPOS_ZOHO, DONOS_PROJETO, MODELOS_ZOHO, BASE_DIR
 
 # IDs e valores para campos de múltipla seleção
 INTEGRACOES_OPTIONS = {
