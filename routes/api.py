@@ -903,12 +903,13 @@ def api_mover_projeto():
         # Isso garante que dias_na_fase seja calculado corretamente
         data_atual = date.today().strftime('%Y-%m-%d')
         conn = database.get_db_connection()
-        cursor = conn.cursor()
+        from sqlalchemy import text
         try:
-            cursor.execute(
-                "UPDATE projects SET data_mudanca_status = ?, status_atual = ? WHERE id = ?",
-                (data_atual, coluna_destino, projeto_id)
-            )
+            conn.execute(text("UPDATE projects SET data_mudanca_status = :data, status_atual = :status WHERE id = :id"), {
+                'data': data_atual,
+                'status': coluna_destino,
+                'id': projeto_id
+            })
             conn.commit()
             msg_operacoes.append(f"✅ Data de mudança de status atualizada para {data_atual}")
             logger.info(f"[MOVE][DB] Projeto {projeto_id}: data_mudanca_status = {data_atual}, status_atual = {coluna_destino}")
@@ -921,12 +922,13 @@ def api_mover_projeto():
         # Tratamento específico para transição Infra → Aguardando Cronograma
         if coluna_origem == "Falta Liberar Servidor Infra" and coluna_destino == "Aguardando Cronograma":
             conn = database.get_db_connection()
-            cursor = conn.cursor()
+            from sqlalchemy import text
             try:
-                cursor.execute(
-                    "UPDATE projects SET data_liberacao_servidor = ?, data_ultima_mudanca = ? WHERE id = ?",
-                    (data_atual, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), projeto_id)
-                )
+                conn.execute(text("UPDATE projects SET data_liberacao_servidor = :liberacao, data_ultima_mudanca = :mudanca WHERE id = :id"), {
+                    'liberacao': data_atual,
+                    'mudanca': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'id': projeto_id
+                })
                 conn.commit()
                 msg_operacoes.append("Banco de dados: campos data_liberacao_servidor e data_ultima_mudanca atualizados")
             except Exception as e:
@@ -1208,22 +1210,20 @@ def _sincronizar_custom_fields_banco(projeto_id: str, custom_fields_resolvidos: 
     
     try:
         conn = database.get_db_connection()
-        cursor = conn.cursor()
-        
+        from sqlalchemy import text
         # Monta query de atualização dinamicamente
-        set_clause = ', '.join([f"{col} = ?" for col in updates.keys()])
-        values = list(updates.values()) + [projeto_id]
-        
-        sql = f"UPDATE projects SET {set_clause} WHERE id = ?"
-        cursor.execute(sql, values)
+        set_clause = ', '.join([f"{col} = :{col}" for col in updates.keys()])
+        sql = f"UPDATE projects SET {set_clause} WHERE id = :id"
+        params = updates.copy()
+        params['id'] = projeto_id
+        conn.execute(text(sql), params)
         conn.commit()
         conn.close()
-        
+
         campos_atualizados = ', '.join([f"'{col}'" for col in updates.keys()])
         mensagem = f"Banco de dados: campos {campos_atualizados} sincronizados com Zoho"
         coletor_mensagens.append(mensagem)
         logger.info(f"[DB] {mensagem}")
-        
     except Exception as e:
         logger.error(f"[DB] Erro ao sincronizar campos customizados no banco: {e}")
         traceback.print_exc()
@@ -1706,11 +1706,11 @@ def _atualizar_planilha(
             if not link_google:
                 try:
                     conn = database.get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT link_google FROM projects WHERE id = ?", (projeto_id,))
-                    row = cursor.fetchone()
-                    if row and row[0]:
-                        link_google = row[0]
+                    from sqlalchemy import text
+                    result = conn.execute(text("SELECT link_google FROM projects WHERE id = :id"), {'id': projeto_id})
+                    row = result.fetchone()
+                    if row and row['link_google']:
+                        link_google = row['link_google']
                     conn.close()
                 except Exception as e:
                     logger.debug(f"[SHEET] Erro ao buscar link_google no banco: {e}")
@@ -1998,12 +1998,13 @@ def iniciar_implantacao():
         data_mudanca_atual = date.today().strftime('%Y-%m-%d')
         
         conn = database.get_db_connection()
-        cursor = conn.cursor()
+        from sqlalchemy import text
         try:
-            cursor.execute(
-                "UPDATE projects SET data_mudanca_status = ?, status_atual = ? WHERE id = ?",
-                (data_mudanca_atual, "Em Andamento - Implantação", project_id)
-            )
+            conn.execute(text("UPDATE projects SET data_mudanca_status = :data, status_atual = :status WHERE id = :id"), {
+                'data': data_mudanca_atual,
+                'status': "Em Andamento - Implantação",
+                'id': project_id
+            })
             conn.commit()
             logger.info(f"[INICIAR_IMPLANTACAO] ✅ Banco local atualizado: data_mudanca_status = {data_mudanca_atual}, status_atual = 'Em Andamento - Implantação'")
             mensagens_zoho.append(f"Data de mudança de status atualizada para {data_mudanca_atual}")
@@ -3110,20 +3111,15 @@ def mover_projeto():
             # 3. Atualizar banco de dados
             try:
                 conn = database.get_db_connection()
-                cursor = conn.cursor()
-                
-                # Atualizar data_liberacao_servidor
-                cursor.execute(
-                    "UPDATE projects SET data_liberacao_servidor = ? WHERE id = ?",
-                    (data_atual, projeto_id)
-                )
-                
-                # Atualizar data_ultima_mudanca
-                cursor.execute(
-                    "UPDATE projects SET data_ultima_mudanca = ? WHERE id = ?",
-                    (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), projeto_id)
-                )
-                
+                from sqlalchemy import text
+                conn.execute(text("UPDATE projects SET data_liberacao_servidor = :liberacao WHERE id = :id"), {
+                    'liberacao': data_atual,
+                    'id': projeto_id
+                })
+                conn.execute(text("UPDATE projects SET data_ultima_mudanca = :mudanca WHERE id = :id"), {
+                    'mudanca': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'id': projeto_id
+                })
                 conn.commit()
                 print(f"[DEBUG] Banco de dados atualizado para projeto {projeto_id}")
                 mensagens.append("Banco de dados: campos data_liberacao_servidor e data_ultima_mudanca atualizados")
@@ -3171,16 +3167,13 @@ def obter_progresso_fases(project_id):
     """
     try:
         conn = database.get_db_connection()
-        cursor = conn.cursor()
-        
-        # Buscar todas as fases do projeto
-        cursor.execute("""
+        from sqlalchemy import text
+        result = conn.execute(text("""
             SELECT nome, percentual_conclusao 
             FROM fases 
-            WHERE projeto_id = ?
-        """, (project_id,))
-        
-        fases = cursor.fetchall()
+            WHERE projeto_id = :id
+        """), {'id': project_id})
+        fases = result.fetchall()
         conn.close()
         
         # Inicializar resultado
@@ -3459,15 +3452,13 @@ def api_projetos_sem_atualizacao():
         
         # Busca todos os projetos com data_ultimo_comentario
         conn = database.get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
+        from sqlalchemy import text
+        result = conn.execute(text('''
             SELECT id, data_ultimo_comentario, nome
             FROM projects
             WHERE data_ultimo_comentario IS NOT NULL
-        ''')
-        
-        projetos = cursor.fetchall()
+        '''))
+        projetos = result.fetchall()
         conn.close()
         
         # Verifica quais projetos estão sem atualização há mais de 5 dias úteis

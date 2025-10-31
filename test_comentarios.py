@@ -32,9 +32,9 @@ def listar_projetos_disponiveis():
     print("📋 Projetos disponíveis para teste:\n")
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, nome, cliente FROM projects LIMIT 10')
-    projetos = cursor.fetchall()
+    from sqlalchemy import text
+    result = conn.execute(text('SELECT id, nome, cliente FROM projects LIMIT 10'))
+    projetos = result.fetchall()
     conn.close()
     
     if not projetos:
@@ -174,12 +174,9 @@ def teste_verificar_data_ultimo_comentario(projeto_id):
     print(f"Projeto ID: {projeto_id}\n")
     
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        'SELECT nome, data_ultimo_comentario FROM projects WHERE id = ?',
-        (projeto_id,)
-    )
-    projeto = cursor.fetchone()
+    from sqlalchemy import text
+    result = conn.execute(text('SELECT nome, data_ultimo_comentario FROM projects WHERE id = :id'), {'id': projeto_id})
+    projeto = result.fetchone()
     conn.close()
     
     if not projeto:

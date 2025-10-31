@@ -186,9 +186,9 @@ def sincronizar_comentarios_todos_projetos(forcar_ressincronizacao: bool = False
     
     # Busca todos os projetos no banco
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, nome FROM projects ORDER BY nome')
-    projetos = cursor.fetchall()
+    from sqlalchemy import text
+    result = conn.execute(text('SELECT id, nome FROM projects ORDER BY nome'))
+    projetos = result.fetchall()
     conn.close()
     
     if not projetos:
