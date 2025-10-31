@@ -56,6 +56,8 @@ def login_page():
 
 @main_bp.route('/google_login')
 def google_login():
+    redirect_uri = url_for('main.oauth2callback', _external=True)
+    print(f"Redirect URI enviado para o Google: {redirect_uri}")
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_PATH,
         scopes=SCOPES_GOOGLE,
