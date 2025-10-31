@@ -97,7 +97,7 @@ TEMPO_RELATO = {
 
 class Config:
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-change-me')
-    SESSION_TYPE = os.environ.get('SESSION_TYPE', 'filesystem')
+    SESSION_TYPE = 'filesystem'
     SESSION_FILE_DIR = os.environ.get('SESSION_FILE_DIR', './.flask_session')
     SESSION_PERMANENT = True
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
