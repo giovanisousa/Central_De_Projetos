@@ -44,12 +44,19 @@ def projeto_deve_ser_salvo(project_data):
     owner = project_data.get('owner', {})
     owner_name = owner.get('name', '')
     proprietario_valido = owner_name in PROPRIETARIOS_VALIDOS
-    
+
     # Valida status
     status = project_data.get('status', {})
     status_id = str(status.get('id', ''))
-    status_valido = status_id not in STATUS_EXCLUIDOS
-    
+    from config import STATUS_ABERTO_ID, STATUS_EM_ANDAMENTO_ID
+    status_valido = status_id in {STATUS_ABERTO_ID, STATUS_EM_ANDAMENTO_ID}
+
+    # LOG DETALHADO DO FILTRO
+    if not proprietario_valido:
+        print(f"[FILTRO] Projeto ignorado por proprietário inválido: {project_data.get('name')} - Proprietário: {owner_name} (Válidos: {PROPRIETARIOS_VALIDOS})")
+    if not status_valido:
+        print(f"[FILTRO] Projeto ignorado por status inválido: {project_data.get('name')} - StatusID: {status_id} (Aceitos: {STATUS_ABERTO_ID}, {STATUS_EM_ANDAMENTO_ID})")
+
     # Retorna True apenas se AMBOS os critérios forem atendidos
     return proprietario_valido and status_valido
 
@@ -237,7 +244,8 @@ def synchronize_projects():
                     if not projeto_deve_ser_salvo(project):
                         owner_name = project.get('owner', {}).get('name', 'Desconhecido')
                         status_name = project.get('status', {}).get('name', 'Desconhecido')
-                        print(f"  -> [IGNORADO] {project.get('name')} - Proprietário: {owner_name}, Status: {status_name}")
+                        status_id = str(project.get('status', {}).get('id', ''))
+                        print(f"  -> [IGNORADO] {project.get('name')} - Proprietário: {owner_name}, Status: {status_name}, StatusID: {status_id}, STATUS_EXCLUIDOS: {STATUS_EXCLUIDOS}")
                         continue
                     
                     upsert_project(project)
