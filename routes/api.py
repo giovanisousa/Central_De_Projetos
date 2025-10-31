@@ -3451,15 +3451,17 @@ def api_projetos_sem_atualizacao():
         import database
         
         # Busca todos os projetos com data_ultimo_comentario
-        conn = database.get_db_connection()
         from sqlalchemy import text
-        result = conn.execute(text('''
-            SELECT id, data_ultimo_comentario, nome
-            FROM projects
-            WHERE data_ultimo_comentario IS NOT NULL
-        '''))
-        projetos = result.fetchall()
-        conn.close()
+        session = database.Session()
+        try:
+            result = session.execute(text('''
+                SELECT id, data_ultimo_comentario, nome
+                FROM projects
+                WHERE data_ultimo_comentario IS NOT NULL
+            '''))
+        finally:
+            session.close()
+    projetos = result.fetchall()
         
         # Verifica quais projetos estão sem atualização há mais de 5 dias úteis
         projetos_alerta = []
