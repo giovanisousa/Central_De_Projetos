@@ -41,7 +41,12 @@ import utils
 
 
 app = Flask(__name__)
+
 app.config.from_object(Config)
+
+# Garante que Flask reconheça HTTPS atrás de proxy (Railway, Heroku, etc)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # Configurar logging para toda a aplicação
 logging.basicConfig(
