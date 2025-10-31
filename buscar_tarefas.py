@@ -23,6 +23,7 @@ from config import (
     TAREFAS_PARA_ATRIBUIR,
     TAREFAS_PARA_CONCLUIR,
     DEFAULT_TASKS_CUSTOM_VIEW_ID,
+    BASE_DIR
 )
 from utils import obter_access_token_zoho as obter_access_token, _zp_base, _zp_headers
 

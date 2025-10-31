@@ -114,11 +114,10 @@ def _get_sheet_headers(sheets_service, spreadsheet_id: str, sheet_name: str, hea
         spreadsheetId=spreadsheet_id, range=rng
     ).execute().get('values', [[]])
     headers = (vals[0] if vals else [])
-    try:
-        print(f"[DEBUG:_get_sheet_headers] range={rng}")
-        print(f"[DEBUG:_get_sheet_headers] headers encontrados ({len(headers)}): {headers}")
-    except Exception:
-        pass
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"[DEBUG:_get_sheet_headers] range={rng}")
+    logger.debug(f"[DEBUG:_get_sheet_headers] headers encontrados ({len(headers)}): {headers}")
     return headers, {h: i for i, h in enumerate(headers)}
 
 def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_name: str, header_cliente: str, chave: str):
@@ -130,11 +129,10 @@ def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_nam
     col_vals = sheets_service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, range=rng
     ).execute().get('values', [])
-    try:
-        print(f"[DEBUG:_find_row_by_cliente_tolerant] header_cliente='{header_cliente}', col_letter={col_letter}")
-        print(f"[DEBUG:_find_row_by_cliente_tolerant] chave de busca='{chave}' (normalizada='{(chave or '').strip().lower()}')")
-    except Exception:
-        pass
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"[DEBUG:_find_row_by_cliente_tolerant] header_cliente='{header_cliente}', col_letter={col_letter}")
+    logger.debug(f"[DEBUG:_find_row_by_cliente_tolerant] chave de busca='{chave}' (normalizada='{(chave or '').strip().lower()}')")
     alvo_norm = (chave or '').strip().lower()
     for idx, row in enumerate(col_vals, start=LINHA_CABECALHO+1):
         v = (row[0] if row else '').strip()
@@ -157,11 +155,10 @@ def _find_row_by_cliente_tolerant(sheets_service, spreadsheet_id: str, sheet_nam
 
 def update_col_value_by_cliente_tolerant(sheets_service, cliente_chave: str, nome_coluna: str, valor):
     headers, hmap = _get_sheet_headers(sheets_service, ID_PLANILHA_PROJETOS, NOME_ABA_PLANILHA)
-    try:
-        print(f"[DEBUG:update_col_value_by_cliente_tolerant] nome_coluna='{nome_coluna}', valor='{valor}'")
-        print(f"[DEBUG:update_col_value_by_cliente_tolerant] cabeçalhos disponíveis: {headers}")
-    except Exception:
-        pass
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"[DEBUG:update_col_value_by_cliente_tolerant] nome_coluna='{nome_coluna}', valor='{valor}'")
+    logger.debug(f"[DEBUG:update_col_value_by_cliente_tolerant] cabeçalhos disponíveis: {headers}")
     if nome_coluna not in hmap:
         raise RuntimeError(f"Coluna '{nome_coluna}' não existe na planilha principal")
     linha = _find_row_by_cliente_tolerant(
@@ -172,10 +169,7 @@ def update_col_value_by_cliente_tolerant(sheets_service, cliente_chave: str, nom
     col_letter = indice_para_letra_coluna(hmap[nome_coluna])
     rng = f"'{NOME_ABA_PLANILHA}'!{col_letter}{linha}"
     body = {'values': [[valor]]}
-    try:
-        print(f"[DEBUG:update_col_value_by_cliente_tolerant] range={rng}, body={body}")
-    except Exception:
-        pass
+    logger.debug(f"[DEBUG:update_col_value_by_cliente_tolerant] range={rng}, body={body}")
     sheets_service.spreadsheets().values().update(
         spreadsheetId=ID_PLANILHA_PROJETOS, range=rng, valueInputOption='USER_ENTERED', body=body
     ).execute()
@@ -238,6 +232,8 @@ def buscar_ipv6_por_pasta(drive_service, pasta_cliente_id: str) -> str | None:
                             return m.group(1)
     return None
 
+ZP_MENTION_PATTERN = re.compile(r'@\{([^}]+)\}')
+
 def zoho_mention_token(usernum: str, name: str) -> str:
     return f"zp[@zpuser#{usernum}#{name}]zp"
 
@@ -248,10 +244,30 @@ def zoho_mention_by_name(name: str) -> str:
     return zoho_mention_token(info.get("usernum", ""), info.get("name", name))
 
 def zoho_mentions(names):
+    if not names:
+        return ""
     try:
-        return " ".join(zoho_mention_by_name(n) for n in (names or []) if n)
+        if isinstance(names, str):
+            iterable = [names]
+        else:
+            iterable = list(names)
+        tokens = []
+        for n in iterable:
+            if not n:
+                continue
+            tokens.append(zoho_mention_by_name(str(n).strip()))
+        return " ".join(t for t in tokens if t)
     except Exception:
         return ""
+
+def zoho_apply_mentions(template: str) -> str:
+    if not template:
+        return template
+    def _replace(match):
+        name = match.group(1).strip()
+        token = zoho_mention_by_name(name)
+        return token or name
+    return ZP_MENTION_PATTERN.sub(_replace, template)
 
 def build_google_credentials_from_session():
     info = session.get('credentials')
@@ -534,14 +550,16 @@ def set_project_status(project_id: str, status_id: str, access_token: str) -> bo
     payload = {"custom_status": status_id}
     headers = _zp_headers(access_token)
     headers["Content-Type"] = "application/json"
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         resp = requests.patch(url, headers=headers, json=payload, timeout=30)
         if resp.status_code in (200, 201):
-            print(f"INFO: Status do projeto {project_id} atualizado para {status_id}")
+            logger.info(f"Status do projeto {project_id} atualizado para {status_id}")
             return True
-        print(f"WARN: Falha ao atualizar status do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+        logger.warning(f"Falha ao atualizar status do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
     except Exception as exc:
-        print(f"ERROR: Exceção ao atualizar status do projeto {project_id}: {exc}")
+        logger.error(f"Exceção ao atualizar status do projeto {project_id}: {exc}")
     return False
 
 
@@ -552,14 +570,16 @@ def set_project_custom_fields(project_id: str, custom_fields: Dict[str, Any], ac
     headers = _zp_headers(access_token)
     headers["Content-Type"] = "application/json"
     payload = {"custom_fields": custom_fields}
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         resp = requests.put(url, headers=headers, json=payload, timeout=30)
         if resp.status_code in (200, 201):
-            print(f"INFO: Custom fields do projeto {project_id} atualizados: {list(custom_fields.keys())}")
+            logger.info(f"Custom fields do projeto {project_id} atualizados: {list(custom_fields.keys())}")
             return True
-        print(f"WARN: Falha ao atualizar custom fields do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+        logger.warning(f"Falha ao atualizar custom fields do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
     except Exception as exc:
-        print(f"ERROR: Exceção ao atualizar custom fields do projeto {project_id}: {exc}")
+        logger.error(f"Exceção ao atualizar custom fields do projeto {project_id}: {exc}")
     return False
 
 
@@ -569,14 +589,16 @@ def set_project_tags_exact(project_id: str, tags_to_add: List[str], access_token
     headers = _zp_headers(access_token)
     headers["Content-Type"] = "application/json"
     payload = {"tags": tags_to_add}
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         resp = requests.put(url, headers=headers, json=payload, timeout=30)
         if resp.status_code in (200, 201):
-            print(f"INFO: Tags do projeto {project_id} definidas como: {tags_to_add}")
+            logger.info(f"Tags do projeto {project_id} definidas como: {tags_to_add}")
             return True
-        print(f"WARN: Falha ao definir tags do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+        logger.warning(f"Falha ao definir tags do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
     except Exception as exc:
-        print(f"ERROR: Exceção ao definir tags do projeto {project_id}: {exc}")
+        logger.error(f"Exceção ao definir tags do projeto {project_id}: {exc}")
     return False
 
 
@@ -589,14 +611,16 @@ def sync_project_tags_delta(project_id: str, tags_to_add: List[str], tags_to_rem
     headers = _zp_headers(access_token)
     headers["Content-Type"] = "application/json"
     payload = {"tags_to_add": add, "tags_to_remove": remove}
+    import logging
+    logger = logging.getLogger(__name__)
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
         if resp.status_code in (200, 201):
-            print(f"INFO: Tags do projeto {project_id} atualizadas (add={add}, remove={remove})")
+            logger.info(f"Tags do projeto {project_id} atualizadas (add={add}, remove={remove})")
             return True
-        print(f"WARN: Falha ao atualizar tags do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
+        logger.warning(f"Falha ao atualizar tags do projeto {project_id}: {resp.status_code} - {resp.text[:400]}")
     except Exception as exc:
-        print(f"ERROR: Exceção ao atualizar tags do projeto {project_id}: {exc}")
+        logger.error(f"Exceção ao atualizar tags do projeto {project_id}: {exc}")
     return False
 
 
