@@ -55,7 +55,10 @@ logger = logging.getLogger(__name__) # Logger para app.py
 app.config.setdefault('_DIAS_FASE_CACHE', {})
 app.config.setdefault('_CACHE_TTL_SECONDS', 90)
 
+
+from werkzeug.middleware.proxy_fix import ProxyFix
 from routes.main import main_bp
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.register_blueprint(main_bp)
 
 from routes.api import api_bp
