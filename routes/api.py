@@ -565,7 +565,7 @@ def carregar_projetos():
     from sqlalchemy import text
     session = database.Session()
     try:
-        rows = session.execute(text('SELECT full_data_json FROM projects')).fetchall()
+        rows = session.execute(text('SELECT full_data_json FROM projects')).mappings().all()
         lista_completa_projetos = [json.loads(row['full_data_json']) for row in rows]
     finally:
         session.close()
