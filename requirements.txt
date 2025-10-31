@@ -10,3 +10,5 @@ Flask-Session
 redis
 SQLAlchemy
 psycopg2-binary
+python-docx
+gunicorn
