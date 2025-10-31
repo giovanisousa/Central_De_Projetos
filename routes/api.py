@@ -29,15 +29,9 @@ DEFAULT_TASKS_CUSTOM_VIEW_ID = None
 import traceback
 import os
 from werkzeug.utils import secure_filename
-import time
-import logging
-
-# OTIMIZAÇÃO: Usar logging ao invés de print() (~50ms economizados por movimentação)
-logger = logging.getLogger(__name__)
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+import utils
+import re
+import config
 from datetime import datetime, date
 from typing import Any
 import json
@@ -464,81 +458,79 @@ def api_criar_projeto():
         
         # Monta resposta com dados do projeto para atualizar o Kanban sem recarregar tudo
         novo_projeto = None
-                    if id_do_novo_projeto:
-                        try:
-                            from sync_zoho import synchronize_single_project
-        
-                            token_para_sync = access_token if 'access_token' in locals() and access_token else utils.obter_access_token()
-                            logger.debug(f"[SYNC] Iniciando sincronização do projeto recém-criado: {id_do_novo_projeto}")
-                            projeto_json = synchronize_single_project(str(id_do_novo_projeto), token_para_sync)
-                            logger.debug(f"[SYNC] Resultado synchronize_single_project: {projeto_json}")
-                            registro_db = database.get_project_by_id(str(id_do_novo_projeto))
-                            logger.debug(f"[DB] Registro retornado do banco: {registro_db}")
-                            if registro_db and registro_db['full_data_json']:
-                                dados_zoho = json.loads(registro_db['full_data_json'])
-                                nome_projeto = dados_zoho.get('name', utils.construir_titulo_projeto(dados))
-                                cliente = (
-                                    (dados_zoho.get('client_company') or {}).get('name')
-                                    or (dados_zoho.get('client') or {}).get('name')
-                                    or dados_zoho.get('client_name')
-                                    or "Cliente não informado"
-                                )
-                                gp_nome = (dados_zoho.get('owner') or {}).get('name', 'GP não informado')
-                                produto_info = ''
-                                if ' - NR/AP' in nome_projeto:
-                                    produto_info = 'netRIS e AnimatiPACS'
-                                elif ' - NR' in nome_projeto:
-                                    produto_info = 'netRIS'
-                                elif ' - AP' in nome_projeto:
-                                    produto_info = 'AnimatiPACS'
-                                novo_projeto = {
-                                    "id": str(registro_db['id']),
-                                    "nome": nome_projeto,
-                                    "cliente": cliente,
-                                    "gp": gp_nome,
-                                    "data_inicio": dados_zoho.get('start_date', ''),
-                                    "data_criacao": dados_zoho.get('created_time', ''),
-                                    "data_inicio_formatada": (dados_zoho.get('start_date') or '').replace('-', '/'),
-                                    "dias_na_fase": registro_db.get('dias_na_fase') or utils.calcular_dias_na_fase(dados_zoho, utils.determinar_coluna_projeto(dados_zoho)),
-                                    "dias_total": registro_db.get('dias_total') or utils.calcular_dias_total_projeto(dados_zoho.get('start_date'), dados_zoho.get('created_time')),
-                                    "status_atual": utils.determinar_coluna_projeto(dados_zoho),
-                                    "produto": produto_info
-                                }
-                                logger.debug(f"[DB] Novo projeto montado para resposta: {novo_projeto}")
-                            else:
-                                logger.debug(f"[DB] Projeto não encontrado ou sem full_data_json após sync. ID: {id_do_novo_projeto}")
-                        except Exception as sync_error:
-                            logger.error(f"[ERRO] Falha ao sincronizar projeto recém-criado {id_do_novo_projeto}: {sync_error}")
-                            novo_projeto = None            if not novo_projeto:
-                try:
-                    # Extrair produto do formulário para garantir que seja incluído
-                    produto_formulario = dados.get('produto', '')
-                    
-                    # Monta data de início no formato esperado
-                    data_inicio = dados.get('start_date', '')
-                    if not data_inicio:
-                        # Constrói a data a partir dos campos do formulário
-                        day = dados.get('day', '01')
-                        month = dados.get('month', '01')
-                        year = dados.get('year', '2025')
-                        data_inicio = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                    
+        if id_do_novo_projeto:
+            try:
+                from sync_zoho import synchronize_single_project
+                token_para_sync = access_token if 'access_token' in locals() and access_token else utils.obter_access_token()
+                logger.debug(f"[SYNC] Iniciando sincronização do projeto recém-criado: {id_do_novo_projeto}")
+                projeto_json = synchronize_single_project(str(id_do_novo_projeto), token_para_sync)
+                logger.debug(f"[SYNC] Resultado synchronize_single_project: {projeto_json}")
+                registro_db = database.get_project_by_id(str(id_do_novo_projeto))
+                logger.debug(f"[DB] Registro retornado do banco: {registro_db}")
+                if registro_db and registro_db['full_data_json']:
+                    dados_zoho = json.loads(registro_db['full_data_json'])
+                    nome_projeto = dados_zoho.get('name', utils.construir_titulo_projeto(dados))
+                    cliente = (
+                        (dados_zoho.get('client_company') or {}).get('name')
+                        or (dados_zoho.get('client') or {}).get('name')
+                        or dados_zoho.get('client_name')
+                        or "Cliente não informado"
+                    )
+                    gp_nome = (dados_zoho.get('owner') or {}).get('name', 'GP não informado')
+                    produto_info = ''
+                    if ' - NR/AP' in nome_projeto:
+                        produto_info = 'netRIS e AnimatiPACS'
+                    elif ' - NR' in nome_projeto:
+                        produto_info = 'netRIS'
+                    elif ' - AP' in nome_projeto:
+                        produto_info = 'AnimatiPACS'
                     novo_projeto = {
-                        "id": str(id_do_novo_projeto),
-                        "nome": utils.construir_titulo_projeto(dados),
-                        "cliente": f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']}",
-                        "gp": dados.get('gp_selecionado', 'GP não informado'),
-                        "data_inicio": data_inicio,
-                        "data_inicio_formatada": data_inicio.replace('-', '/'),
-                        "dias_na_fase": 0,
-                        "dias_total": 0,
-                        "status_atual": "Aguardando Onboarding",
-                        "produto": produto_formulario,  # Adiciona o produto do formulário
-                        "produtos": produto_formulario,  # Alias para compatibilidade
-                        "produtos_contratados": produto_formulario  # Outro alias
+                        "id": str(registro_db['id']),
+                        "nome": nome_projeto,
+                        "cliente": cliente,
+                        "gp": gp_nome,
+                        "data_inicio": dados_zoho.get('start_date', ''),
+                        "data_criacao": dados_zoho.get('created_time', ''),
+                        "data_inicio_formatada": (dados_zoho.get('start_date') or '').replace('-', '/'),
+                        "dias_na_fase": registro_db.get('dias_na_fase') or utils.calcular_dias_na_fase(dados_zoho, utils.determinar_coluna_projeto(dados_zoho)),
+                        "dias_total": registro_db.get('dias_total') or utils.calcular_dias_total_projeto(dados_zoho.get('start_date'), dados_zoho.get('created_time')),
+                        "status_atual": utils.determinar_coluna_projeto(dados_zoho),
+                        "produto": produto_info
                     }
-                except Exception:
-                    novo_projeto = None
+                    logger.debug(f"[DB] Novo projeto montado para resposta: {novo_projeto}")
+                else:
+                    logger.debug(f"[DB] Projeto não encontrado ou sem full_data_json após sync. ID: {id_do_novo_projeto}")
+            except Exception as sync_error:
+                logger.error(f"[ERRO] Falha ao sincronizar projeto recém-criado {id_do_novo_projeto}: {sync_error}")
+                novo_projeto = None
+        if not novo_projeto:
+            try:
+                # Extrair produto do formulário para garantir que seja incluído
+                produto_formulario = dados.get('produto', '')
+                # Monta data de início no formato esperado
+                data_inicio = dados.get('start_date', '')
+                if not data_inicio:
+                    # Constrói a data a partir dos campos do formulário
+                    day = dados.get('day', '01')
+                    month = dados.get('month', '01')
+                    year = dados.get('year', '2025')
+                    data_inicio = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                novo_projeto = {
+                    "id": str(id_do_novo_projeto),
+                    "nome": utils.construir_titulo_projeto(dados),
+                    "cliente": f"{dados['codigo_contrato_numero']} - {dados['nome_cliente']}",
+                    "gp": dados.get('gp_selecionado', 'GP não informado'),
+                    "data_inicio": data_inicio,
+                    "data_inicio_formatada": data_inicio.replace('-', '/'),
+                    "dias_na_fase": 0,
+                    "dias_total": 0,
+                    "status_atual": "Aguardando Onboarding",
+                    "produto": produto_formulario,  # Adiciona o produto do formulário
+                    "produtos": produto_formulario,  # Alias para compatibilidade
+                    "produtos_contratados": produto_formulario  # Outro alias
+                }
+            except Exception:
+                novo_projeto = None
         return jsonify({"status": "success", "message": "Processo finalizado com sucesso!", "novo_projeto": novo_projeto})
 
     except Exception as e:
@@ -3028,10 +3020,10 @@ def mover_projeto():
                     sheets_service = build('sheets', 'v4', credentials=utils.build_google_credentials_from_session())
                     
                     # Buscar cabeçalhos
-                    range_cab = f"'{NOME_ABA_PLANILHA}'!A{LINHA_CABECALHO}:ZZ{LINHA_CABECALHO}"
+                    range_cab = f"'{config.NOME_ABA_PLANILHA}'!A{config.LINHA_CABECALHO}:ZZ{config.LINHA_CABECALHO}"
                     print(f"[DEBUG] Buscando cabeçalhos: {range_cab}")
                     result = sheets_service.spreadsheets().values().get(
-                        spreadsheetId=ID_PLANILHA_PROJETOS,
+                        spreadsheetId=config.ID_PLANILHA_PROJETOS,
                         range=range_cab
                     ).execute()
                     cabecalhos = result.get('values', [[]])[0]
@@ -3052,12 +3044,12 @@ def mover_projeto():
 
                     if col_cliente_idx is not None and (col_status_idx is not None or col_libservidor_idx is not None):
                         letra_col_cliente = utils.indice_para_letra_coluna(col_cliente_idx)
-                        start_row = LINHA_CABECALHO + 1
-                        range_clientes = f"'{NOME_ABA_PLANILHA}'!{letra_col_cliente}{start_row}:{letra_col_cliente}"
+                        start_row = config.LINHA_CABECALHO + 1
+                        range_clientes = f"'{config.NOME_ABA_PLANILHA}'!{letra_col_cliente}{start_row}:{letra_col_cliente}"
                         
                         print(f"[DEBUG] Buscando clientes no range: {range_clientes}")
                         valores = sheets_service.spreadsheets().values().get(
-                            spreadsheetId=ID_PLANILHA_PROJETOS,
+                            spreadsheetId=config.ID_PLANILHA_PROJETOS,
                             range=range_clientes
                         ).execute().get('values', [])
 
@@ -3074,7 +3066,7 @@ def mover_projeto():
                             updates = []
                             if col_status_idx is not None:
                                 letra_col_status = utils.indice_para_letra_coluna(col_status_idx)
-                                range_status = f"'{NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}"
+                                range_status = f"'{config.NOME_ABA_PLANILHA}'!{letra_col_status}{linha_encontrada}"
                                 updates.append({
                                     'range': range_status,
                                     'values': [["Aguardando Cronograma"]]
@@ -3083,7 +3075,7 @@ def mover_projeto():
                             
                             if col_libservidor_idx is not None:
                                 letra_col_lib = utils.indice_para_letra_coluna(col_libservidor_idx)
-                                range_lib = f"'{NOME_ABA_PLANILHA}'!{letra_col_lib}{linha_encontrada}"
+                                range_lib = f"'{config.NOME_ABA_PLANILHA}'!{letra_col_lib}{linha_encontrada}"
                                 updates.append({
                                     'range': range_lib,
                                     'values': [[data_atual_ddmmyyyy]]
@@ -3093,7 +3085,7 @@ def mover_projeto():
                             if updates:
                                 print(f"[DEBUG] Executando batch update com {len(updates)} atualizações")
                                 result = sheets_service.spreadsheets().values().batchUpdate(
-                                    spreadsheetId=ID_PLANILHA_PROJETOS,
+                                    spreadsheetId=config.ID_PLANILHA_PROJETOS,
                                     body={'valueInputOption': 'USER_ENTERED', 'data': updates}
                                 ).execute()
                                 print(f"[DEBUG] Resultado do batch update: {result}")
