@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
+
 from flask import session, jsonify, request, current_app
 import requests
 from google.oauth2.credentials import Credentials
@@ -15,8 +16,17 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 
+
 class ZohoTokenError(RuntimeError):
     """Erros relacionados à obtenção do token de acesso Zoho."""
+
+def _ler_refresh_token():
+    """Lê o refresh token do Zoho a partir das variáveis de ambiente ou arquivo .env."""
+    token = os.environ.get("ZOHO_REFRESH_TOKEN")
+    if token:
+        return token
+    # fallback: tentar ler de arquivo .env ou outro local se necessário
+    raise ZohoTokenError("Refresh token Zoho não encontrado nas variáveis de ambiente.")
 
 
 def obter_access_token(force_refresh: bool = False) -> str:

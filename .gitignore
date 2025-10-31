@@ -1,3 +1,5 @@
 __pycache__/
 zoho_cache.db
 app_antigo
+.env
+.env.example
