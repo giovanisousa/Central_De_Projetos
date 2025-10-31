@@ -73,44 +73,22 @@ if Session:
             os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
         except Exception as e:
             logger.error(f"Erro ao criar diretório de sessão: {e}")
-    Session(app)
 
-try:
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-except Exception as e:
-    logger.error(f"Erro ao criar diretório de upload: {e}")
+    # Sessão do lado do servidor
+    if Session:
+        if app.config['SESSION_TYPE'] == 'filesystem':
+            try:
+                os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+            except Exception as e:
+                logger.error(f"Erro ao criar diretório de sessão: {e}")
+        Session(app)
 
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    except Exception as e:
+        logger.error(f"Erro ao criar diretório de upload: {e}")
 
-
-
-
-
-
-
-
-
-
-
-
-
-if __name__ == '__main__':
-    import logging
-    # OTIMIZAÇÃO: Configurar logging ao invés de prints excessivos (~50ms por operação)
-    # INFO = mensagens essenciais (movimentações, erros)
-    # DEBUG = apenas quando debug=True e LOG_LEVEL=DEBUG na config
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-        datefmt='%H:%M:%S'
-    )
-    
-    if app.config['FLASK_ENV'] == 'development':
-        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-        debug_mode = True
-    else:
-        debug_mode = False
-
-    # Sincronização automática se o banco estiver vazio
+    # Sincronização automática se o banco estiver vazio (executa sempre que o app é importado)
     try:
         from database import Session, Project
         session = Session()
@@ -130,5 +108,11 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"[SYNC] Falha ao tentar sincronizar projetos automaticamente: {e}")
 
-    # use_reloader=False para evitar reinicializações durante requisições
-    app.run(debug=debug_mode, port=5000, use_reloader=False)
+    if __name__ == '__main__':
+        if app.config['FLASK_ENV'] == 'development':
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+            debug_mode = True
+        else:
+            debug_mode = False
+        app.run(debug=debug_mode, port=5000, use_reloader=False)
+        session.close()
