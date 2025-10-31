@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from flask import Blueprint, request, jsonify, session, current_app
 import utils
 import re
@@ -560,7 +561,7 @@ def carregar_projetos():
         conn = database.get_db_connection()
         # Carrega todos os projetos relevantes do banco de dados
         # O campo full_data_json contém o JSON original do Zoho
-        rows = conn.execute('SELECT full_data_json FROM projects').fetchall()
+    rows = conn.execute(text('SELECT full_data_json FROM projects')).fetchall()
         conn.close()
 
         lista_completa_projetos = [json.loads(row['full_data_json']) for row in rows]
