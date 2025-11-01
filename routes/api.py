@@ -112,7 +112,7 @@ def _listar_tarefas_quick(project_id: str, headers: dict) -> list[dict]:
 
     _collect_once()
     if len(tasks_by_id) < 120:
-        _t.sleep(5)  # breve espera para materialização de tarefas do template
+        # Removido sleep(5) para evitar bloqueio. Se necessário, implemente polling assíncrono.
         _collect_once()
 
     # Fallback por Custom View se configurada e ainda baixo
@@ -287,8 +287,24 @@ def api_criar_projeto():
                         logger.warning(f"PATCH custom_fields falhou: {patch_resp.status_code} - {patch_resp.text[:500]}")
 
                 # Aguardar tempo suficiente para tarefas do template materializarem
-                logger.info("Aguardando sincronização das tarefas (45s)...")
-                time.sleep(45)
+                logger.info("Sincronização das tarefas iniciada. (Polling para aguardar materialização das tarefas)")
+                # Polling: aguarda até 45s ou até que tarefas sejam criadas
+                import time
+                polling_timeout = 45
+                polling_interval = 5
+                polling_start = time.time()
+                tasks = []
+                while time.time() - polling_start < polling_timeout:
+                    try:
+                        tasks = _listar_tarefas_quick(str(id_do_novo_projeto), headers)
+                    except Exception as e:
+                        logger.warning(f"Polling falhou: {e}")
+                        tasks = []
+                    if tasks and len(tasks) >= 1:
+                        logger.info(f"Polling: tarefas encontradas ({len(tasks)}) após {int(time.time()-polling_start)}s.")
+                        break
+                    logger.info(f"Polling: aguardando tarefas... ({int(time.time()-polling_start)}s)")
+                    time.sleep(polling_interval)
 
                 # Pós-criação: atribuir tarefas ao GP, concluir tarefas iniciais e lançar tempo
                 try:
@@ -578,7 +594,7 @@ def carregar_projetos():
         "Aguardando Onboarding", "Falta Liberar Servidor Infra", "Aguardando Cronograma",
         "Em Andamento - Implantação", "Em Homologação", "Em Virada", 
         "Em Operação Assistida", "Aguardando Encerramento", "Projeto Parado", 
-        "Finalizado", "Cancelado", "Status Desconhecido"
+        "Finalizado", "Cancelado", "Status Desconhecido", "Pendência"
     }
     projetos_nao_mapeados = []
 
@@ -2788,19 +2804,21 @@ def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_me
     from sync_zoho import synchronize_single_project
     
     max_tentativas = 3
-    intervalo_tentativas = 2  # segundos
-    
+    polling_timeout = 10  # segundos
+    polling_interval = 2  # segundos
     for tentativa in range(1, max_tentativas + 1):
         try:
             print(f"[DEBUG][SYNC] Tentativa {tentativa}/{max_tentativas} de sincronização do projeto {projeto_id}")
-            
-            # Pequena pausa para permitir que a API do Zoho propague as mudanças
-            if tentativa > 1:
-                time.sleep(intervalo_tentativas)
-            
-            # Sincroniza o projeto específico
-            project_updated = synchronize_single_project(projeto_id, access_token)
-            
+            # Polling para aguardar propagação das mudanças
+            polling_start = time.time()
+            project_updated = False
+            while time.time() - polling_start < polling_timeout:
+                project_updated = synchronize_single_project(projeto_id, access_token)
+                if project_updated:
+                    print(f"[DEBUG][SYNC] Mudanças propagadas após {int(time.time()-polling_start)}s.")
+                    break
+                print(f"[DEBUG][SYNC] Aguardando propagação... ({int(time.time()-polling_start)}s)")
+                time.sleep(polling_interval)
             if project_updated:
                 # Verificar se as mudanças foram capturadas
                 import database

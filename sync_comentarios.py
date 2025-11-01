@@ -109,7 +109,14 @@ def buscar_todos_comentarios_projeto(projeto_id: str, access_token: str) -> List
             
             # Pequeno delay para evitar rate limiting
             if has_next_page:
-                time.sleep(0.2)
+                # Polling: aguarda até 2s ou até que próxima página esteja disponível
+                import time
+                polling_timeout = 2
+                polling_interval = 0.2
+                polling_start = time.time()
+                while has_next_page and time.time() - polling_start < polling_timeout:
+                    print(f"[polling] aguardando próxima página... ({int((time.time()-polling_start)*1000)}ms)")
+                    time.sleep(polling_interval)
         
         except Exception as e:
             print(f"    ❌ Erro ao buscar página {page}: {e}")
@@ -223,7 +230,14 @@ def sincronizar_comentarios_todos_projetos(forcar_ressincronizacao: bool = False
             total_comentarios += comentarios_sincronizados
             
             # Pequeno delay entre projetos para evitar rate limiting
-            time.sleep(0.3)
+            # Polling: aguarda até 2s ou até que próximo projeto esteja disponível
+            import time
+            polling_timeout = 2
+            polling_interval = 0.3
+            polling_start = time.time()
+            while time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando próximo projeto... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
         
         except Exception as e:
             print(f"  ❌ ERRO ao processar projeto {projeto_id}: {e}")
