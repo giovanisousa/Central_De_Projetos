@@ -2448,10 +2448,7 @@ def ensure_project_tags(access_token: str, project_id: str, required_tag_ids, at
             print(f"[ensure_project_tags] status={resp.status_code} body={resp.text[:500]}")
         except Exception as e:
             print(f"[ensure_project_tags] erro tentativa {i+1}: {e}")
-        try:
-            # Removido sleep para evitar bloqueio. Se necessário, implemente retry assíncrono.
-        except Exception:
-            pass
+        # Removido sleep para evitar bloqueio. Se necessário, implemente retry assíncrono.
 
 def set_project_tags_exact(access_token: str, project_id: str, final_tag_ids):
     desired = []
