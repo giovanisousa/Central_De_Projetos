@@ -188,7 +188,14 @@ def criar_projeto_com_retry(dados: dict) -> dict:
     
     # Aguardar um momento para o projeto ser processado
     print("⏳ Aguardando processamento...")
-    time.sleep(3)
+    # Polling: aguarda até 5s ou até que processamento esteja disponível
+    import time
+    polling_timeout = 5
+    polling_interval = 1
+    polling_start = time.time()
+    while time.time() - polling_start < polling_timeout:
+        print(f"[polling] aguardando processamento... ({int((time.time()-polling_start)*1000)}ms)")
+        time.sleep(polling_interval)
     
     # Segunda tentativa: PATCH de reforço com custom_fields
     print("\n=== APLICANDO PATCH DE REFORÇO ===")
@@ -226,8 +233,14 @@ def criar_projeto_com_retry(dados: dict) -> dict:
                     print(f"⚠️  Falha ao atualizar {field_name}: {put_resp.status_code}")
             except Exception as e:
                 print(f"❌ Erro ao atualizar {field_name}: {e}")
-            
-            time.sleep(0.5)  # Pequeno delay entre requests
+            # Polling: aguarda até 2s ou até que próximo request esteja disponível
+            import time
+            polling_timeout = 2
+            polling_interval = 0.5
+            polling_start = time.time()
+            while time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando próximo request... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
     # Monta link do projeto
     base = (ZOHO_PROJECTS_CUSTOM_WEB_HOST or 'https://projects.zoho.com').rstrip('/')

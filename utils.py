@@ -1470,12 +1470,11 @@ def determinar_coluna_projeto(projeto):
         return "Aguardando Encerramento"
     if status_id == STATUS_AGUARDANDO_CLIENTE_ID and TAG_PARADO_ID in tag_ids:
         return "Projeto Parado"
-    if status_id == STATUS_PENDENCIA_ID and TAG_PARADO_ID in tag_ids:
-        return "Projeto Parado"
     status_map = {
         STATUS_EM_ANDAMENTO_ID: "Aguardando Cronograma",
         STATUS_FINALIZADO_ID: "Finalizado",
-        STATUS_OPERACAO_ASSISTIDA_ID: "Em Operação Assistida"
+        STATUS_OPERACAO_ASSISTIDA_ID: "Em Operação Assistida",
+        STATUS_PENDENCIA_ID: "Pendência"
     }
     return status_map.get(status_id, "Status Desconhecido")
 
@@ -2356,7 +2355,7 @@ def obter_access_token_zoho(ttl_seconds: int = 2700):
             return access_token
         else:
             last_err = f'HTTP {r.status_code} - {r.text}'
-            _t.sleep(1 + i * 2)
+            # Removido sleep para evitar bloqueio. Se necessário, implemente retry assíncrono.
     raise Exception(f'Falha ao obter access_token Zoho: {last_err}')
 
 def _zp_headers(access_token: str):
@@ -2450,7 +2449,7 @@ def ensure_project_tags(access_token: str, project_id: str, required_tag_ids, at
         except Exception as e:
             print(f"[ensure_project_tags] erro tentativa {i+1}: {e}")
         try:
-            time.sleep(delay_sec)
+            # Removido sleep para evitar bloqueio. Se necessário, implemente retry assíncrono.
         except Exception:
             pass
 

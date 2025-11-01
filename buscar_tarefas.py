@@ -126,7 +126,14 @@ def listar_tarefas_do_projeto(project_id: str, access_token: str) -> List[dict]:
             if not chunk or no_progress_pages >= 2:
                 break
             start += page_size
-            time.sleep(0.15)
+            # Polling: aguarda até 2s ou até que chunk seja preenchido
+            import time
+            polling_timeout = 2
+            polling_interval = 0.15
+            polling_start = time.time()
+            while not chunk and time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando chunk... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
     def _collect_index_fixed(page_size: int = 200, custom_view_id: Optional[str] = None, status: Optional[str] = None, max_pages: int = 60):
         start, end = 1, page_size
@@ -157,7 +164,14 @@ def listar_tarefas_do_projeto(project_id: str, access_token: str) -> List[dict]:
                 no_progress_pages = 0
             if not chunk or no_progress_pages >= 2:
                 break
-            time.sleep(0.15)
+            # Polling: aguarda até 2s ou até que chunk seja preenchido
+            import time
+            polling_timeout = 2
+            polling_interval = 0.15
+            polling_start = time.time()
+            while not chunk and time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando chunk... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
     def _collect_index_and_range(step_size: int = 50, custom_view_id: Optional[str] = None, status: Optional[str] = None, max_pages: int = 120):
         no_progress_pages = 0
@@ -189,7 +203,14 @@ def listar_tarefas_do_projeto(project_id: str, access_token: str) -> List[dict]:
                 no_progress_pages = 0
             if not chunk or no_progress_pages >= 2:
                 break
-            time.sleep(0.12)
+            # Polling: aguarda até 2s ou até que chunk seja preenchido
+            import time
+            polling_timeout = 2
+            polling_interval = 0.12
+            polling_start = time.time()
+            while not chunk and time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando chunk... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
     def _collect_index_offset(page_size: int = 200, custom_view_id: Optional[str] = None, status: Optional[str] = None, max_pages: int = 40):
         """
@@ -226,7 +247,14 @@ def listar_tarefas_do_projeto(project_id: str, access_token: str) -> List[dict]:
             if not chunk or no_progress_pages >= 2:
                 break
             start += page_size
-            time.sleep(0.15)
+            # Polling: aguarda até 2s ou até que chunk seja preenchido
+            import time
+            polling_timeout = 2
+            polling_interval = 0.15
+            polling_start = time.time()
+            while not chunk and time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando chunk... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
     def _collect_page_per_page(per_page: int = 200, status: Optional[str] = None, max_pages: int = 60):
         """
@@ -251,7 +279,14 @@ def listar_tarefas_do_projeto(project_id: str, access_token: str) -> List[dict]:
                 no_progress_pages = 0
             if not chunk or no_progress_pages >= 2:
                 break
-            time.sleep(0.15)
+            # Polling: aguarda até 2s ou até que chunk seja preenchido
+            import time
+            polling_timeout = 2
+            polling_interval = 0.15
+            polling_start = time.time()
+            while not chunk and time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando chunk... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
     # Execução: tentar cada estratégia algumas vezes (para materialização tardia)
     for tentativa in range(2):

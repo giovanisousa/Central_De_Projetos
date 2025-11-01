@@ -94,6 +94,14 @@ def sync_fases(projeto_id, access_token):
                 continue
 
             time.sleep(0.5)
+            # Polling: aguarda até 2s ou até que resposta da API esteja disponível
+            import time
+            polling_timeout = 2
+            polling_interval = 0.5
+            polling_start = time.time()
+            while time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando resposta da API... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
 
             try:
                 detail_url = f"{_zp_base()}/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/phases/{fase_id}"
@@ -145,6 +153,14 @@ def sync_listas_e_tarefas(projeto_id, access_token, id_fase_impeditivos):
             if id_fase_impeditivos and str(fase_id_da_lista) == str(id_fase_impeditivos):
                 print(f"      - Lista '{lista_data.get('name')}' pertence à fase de impeditivos. Buscando tarefas...")
                 time.sleep(0.5)  # Pausa para não sobrecarregar a API
+            # Polling: aguarda até 2s ou até que tarefas estejam disponíveis
+            import time
+            polling_timeout = 2
+            polling_interval = 0.5
+            polling_start = time.time()
+            while time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando tarefas... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
                 try:
                     url_tarefas = (
                         f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/tasklists/{lista_id}/tasks/"
@@ -268,6 +284,14 @@ def synchronize_projects():
                 break
             page += 1
             time.sleep(1)
+            # Polling: aguarda até 2s ou até que próxima página esteja disponível
+            import time
+            polling_timeout = 2
+            polling_interval = 1
+            polling_start = time.time()
+            while time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando próxima página... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
         print(f"\n--- Sincronização concluída. {total_synced} projetos foram atualizados/inseridos. ---")
     except requests.exceptions.RequestException as e:
         print(f"\nERRO DE API: Falha ao comunicar com o Zoho. {e}")

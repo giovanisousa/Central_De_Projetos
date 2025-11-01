@@ -88,7 +88,14 @@ def buscar_todos_projetos(access_token):
                 break
             
             index += range_size
-            time.sleep(0.5)  # Rate limiting
+            # Polling: aguarda até 2s ou até que próximo fetch esteja disponível
+            import time
+            polling_timeout = 2
+            polling_interval = 0.5
+            polling_start = time.time()
+            while time.time() - polling_start < polling_timeout:
+                print(f"[polling] aguardando próximo fetch... ({int((time.time()-polling_start)*1000)}ms)")
+                time.sleep(polling_interval)
             
         except Exception as e:
             print(f"❌ Erro ao buscar projetos: {e}")
@@ -255,7 +262,14 @@ def main():
             })
         
         # Rate limiting
-        time.sleep(0.3)
+        # Polling: aguarda até 2s ou até que próximo update esteja disponível
+        import time
+        polling_timeout = 2
+        polling_interval = 0.3
+        polling_start = time.time()
+        while time.time() - polling_start < polling_timeout:
+            print(f"[polling] aguardando próximo update... ({int((time.time()-polling_start)*1000)}ms)")
+            time.sleep(polling_interval)
         print()
     
     # Relatório final

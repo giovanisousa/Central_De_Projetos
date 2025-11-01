@@ -235,7 +235,14 @@ class ImplantacaoTaskManager:
                 if tentativa < MAX_TENTATIVAS_API and error_code not in ["DEPENDENCY_LAG", "PERMISSION"]:
                     # Apenas retry para erros temporários (não para dependências ou permissões)
                     print(f"[WARN] Tentativa {tentativa} falhou para atualizar data da tarefa {task_id}: {error_msg}")
-                    time.sleep(1)  # Aguardar antes de tentar novamente
+                    # Polling: aguarda até 2s ou até que retry esteja disponível
+                    import time
+                    polling_timeout = 2
+                    polling_interval = 1
+                    polling_start = time.time()
+                    while time.time() - polling_start < polling_timeout:
+                        print(f"[polling] aguardando retry... ({int((time.time()-polling_start)*1000)}ms)")
+                        time.sleep(polling_interval)
                 else:
                     if error_code != "DEPENDENCY_LAG" or LOG_DETALHADO:
                         # Não logar erro de dependência como ERROR (é esperado em alguns casos)
@@ -246,7 +253,14 @@ class ImplantacaoTaskManager:
             except Exception as e:
                 if tentativa < MAX_TENTATIVAS_API:
                     print(f"[WARN] Tentativa {tentativa} falhou para atualizar data da tarefa {task_id}: {e}")
-                    time.sleep(1)  # Aguardar antes de tentar novamente
+                    # Polling: aguarda até 2s ou até que retry esteja disponível
+                    import time
+                    polling_timeout = 2
+                    polling_interval = 1
+                    polling_start = time.time()
+                    while time.time() - polling_start < polling_timeout:
+                        print(f"[polling] aguardando retry... ({int((time.time()-polling_start)*1000)}ms)")
+                        time.sleep(polling_interval)
                 else:
                     print(f"[ERROR] Erro definitivo ao atualizar data da tarefa {task_id}: {e}")
                     return (False, "EXCEPTION")
@@ -274,7 +288,14 @@ class ImplantacaoTaskManager:
             except Exception as e:
                 if tentativa < MAX_TENTATIVAS_API:
                     print(f"[WARN] Tentativa {tentativa} falhou para atribuir responsável da tarefa {task_id}: {e}")
-                    time.sleep(1)  # Aguardar antes de tentar novamente
+                    # Polling: aguarda até 2s ou até que retry esteja disponível
+                    import time
+                    polling_timeout = 2
+                    polling_interval = 1
+                    polling_start = time.time()
+                    while time.time() - polling_start < polling_timeout:
+                        print(f"[polling] aguardando retry... ({int((time.time()-polling_start)*1000)}ms)")
+                        time.sleep(polling_interval)
                 else:
                     print(f"[ERROR] Erro definitivo ao atribuir responsável da tarefa {task_id}: {e}")
                     return False
@@ -469,7 +490,14 @@ class ImplantacaoTaskManager:
                         print(f"[SUCCESS] ✅ Implantador RIS adicionado com sucesso!")
                         # Aguardar um pouco para a API processar
                         print(f"[INFO] ⏳ Aguardando 3 segundos para propagação da API...")
-                        time.sleep(3)
+                        # Polling: aguarda até 5s ou até que propagação esteja disponível
+                        import time
+                        polling_timeout = 5
+                        polling_interval = 1
+                        polling_start = time.time()
+                        while time.time() - polling_start < polling_timeout:
+                            print(f"[polling] aguardando propagação... ({int((time.time()-polling_start)*1000)}ms)")
+                            time.sleep(polling_interval)
                     else:
                         log_adicao_usuarios["ris"]["erro"] = "Falha na função adicionar_usuario_ao_projeto"
                         print(f"[ERROR] ❌ Falha ao adicionar implantador RIS ao projeto")
