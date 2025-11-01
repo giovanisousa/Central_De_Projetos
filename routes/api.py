@@ -288,10 +288,10 @@ def api_criar_projeto():
 
                 # Aguardar tempo suficiente para tarefas do template materializarem
                 logger.info("Sincronização das tarefas iniciada. (Polling para aguardar materialização das tarefas)")
-                # Polling: aguarda até 20s ou até que tarefas sejam criadas (ajustado para evitar timeout do worker)
+                # Polling: aguarda até 10s ou até que tarefas sejam criadas (otimizado para evitar timeout)
                 import time
-                polling_timeout = 20  # Reduzido de 45s para 20s para evitar timeout do Gunicorn (30s)
-                polling_interval = 3  # Reduzido de 5s para 3s para fazer mais tentativas
+                polling_timeout = 10  # Reduzido para 10s para dar mais tempo ao processamento pós-criação
+                polling_interval = 2  # Reduzido para 2s para fazer mais tentativas rápidas
                 polling_start = time.time()
                 tasks = []
                 while time.time() - polling_start < polling_timeout:
@@ -307,6 +307,9 @@ def api_criar_projeto():
                     time.sleep(polling_interval)
 
                 # Pós-criação: atribuir tarefas ao GP, concluir tarefas iniciais e lançar tempo
+                # Otimizado para executar rapidamente e evitar timeout do Gunicorn (30s)
+                # Processamento reduzido: apenas ações essenciais
+                
                 try:
                     if id_do_novo_projeto and dados.get('gp_selecionado') in DONOS_PROJETO:
                         gp_zpuid = DONOS_PROJETO[dados['gp_selecionado']]
@@ -375,59 +378,79 @@ def api_criar_projeto():
                                     return task
                             return None
 
-                        # 3) Atribuir tarefas ao GP
-                        for nome_tarefa in TAREFAS_PARA_ATRIBUIR:
-                            t = _get_task_by_name(nome_tarefa)
-                            if not t:
-                                logger.info(f"Tarefa para atribuir não encontrada no projeto: '{nome_tarefa}'")
-                                continue
-                            owner = (t.get('owner') or {}).get('zpuid')
-                            if str(owner) == str(gp_zpuid):
-                                continue
-                            try:
-                                task_id = t.get('id')
+                        # Limite de tempo total para processamento pós-criação: 15 segundos
+                        # Com polling de ~10s, temos ~5s restantes para evitar timeout de 30s
+                        import time
+                        post_creation_start = time.time()
+                        post_creation_timeout = 15
+                        
+                        def check_timeout():
+                            """Verifica se ainda há tempo disponível para processamento"""
+                            elapsed = time.time() - post_creation_start
+                            if elapsed >= post_creation_timeout:
+                                logger.warning(f"⏰ Timeout de pós-criação atingido ({elapsed:.1f}s). Abortando processamento restante.")
+                                return True
+                            return False
+
+                        # 3) Atribuir tarefas ao GP (com limite de tempo)
+                        if not check_timeout():
+                            for nome_tarefa in TAREFAS_PARA_ATRIBUIR:
+                                if check_timeout():
+                                    break
+                                t = _get_task_by_name(nome_tarefa)
+                                if not t:
+                                    logger.info(f"Tarefa para atribuir não encontrada no projeto: '{nome_tarefa}'")
+                                    continue
+                                owner = (t.get('owner') or {}).get('zpuid')
+                                if str(owner) == str(gp_zpuid):
+                                    continue
                                 try:
-                                    url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
-                                    headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                    payload_rest = {"person_responsible": str(gp_zpuid)}
-                                    resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=45)
-                                    if resp_rest.status_code in (200, 201):
-                                        logger.info(f"Atribuição via REST bem-sucedida '{nome_tarefa}'.")
-                                    else:
-                                        logger.warning(f"Atribuição (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
+                                    task_id = t.get('id')
+                                    try:
+                                        url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
+                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                        payload_rest = {"person_responsible": str(gp_zpuid)}
+                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=10)  # Timeout reduzido
+                                        if resp_rest.status_code in (200, 201):
+                                            logger.info(f"Atribuição via REST bem-sucedida '{nome_tarefa}'.")
+                                        else:
+                                            logger.warning(f"Atribuição (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
                                 except Exception as e2:
                                     logger.warning(f"Erro no REST de atribuição '{nome_tarefa}': {e2}")
                             except Exception as e:
                                 logger.warning(f"Erro ao atribuir '{nome_tarefa}': {e}")
 
-                        # 4) Concluir tarefas iniciais (atribui ao GP se necessário)
-                        for nome_tarefa in TAREFAS_PARA_CONCLUIR:
-                            t = _get_task_by_name(nome_tarefa)
-                            if not t:
-                                logger.warning(f"Tarefa para concluir não encontrada no projeto: '{nome_tarefa}'")
-                                continue
-                            try:
-                                task_id = t.get('id')
-                                url_patch_task = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}"
-                                # Garante ownership pelo GP: tentar REST primeiro
-                                owner = (t.get('owner') or {}).get('zpuid')
-                                if str(owner) != str(gp_zpuid):
-                                    try:
-                                        url_rest_assign = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
-                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                        payload_rest_assign = {"person_responsible": str(gp_zpuid)}
-                                        resp_rest_assign = requests.post(url_rest_assign, headers=headers_rest, data=payload_rest_assign, timeout=45)
-                                        if resp_rest_assign.status_code in (200, 201):
-                                            logger.info(f"Reatribuição (REST) bem-sucedida para '{nome_tarefa}'.")
-                                    except Exception as _:
-                                        logger.warning(f"Reatribuição (REST) falhou para '{nome_tarefa}'. Prosseguindo.")
-                                # Marca como concluída via REST
+                        # 4) Concluir tarefas iniciais (atribui ao GP se necessário) - com limite de tempo
+                        if not check_timeout():
+                            for nome_tarefa in TAREFAS_PARA_CONCLUIR:
+                                if check_timeout():
+                                    break
+                                t = _get_task_by_name(nome_tarefa)
+                                if not t:
+                                    logger.warning(f"Tarefa para concluir não encontrada no projeto: '{nome_tarefa}'")
+                                    continue
                                 try:
-                                    url_rest_done = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
-                                    headers_rest_done = {"Authorization": f"Bearer {access_token}"}
-                                    payload_rest_done = {"custom_status": STATUS_CONCLUIDO_ID}
-                                    resp_rest_done = requests.post(url_rest_done, headers=headers_rest_done, data=payload_rest_done, timeout=45)
-                                    if resp_rest_done.status_code in (200, 201):
+                                    task_id = t.get('id')
+                                    url_patch_task = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}"
+                                    # Garante ownership pelo GP: tentar REST primeiro
+                                    owner = (t.get('owner') or {}).get('zpuid')
+                                    if str(owner) != str(gp_zpuid):
+                                        try:
+                                            url_rest_assign = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
+                                            headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                            payload_rest_assign = {"person_responsible": str(gp_zpuid)}
+                                            resp_rest_assign = requests.post(url_rest_assign, headers=headers_rest, data=payload_rest_assign, timeout=10)  # Timeout reduzido
+                                            if resp_rest_assign.status_code in (200, 201):
+                                                logger.info(f"Reatribuição (REST) bem-sucedida para '{nome_tarefa}'.")
+                                        except Exception as _:
+                                            logger.warning(f"Reatribuição (REST) falhou para '{nome_tarefa}'. Prosseguindo.")
+                                    # Marca como concluída via REST
+                                    try:
+                                        url_rest_done = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
+                                        headers_rest_done = {"Authorization": f"Bearer {access_token}"}
+                                        payload_rest_done = {"custom_status": STATUS_CONCLUIDO_ID}
+                                        resp_rest_done = requests.post(url_rest_done, headers=headers_rest_done, data=payload_rest_done, timeout=10)  # Timeout reduzido
+                                        if resp_rest_done.status_code in (200, 201):
                                         logger.info(f"Conclusão via REST bem-sucedida '{nome_tarefa}'.")
                                     else:
                                         logger.warning(f"Conclusão (REST) falhou '{nome_tarefa}': {resp_rest_done.status_code} - {resp_rest_done.text[:400]}")
@@ -437,34 +460,37 @@ def api_criar_projeto():
                                 logger.warning(f"Erro ao concluir '{nome_tarefa}': {e}")
 
                         # 5) Lançar timesheet nas tarefas concluídas conforme TEMPO_RELATO
-                        from datetime import date as _date
-                        hoje = _date.today().strftime('%Y-%m-%d')
-                        for nome_tarefa, tempo_hhmm in TEMPO_RELATO.items():
-                            t = _get_task_by_name(nome_tarefa)
-                            if not t:
-                                continue
-                            try:
-                                task_id = t.get('id')
-                                # Timesheet diretamente via REST (MM-DD-YYYY)
+                        if not check_timeout():
+                            from datetime import date as _date
+                            hoje = _date.today().strftime('%Y-%m-%d')
+                            for nome_tarefa, tempo_hhmm in TEMPO_RELATO.items():
+                                if check_timeout():
+                                    break
+                                t = _get_task_by_name(nome_tarefa)
+                                if not t:
+                                    continue
                                 try:
-                                    from datetime import datetime as _dt
-                                    mmddyyyy = _dt.strptime(hoje, "%Y-%m-%d").strftime("%m-%d-%Y")
-                                    url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/logs/"
-                                    headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                    payload_rest = {
-                                        "owner_zpuid": str(gp_zpuid),
-                                        "hours": tempo_hhmm,
-                                        "date": mmddyyyy,
-                                        "bill_status": "Billable",
-                                        "notes": "Relatado via automação."
-                                    }
-                                    resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=45)
-                                    if resp_rest.status_code in (200, 201):
-                                        logger.info(f"Timesheet via REST bem-sucedido '{nome_tarefa}'.")
-                                    else:
-                                        logger.warning(f"Timesheet (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
-                                except Exception as e2:
-                                    logger.warning(f"Erro no REST de timesheet '{nome_tarefa}': {e2}")
+                                    task_id = t.get('id')
+                                    # Timesheet diretamente via REST (MM-DD-YYYY)
+                                    try:
+                                        from datetime import datetime as _dt
+                                        mmddyyyy = _dt.strptime(hoje, "%Y-%m-%d").strftime("%m-%d-%Y")
+                                        url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/logs/"
+                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                        payload_rest = {
+                                            "owner_zpuid": str(gp_zpuid),
+                                            "hours": tempo_hhmm,
+                                            "date": mmddyyyy,
+                                            "bill_status": "Billable",
+                                            "notes": "Relatado via automação."
+                                        }
+                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=10)
+                                        if resp_rest.status_code in (200, 201):
+                                            logger.info(f"Timesheet via REST bem-sucedido '{nome_tarefa}'.")
+                                        else:
+                                            logger.warning(f"Timesheet (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
+                                    except Exception as e2:
+                                        logger.warning(f"Erro no REST de timesheet '{nome_tarefa}': {e2}")
                             except Exception as e:
                                 logger.warning(f"Erro ao lançar timesheet '{nome_tarefa}': {e}")
                     else:
