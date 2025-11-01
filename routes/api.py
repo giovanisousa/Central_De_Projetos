@@ -65,7 +65,7 @@ def _listar_tarefas_quick(project_id: str, headers: dict) -> list[dict]:
 
     def _get(url: str) -> list[dict]:
         try:
-            r = requests.get(url, headers=headers, timeout=15)
+            r = requests.get(url, headers=headers, timeout=5)  # Reduzido de 15s para 5s
             if r.status_code in (200, 201):
                 data = r.json() or {}
                 return data.get('tasks', []) if isinstance(data, dict) else []
@@ -75,35 +75,18 @@ def _listar_tarefas_quick(project_id: str, headers: dict) -> list[dict]:
 
     def _collect_once():
         status = 'all'
-        # Páginas prováveis (duas faixas)
-        ranges = ["1-200", "201-400"]
-        for rg in ranges:
-            url = f"{base}?range={rg}&status={status}"
-            chunk = _get(url)
-            for t in chunk:
-                tid = t.get('id')
-                if tid and tid not in tasks_by_id:
-                    tasks_by_id[tid] = t
-        # index fixo como reforço para portais que exigem index para avançar páginas
-        for index in (1, 2, 3):
-            url = f"{base}?index={index}&range=1-200&status=all"
-            chunk = _get(url)
-            for t in chunk:
-                tid = t.get('id')
-                if tid and tid not in tasks_by_id:
-                    tasks_by_id[tid] = t
-        # index como offset absoluto (1,201,401) + range correspondente
-        for start in (1, 201, 401):
-            end = start + 199
-            url = f"{base}?index={start}&range={start}-{end}&status=all"
-            chunk = _get(url)
-            for t in chunk:
-                tid = t.get('id')
-                if tid and tid not in tasks_by_id:
-                    tasks_by_id[tid] = t
-        # page/per_page (páginas 1..3)
-        for page in (1, 2, 3):
-            url = f"{base}?page={page}&per_page=200&status=all"
+        # OTIMIZADO: Apenas as tentativas mais eficientes para evitar timeout
+        # 1) Range simples (geralmente funciona)
+        url = f"{base}?range=1-400&status={status}"
+        chunk = _get(url)
+        for t in chunk:
+            tid = t.get('id')
+            if tid and tid not in tasks_by_id:
+                tasks_by_id[tid] = t
+        
+        # 2) Se não pegou tarefas suficientes, tenta com index
+        if len(tasks_by_id) < 50:
+            url = f"{base}?index=1&range=1-400&status=all"
             chunk = _get(url)
             for t in chunk:
                 tid = t.get('id')
@@ -111,9 +94,7 @@ def _listar_tarefas_quick(project_id: str, headers: dict) -> list[dict]:
                     tasks_by_id[tid] = t
 
     _collect_once()
-    if len(tasks_by_id) < 120:
-        # Removido sleep(5) para evitar bloqueio. Se necessário, implemente polling assíncrono.
-        _collect_once()
+    # REMOVIDO: Segunda coleta que causava dobro de tempo
 
     # Fallback por Custom View se configurada e ainda baixo
     if len(tasks_by_id) < 120 and DEFAULT_TASKS_CUSTOM_VIEW_ID:
@@ -288,10 +269,10 @@ def api_criar_projeto():
 
                 # Aguardar tempo suficiente para tarefas do template materializarem
                 logger.info("Sincronização das tarefas iniciada. (Polling para aguardar materialização das tarefas)")
-                # Polling: aguarda até 10s ou até que tarefas sejam criadas (otimizado para evitar timeout)
+                # Polling: aguarda até 5s ou até que tarefas sejam criadas (otimizado para evitar timeout)
                 import time
-                polling_timeout = 10  # Reduzido para 10s para dar mais tempo ao processamento pós-criação
-                polling_interval = 2  # Reduzido para 2s para fazer mais tentativas rápidas
+                polling_timeout = 5  # REDUZIDO: 5s para evitar timeout do Gunicorn
+                polling_interval = 1  # REDUZIDO: 1s para fazer mais tentativas rápidas
                 polling_start = time.time()
                 tasks = []
                 while time.time() - polling_start < polling_timeout:
@@ -378,11 +359,11 @@ def api_criar_projeto():
                                     return task
                             return None
 
-                        # Limite de tempo total para processamento pós-criação: 15 segundos
-                        # Com polling de ~10s, temos ~5s restantes para evitar timeout de 30s
+                        # Limite de tempo total para processamento pós-criação: 10 segundos
+                        # Com polling de ~5s, temos ~10s para pós-criação e ainda ~15s de margem para resposta (total 30s)
                         import time
                         post_creation_start = time.time()
-                        post_creation_timeout = 15
+                        post_creation_timeout = 10  # REDUZIDO: de 15s para 10s
                         
                         def check_timeout():
                             """Verifica se ainda há tempo disponível para processamento"""
@@ -410,7 +391,7 @@ def api_criar_projeto():
                                         url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
                                         headers_rest = {"Authorization": f"Bearer {access_token}"}
                                         payload_rest = {"person_responsible": str(gp_zpuid)}
-                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=10)  # Timeout reduzido
+                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)  # Timeout reduzido para 5s
                                         if resp_rest.status_code in (200, 201):
                                             logger.info(f"Atribuição via REST bem-sucedida '{nome_tarefa}'.")
                                         else:
@@ -439,7 +420,7 @@ def api_criar_projeto():
                                             url_rest_assign = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
                                             headers_rest = {"Authorization": f"Bearer {access_token}"}
                                             payload_rest_assign = {"person_responsible": str(gp_zpuid)}
-                                            resp_rest_assign = requests.post(url_rest_assign, headers=headers_rest, data=payload_rest_assign, timeout=10)  # Timeout reduzido
+                                            resp_rest_assign = requests.post(url_rest_assign, headers=headers_rest, data=payload_rest_assign, timeout=5)  # Timeout reduzido para 5s
                                             if resp_rest_assign.status_code in (200, 201):
                                                 logger.info(f"Reatribuição (REST) bem-sucedida para '{nome_tarefa}'.")
                                         except Exception as _:
@@ -449,7 +430,7 @@ def api_criar_projeto():
                                         url_rest_done = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
                                         headers_rest_done = {"Authorization": f"Bearer {access_token}"}
                                         payload_rest_done = {"custom_status": STATUS_CONCLUIDO_ID}
-                                        resp_rest_done = requests.post(url_rest_done, headers=headers_rest_done, data=payload_rest_done, timeout=10)  # Timeout reduzido
+                                        resp_rest_done = requests.post(url_rest_done, headers=headers_rest_done, data=payload_rest_done, timeout=5)  # Timeout reduzido para 5s
                                         if resp_rest_done.status_code in (200, 201):
                                             logger.info(f"Conclusão via REST bem-sucedida '{nome_tarefa}'.")
                                         else:
@@ -484,7 +465,7 @@ def api_criar_projeto():
                                             "bill_status": "Billable",
                                             "notes": "Relatado via automação."
                                         }
-                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=10)
+                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)  # Timeout reduzido para 5s
                                         if resp_rest.status_code in (200, 201):
                                             logger.info(f"Timesheet via REST bem-sucedido '{nome_tarefa}'.")
                                         else:
