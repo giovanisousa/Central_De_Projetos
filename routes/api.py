@@ -415,10 +415,10 @@ def api_criar_projeto():
                                             logger.info(f"Atribuição via REST bem-sucedida '{nome_tarefa}'.")
                                         else:
                                             logger.warning(f"Atribuição (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
-                                except Exception as e2:
-                                    logger.warning(f"Erro no REST de atribuição '{nome_tarefa}': {e2}")
-                            except Exception as e:
-                                logger.warning(f"Erro ao atribuir '{nome_tarefa}': {e}")
+                                    except Exception as e2:
+                                        logger.warning(f"Erro no REST de atribuição '{nome_tarefa}': {e2}")
+                                except Exception as e:
+                                    logger.warning(f"Erro ao atribuir '{nome_tarefa}': {e}")
 
                         # 4) Concluir tarefas iniciais (atribui ao GP se necessário) - com limite de tempo
                         if not check_timeout():
@@ -451,13 +451,13 @@ def api_criar_projeto():
                                         payload_rest_done = {"custom_status": STATUS_CONCLUIDO_ID}
                                         resp_rest_done = requests.post(url_rest_done, headers=headers_rest_done, data=payload_rest_done, timeout=10)  # Timeout reduzido
                                         if resp_rest_done.status_code in (200, 201):
-                                        logger.info(f"Conclusão via REST bem-sucedida '{nome_tarefa}'.")
-                                    else:
-                                        logger.warning(f"Conclusão (REST) falhou '{nome_tarefa}': {resp_rest_done.status_code} - {resp_rest_done.text[:400]}")
-                                except Exception as e2:
-                                    logger.warning(f"Erro no REST de conclusão '{nome_tarefa}': {e2}")
-                            except Exception as e:
-                                logger.warning(f"Erro ao concluir '{nome_tarefa}': {e}")
+                                            logger.info(f"Conclusão via REST bem-sucedida '{nome_tarefa}'.")
+                                        else:
+                                            logger.warning(f"Conclusão (REST) falhou '{nome_tarefa}': {resp_rest_done.status_code} - {resp_rest_done.text[:400]}")
+                                    except Exception as e2:
+                                        logger.warning(f"Erro no REST de conclusão '{nome_tarefa}': {e2}")
+                                except Exception as e:
+                                    logger.warning(f"Erro ao concluir '{nome_tarefa}': {e}")
 
                         # 5) Lançar timesheet nas tarefas concluídas conforme TEMPO_RELATO
                         if not check_timeout():
@@ -491,8 +491,8 @@ def api_criar_projeto():
                                             logger.warning(f"Timesheet (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
                                     except Exception as e2:
                                         logger.warning(f"Erro no REST de timesheet '{nome_tarefa}': {e2}")
-                            except Exception as e:
-                                logger.warning(f"Erro ao lançar timesheet '{nome_tarefa}': {e}")
+                                except Exception as e:
+                                    logger.warning(f"Erro ao lançar timesheet '{nome_tarefa}': {e}")
                     else:
                         logger.info("Projeto não criado ou GP inválido; etapa de pós-criação ignorada.")
                 except Exception as e:
