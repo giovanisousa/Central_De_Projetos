@@ -288,10 +288,10 @@ def api_criar_projeto():
 
                 # Aguardar tempo suficiente para tarefas do template materializarem
                 logger.info("Sincronização das tarefas iniciada. (Polling para aguardar materialização das tarefas)")
-                # Polling: aguarda até 45s ou até que tarefas sejam criadas
+                # Polling: aguarda até 20s ou até que tarefas sejam criadas (ajustado para evitar timeout do worker)
                 import time
-                polling_timeout = 45
-                polling_interval = 5
+                polling_timeout = 20  # Reduzido de 45s para 20s para evitar timeout do Gunicorn (30s)
+                polling_interval = 3  # Reduzido de 5s para 3s para fazer mais tentativas
                 polling_start = time.time()
                 tasks = []
                 while time.time() - polling_start < polling_timeout:
@@ -2804,7 +2804,7 @@ def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_me
     from sync_zoho import synchronize_single_project
     
     max_tentativas = 3
-    polling_timeout = 10  # segundos
+    polling_timeout = 6  # Reduzido de 10s para 6s (total máximo: 18s)
     polling_interval = 2  # segundos
     for tentativa in range(1, max_tentativas + 1):
         try:
