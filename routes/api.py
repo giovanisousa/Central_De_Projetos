@@ -179,6 +179,138 @@ def sync_projects_endpoint():
         logger.exception(f"Falha na sincronização: {e}")
         return jsonify({"status": "error", "message": f"Falha na sincronização: {e}"}), 500
 
+@api_bp.route('/sync-complete', methods=['POST'])
+def sync_complete_endpoint():
+    """
+    Endpoint para sincronização COMPLETA (projetos + fases + tarefas).
+    
+    IMPORTANTE: Inicia a sincronização em background para evitar timeout.
+    Retorna imediatamente com um job_id que pode ser consultado posteriormente.
+    
+    Aceita parâmetros:
+    - force: true/false (força sincronização de todos os projetos)
+    - phases_only: true/false (sincroniza apenas fases)
+    - async: true/false (default: true - executa em background)
+    """
+    try:
+        data = request.get_json() or {}
+        force = data.get('force', False)
+        phases_only = data.get('phases_only', False)
+        run_async = data.get('async', True)  # Default: executar em background
+        
+        if run_async:
+            # Executa em background para evitar timeout
+            import threading
+            import uuid
+            
+            job_id = str(uuid.uuid4())[:8]
+            
+            def run_sync_in_background():
+                """Função que executa a sincronização em thread separada"""
+                try:
+                    logger.info(f"[SYNC_JOB_{job_id}] Iniciando sincronização em background - force={force}, phases_only={phases_only}")
+                    
+                    from sync_zoho import sync_all_phases_for_existing_projects
+                    from database import update_last_sync_time, Session, Project, Fase
+                    
+                    # Estatísticas antes
+                    session = Session()
+                    try:
+                        projects_antes = session.query(Project).count()
+                        fases_antes = session.query(Fase).count()
+                        logger.info(f"[SYNC_JOB_{job_id}] Antes: {projects_antes} projetos, {fases_antes} fases")
+                    finally:
+                        session.close()
+                    
+                    if phases_only:
+                        logger.info(f"[SYNC_JOB_{job_id}] Sincronizando apenas fases...")
+                        sync_all_phases_for_existing_projects()
+                    else:
+                        if force:
+                            logger.info(f"[SYNC_JOB_{job_id}] Forçando sincronização completa")
+                            update_last_sync_time('2000-01-01T00:00:00Z')
+                        
+                        logger.info(f"[SYNC_JOB_{job_id}] Sincronizando projetos...")
+                        synchronize_projects()
+                        
+                        logger.info(f"[SYNC_JOB_{job_id}] Sincronizando fases...")
+                        sync_all_phases_for_existing_projects()
+                    
+                    # Estatísticas depois
+                    session = Session()
+                    try:
+                        projects_depois = session.query(Project).count()
+                        fases_depois = session.query(Fase).count()
+                        logger.info(f"[SYNC_JOB_{job_id}] Depois: {projects_depois} projetos (+{projects_depois-projects_antes}), {fases_depois} fases (+{fases_depois-fases_antes})")
+                        logger.info(f"[SYNC_JOB_{job_id}] ✓ Sincronização concluída com sucesso")
+                    finally:
+                        session.close()
+                        
+                except Exception as e:
+                    logger.exception(f"[SYNC_JOB_{job_id}] ✗ Erro na sincronização: {e}")
+            
+            # Inicia thread em background
+            sync_thread = threading.Thread(target=run_sync_in_background, daemon=True)
+            sync_thread.start()
+            
+            return jsonify({
+                "status": "started",
+                "message": "Sincronização iniciada em background (evita timeout HTTP)",
+                "job_id": job_id,
+                "note": "Acompanhe o progresso nos logs do servidor. A sincronização pode levar 10-30 minutos.",
+                "params": {
+                    "force": force,
+                    "phases_only": phases_only
+                }
+            })
+        
+        else:
+            # Execução síncrona (AVISO: pode causar timeout!)
+            logger.warning("[SYNC_COMPLETE] Executando sincronização SÍNCRONA - pode causar timeout!")
+            
+            from sync_zoho import sync_all_phases_for_existing_projects
+            from database import update_last_sync_time, Session, Project, Fase
+            
+            session = Session()
+            try:
+                projects_antes = session.query(Project).count()
+                fases_antes = session.query(Fase).count()
+            finally:
+                session.close()
+            
+            if phases_only:
+                sync_all_phases_for_existing_projects()
+            else:
+                if force:
+                    update_last_sync_time('2000-01-01T00:00:00Z')
+                synchronize_projects()
+                sync_all_phases_for_existing_projects()
+            
+            session = Session()
+            try:
+                projects_depois = session.query(Project).count()
+                fases_depois = session.query(Fase).count()
+            finally:
+                session.close()
+            
+            return jsonify({
+                "status": "success",
+                "message": "Sincronização completa concluída",
+                "stats": {
+                    "projetos_antes": projects_antes,
+                    "projetos_depois": projects_depois,
+                    "projetos_novos": projects_depois - projects_antes,
+                    "fases_antes": fases_antes,
+                    "fases_depois": fases_depois,
+                    "fases_novas": fases_depois - fases_antes,
+                    "media_fases_por_projeto": round(fases_depois / projects_depois, 1) if projects_depois > 0 else 0
+                }
+            })
+        
+    except Exception as e:
+        logger.exception(f"[SYNC_COMPLETE] Erro ao iniciar sincronização: {e}")
+        return jsonify({"status": "error", "message": f"Falha ao iniciar sincronização: {str(e)}"}), 500
+
 @api_bp.route('/criar-projeto', methods=['POST'])
 def api_criar_projeto():
     if 'credentials' not in session:
