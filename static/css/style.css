@@ -2341,12 +2341,17 @@ body.login-page {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    background-attachment: fixed; /* Melhora performance no scroll */
+    background-color: #1a1a2e; /* Fallback durante carregamento */
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 0;
     margin: 0;
     height: 100vh;
+    /* Força hardware acceleration para melhor performance */
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 .login-container {

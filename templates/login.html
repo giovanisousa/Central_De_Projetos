@@ -4,6 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Dashboard de Projetos</title>
+    
+    <!-- Preload da imagem de fundo para carregamento instantâneo -->
+    <link rel="preload" as="image" href="{{ url_for('static', filename='images/plano-de-fundo.png') }}">
+    
+    <!-- CSS inline crítico para evitar flash de conteúdo não estilizado -->
+    <style>
+        body.login-page {
+            background-image: url("{{ url_for('static', filename='images/plano-de-fundo.png') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+            height: 100vh;
+            /* Cor de fallback enquanto a imagem carrega */
+            background-color: #1a1a2e;
+        }
+    </style>
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="login-page">

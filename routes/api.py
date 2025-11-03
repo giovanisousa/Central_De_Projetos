@@ -643,21 +643,18 @@ def carregar_projetos():
             try:
                 project_row = database.get_project_by_id(projeto_id)
                 if project_row:
-                    # sqlite3.Row: acessar por nome de coluna (não tem .get())
-                    try:
-                        data_mudanca_status = project_row['data_mudanca_status']
-                        data_homologacao_prevista = project_row['data_homologacao_prevista']
-                        data_de_virada = project_row['data_de_virada']
-                        data_de_inicio_da_oa = project_row['data_de_inicio_da_oa']
-                        implantador_ris = project_row['implantador_ris']
-                        implantador_pacs = project_row['implantador_pacs']
-                        implantador_homologacao_ris = project_row['implantador_homologacao_ris']
-                        implantador_homologacao_pacs = project_row['implantador_homologacao_pacs']
-                        implantador_virada_ris = project_row['implantador_virada_ris']
-                        implantador_virada_pacs = project_row['implantador_virada_pacs']
-                        produtos_contratados_json = project_row['produtos_contratados']
-                    except (KeyError, IndexError):
-                        pass
+                    # Objeto SQLAlchemy Project: acessar como atributo
+                    data_mudanca_status = project_row.data_mudanca_status
+                    data_homologacao_prevista = project_row.data_homologacao_prevista
+                    data_de_virada = project_row.data_de_virada
+                    data_de_inicio_da_oa = project_row.data_de_inicio_da_oa
+                    implantador_ris = project_row.implantador_ris
+                    implantador_pacs = project_row.implantador_pacs
+                    implantador_homologacao_ris = project_row.implantador_homologacao_ris
+                    implantador_homologacao_pacs = project_row.implantador_homologacao_pacs
+                    implantador_virada_ris = project_row.implantador_virada_ris
+                    implantador_virada_pacs = project_row.implantador_virada_pacs
+                    produtos_contratados_json = project_row.produtos_contratados
             except Exception as e:
                 logger.warning(f"Erro ao buscar dados do projeto {projeto_id}: {e}")
             
@@ -898,7 +895,7 @@ def api_mover_projeto():
         except Exception:
             pass
 
-        full_data_json = project_row['full_data_json'] if 'full_data_json' in project_row.keys() else None
+        full_data_json = project_row.full_data_json if project_row and hasattr(project_row, 'full_data_json') else None
         detalhes_zoho = json.loads(full_data_json) if full_data_json else {}
         colmap = utils.carregar_mapeamento_colunas()
         info_dest = colmap.get(coluna_destino) or {}
@@ -1597,7 +1594,8 @@ def _atualizar_planilha(
 
     if not chave_busca and project_row is not None:
         try:
-            candidato = project_row["cliente"] if isinstance(project_row, sqlite3.Row) else project_row.get("cliente")
+            # project_row é um objeto SQLAlchemy Project, não um dicionário
+            candidato = project_row.cliente if hasattr(project_row, 'cliente') else None
         except Exception:
             candidato = None
         chave_busca = _sanitizar_cliente(candidato)
@@ -1806,18 +1804,15 @@ def iniciar_implantacao():
         project_row = database.get_project_by_id(project_id)
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
-        detalhes_zoho = json.loads(project_row['full_data_json'])
+        detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
         
         # ==== IDENTIFICAR FERRAMENTAS CONTRATADAS DO BANCO DE DADOS ====
         # Regras de negócio:
         # - Projetos com netRIS (independente de ter AP ou não): 60 dias corridos
         # - Projetos apenas AnimatiPACS: 35 dias corridos
         
-        # sqlite3.Row usa acesso por índice/coluna, não .get()
-        try:
-            produtos_contratados_json = project_row['produtos_contratados']
-        except (KeyError, IndexError):
-            produtos_contratados_json = None
+        # Objeto SQLAlchemy Project: acessar como atributo
+        produtos_contratados_json = project_row.produtos_contratados if project_row else None
         
         try:
             if produtos_contratados_json:
@@ -2322,7 +2317,7 @@ def agendar_homologacao():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         
-        detalhes_zoho = json.loads(project_row['full_data_json'])
+        detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
         
         # Obter access token
         try:
@@ -2577,7 +2572,7 @@ def agendar_virada():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         
-        detalhes_zoho = json.loads(project_row['full_data_json'])
+        detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
         
         # Obter access token
         try:
@@ -2830,7 +2825,7 @@ def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_me
                 
                 if project_row:
                     import json
-                    detalhes_zoho = json.loads(project_row['full_data_json'])
+                    detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
                     
                     # Verificar se tem a tag de implantação
                     tags = detalhes_zoho.get('tags', [])

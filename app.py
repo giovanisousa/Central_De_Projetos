@@ -7,6 +7,10 @@ import traceback
 import urllib.parse
 from datetime import date, datetime, timedelta
 import logging # Import logging
+import warnings
+
+# Suprime warning do googleapiclient sobre file_cache (é apenas informativo, não afeta funcionalidade)
+warnings.filterwarnings('ignore', message='file_cache is only supported with oauth2client<4.0.0')
 
 # Carrega variáveis do .env automaticamente
 try:
@@ -87,6 +91,24 @@ if Session:
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     except Exception as e:
         logger.error(f"Erro ao criar diretório de upload: {e}")
+
+# Configurar cache para arquivos estáticos (imagens, CSS, JS)
+@app.after_request
+def add_header(response):
+    """
+    Adiciona headers de cache para arquivos estáticos para melhorar performance.
+    Imagens de fundo e assets carregam instantaneamente após primeira visita.
+    """
+    if 'static' in request.path:
+        # Cache por 1 ano para assets estáticos (imagens, fonts, etc)
+        if any(ext in request.path for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf']):
+            response.cache_control.max_age = 31536000  # 1 ano
+            response.cache_control.public = True
+        # Cache por 1 semana para CSS e JS
+        elif any(ext in request.path for ext in ['.css', '.js']):
+            response.cache_control.max_age = 604800  # 1 semana
+            response.cache_control.public = True
+    return response
 
     # Sincronização automática se o banco estiver vazio (executa sempre que o app é importado)
     try:
