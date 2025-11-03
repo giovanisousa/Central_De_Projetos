@@ -287,7 +287,7 @@ railway run python sync_complete.py --phases-only
 
 ### Problema: "Poucas fases no banco (menos de 500)"
 
-**Causa:** Sincronização inicial nunca foi executada
+**Causa:** Sincronização inicial nunca foi executada ou projetos sem milestones habilitados
 
 **Solução:** Execute a sincronização inicial:
 ```powershell
@@ -295,6 +295,8 @@ railway run python sync_complete.py --phases-only
 ```
 
 **Resultado esperado:** ~800 fases (100 projetos × 8 fases cada)
+
+**⚠️ Nota:** Alguns projetos podem não ter milestones (fases) habilitados no Zoho Projects. Nesses casos, a API retornará erro 400 e o projeto será ignorado. Isso é normal e esperado.
 
 ---
 
