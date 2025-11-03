@@ -377,7 +377,12 @@ def sync_all_phases_for_existing_projects():
         projetos = session.query(Project).all()
         total = len(projetos)
         
-        print(f"[SYNC] Sincronizando fases para {total} projetos...\n")
+        print(f"[SYNC] Sincronizando fases para {total} projetos...")
+        print(f"[SYNC] ⚠️ Zoho API Rate Limit: 100 req/2min - usando delay de 2s entre projetos\n")
+        
+        sucessos = 0
+        falhas = 0
+        fases_total_sincronizadas = 0
         
         for idx, projeto in enumerate(projetos, 1):
             project_id = projeto.id
@@ -387,25 +392,57 @@ def sync_all_phases_for_existing_projects():
             
             try:
                 fases_sincronizadas = sync_fases(project_id, access_token)
-                print(f"  ✓ {len(fases_sincronizadas)} fases sincronizadas")
+                num_fases = len(fases_sincronizadas)
+                if num_fases > 0:
+                    print(f"  ✓ {num_fases} fases sincronizadas")
+                    sucessos += 1
+                    fases_total_sincronizadas += num_fases
+                else:
+                    print(f"  ⚠ 0 fases (projeto pode não ter milestones)")
+                    falhas += 1
             except Exception as e:
-                print(f"  ✗ Erro ao sincronizar fases: {e}")
+                error_msg = str(e)
+                if "THROTTLES_LIMIT_EXCEEDED" in error_msg or "429" in error_msg:
+                    print(f"  ⏸ Rate limit atingido! Aguardando 120 segundos...")
+                    time.sleep(120)  # Aguardar 2 minutos
+                    print(f"  ↻ Tentando novamente...")
+                    try:
+                        fases_sincronizadas = sync_fases(project_id, access_token)
+                        print(f"  ✓ {len(fases_sincronizadas)} fases sincronizadas (após retry)")
+                        sucessos += 1
+                        fases_total_sincronizadas += len(fases_sincronizadas)
+                    except Exception as retry_error:
+                        print(f"  ✗ Erro mesmo após retry: {retry_error}")
+                        falhas += 1
+                else:
+                    print(f"  ✗ Erro ao sincronizar fases: {e}")
+                    falhas += 1
             
-            # Pequeno delay para não sobrecarregar a API
-            if idx % 10 == 0:
-                print(f"  [SYNC] Processados {idx}/{total} projetos. Aguardando 2s...")
+            # Delay de 2 segundos entre cada projeto para respeitar rate limit
+            # 2s/projeto = 30 projetos/minuto = 60 projetos/2min (dentro do limite de 100)
+            if idx < total:  # Não precisa esperar no último
                 time.sleep(2)
+            
+            # A cada 10 projetos, mostrar progresso
+            if idx % 10 == 0:
+                print(f"\n  📊 Progresso: {idx}/{total} projetos | ✓ {sucessos} sucessos | ✗ {falhas} falhas | {fases_total_sincronizadas} fases\n")
         
         # Estatísticas depois
         total_fases_depois = session.query(Fase).count()
         media_depois = total_fases_depois / total_projetos if total_projetos > 0 else 0
         fases_adicionadas = total_fases_depois - total_fases_antes
         
-        print(f"\nEstatísticas DEPOIS:")
+        print(f"\n{'='*80}")
+        print(f"Estatísticas DEPOIS:")
         print(f"- Total de projetos: {total_projetos}")
         print(f"- Total de fases: {total_fases_depois}")
         print(f"- Média de fases por projeto: {media_depois:.1f}")
-        print(f"- Fases adicionadas: {fases_adicionadas}\n")
+        print(f"- Fases adicionadas: {fases_adicionadas}")
+        print(f"\nResumo da sincronização:")
+        print(f"- ✓ Sucessos: {sucessos}/{total} ({sucessos/total*100:.1f}%)")
+        print(f"- ✗ Falhas: {falhas}/{total} ({falhas/total*100:.1f}%)")
+        print(f"- 📊 Fases sincronizadas nesta execução: {fases_total_sincronizadas}")
+        print(f"{'='*80}\n")
         
         print("[SYNC] ✅ Sincronização completa concluída!\n")
         
