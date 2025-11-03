@@ -285,7 +285,6 @@ def synchronize_projects():
             page += 1
             time.sleep(1)
             # Polling: aguarda até 2s ou até que próxima página esteja disponível
-            import time
             polling_timeout = 2
             polling_interval = 1
             polling_start = time.time()
@@ -346,78 +345,5 @@ def synchronize_single_project(project_id, access_token):
         return False
 
 
-def sync_all_phases_for_existing_projects():
-    """
-    Sincroniza as fases de TODOS os projetos já presentes no banco de dados.
-    Útil para popular fases que não foram sincronizadas anteriormente.
-    """
-    print("=== Iniciando sincronização de TODAS as fases dos projetos existentes ===")
-    
-    try:
-        # Importa aqui para evitar importação circular
-        from database import Session, Project, Fase
-        
-        # Obter access token
-        access_token = obter_access_token_zoho()
-        
-        # Buscar todos os projetos do banco
-        session = Session()
-        try:
-            all_projects = session.query(Project).all()
-            total_projects = len(all_projects)
-            print(f"Encontrados {total_projects} projetos no banco de dados")
-            
-            # Contar fases existentes antes
-            fases_antes = session.query(Fase).count()
-            print(f"Fases no banco ANTES da sincronização: {fases_antes}")
-            
-            # Sincronizar fases para cada projeto
-            projetos_sincronizados = 0
-            total_fases_sincronizadas = 0
-            
-            for idx, project in enumerate(all_projects, 1):
-                project_id = project.id
-                project_name = project.nome
-                
-                print(f"\n[{idx}/{total_projects}] Sincronizando fases do projeto: {project_name} (ID: {project_id})")
-                
-                try:
-                    fases_do_projeto = sync_fases(project_id, access_token)
-                    total_fases_sincronizadas += len(fases_do_projeto)
-                    projetos_sincronizados += 1
-                    print(f"  ✓ {len(fases_do_projeto)} fases sincronizadas")
-                    
-                    # Pequeno delay para não sobrecarregar a API
-                    time.sleep(0.3)
-                    
-                except Exception as e:
-                    print(f"  ✗ Erro ao sincronizar fases: {e}")
-                    continue
-            
-            # Contar fases depois
-            session.close()
-            session = Session()
-            fases_depois = session.query(Fase).count()
-            print(f"\n=== Sincronização concluída ===")
-            print(f"Projetos processados: {projetos_sincronizados}/{total_projects}")
-            print(f"Fases no banco ANTES: {fases_antes}")
-            print(f"Fases no banco DEPOIS: {fases_depois}")
-            print(f"Fases adicionadas: {fases_depois - fases_antes}")
-            print(f"Total de fases sincronizadas (API): {total_fases_sincronizadas}")
-            
-        finally:
-            session.close()
-            
-    except Exception as e:
-        print(f"ERRO ao sincronizar todas as fases: {e}")
-        import traceback
-        traceback.print_exc()
-
-
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "--sync-all-phases":
-        sync_all_phases_for_existing_projects()
-    else:
-        synchronize_projects()
-
+    synchronize_projects()
