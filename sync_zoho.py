@@ -95,7 +95,6 @@ def sync_fases(projeto_id, access_token):
 
             time.sleep(0.5)
             # Polling: aguarda até 2s ou até que resposta da API esteja disponível
-            import time
             polling_timeout = 2
             polling_interval = 0.5
             polling_start = time.time()
