@@ -778,11 +778,21 @@ def avaliar_campos_personalizados(info_dest: dict | None) -> dict:
 
 def criar_estrutura_no_drive(drive_service, dados):
     try:
-        produto_map = {"netRIS": "1", "AnimatiPACS": "2", "netRIS e AnimatiPACS": "3"}
+        # Mapeamento expandido para suportar todas as variações de produto
+        produto_map = {
+            "netRIS": "1",
+            "AnimatiPACS": "2",
+            "netRIS e AnimatiPACS": "3",
+            "AnimatiPACS/netRIS": "3",  # Variação usada no formulário
+            "AnimatiPACS / netRIS": "3",  # Com espaços
+            "netRIS/AnimatiPACS": "3",  # Ordem inversa
+            "netRIS / AnimatiPACS": "3"  # Com espaços
+        }
         produto_id = produto_map.get(dados['produto'], "2")
+        # Se tiver NETRIS (produto_id 1 ou 3), usa pasta NETRIS, senão usa AnimatiPACS
         id_pasta_pai = ID_PASTA_PAI_NETRIS if produto_id in ['1', '3'] else ID_PASTA_PAI_ANIMATIPACS
         nome_pasta_cliente = construir_titulo_projeto(dados)
-        print(f"INFO: Criando pasta no Drive: {nome_pasta_cliente}")
+        print(f"INFO: Criando pasta no Drive: {nome_pasta_cliente} (Produto: {dados['produto']} -> ID: {produto_id} -> Pasta: {'NETRIS' if produto_id in ['1', '3'] else 'AnimatiPACS'})")
         query = (
             "name = '" + nome_pasta_cliente.replace("'", "'" ) + "' and "
             "mimeType = 'application/vnd.google-apps.folder' and "

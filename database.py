@@ -23,6 +23,11 @@ Base = declarative_base()
 engine = create_engine(SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
 
+# Função para obter conexão direta ao banco (para queries SQL raw)
+def get_db_connection():
+    """Retorna uma conexão SQLAlchemy para executar queries SQL diretas."""
+    return engine.connect()
+
 # --- Definição dos Modelos SQLAlchemy ---
 
 class Project(Base):

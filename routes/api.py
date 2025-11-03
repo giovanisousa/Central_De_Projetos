@@ -845,11 +845,8 @@ def api_dias_na_fase(project_id):
             if not project_row:
                 return jsonify({"project_id": project_id, "dias_na_fase": 'N/D', "erro": "Projeto não encontrado"}), 404
             
-            # sqlite3.Row: acessar por nome de coluna (não tem .get())
-            try:
-                data_mudanca = project_row['data_mudanca_status']
-            except (KeyError, IndexError):
-                data_mudanca = None
+            # Objeto SQLAlchemy Project: acessar como atributo
+            data_mudanca = project_row.data_mudanca_status if project_row else None
             
             # Armazena no cache de query
             current_app.config['_DIAS_FASE_CACHE'][cache_key] = {
