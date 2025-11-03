@@ -350,64 +350,6 @@ def sync_all_phases_for_existing_projects():
     Sincroniza todas as fases de todos os projetos existentes no banco de dados.
     Útil para preencher dados de fases que não foram sincronizados anteriormente.
     """
-<<<<<<< Updated upstream
-    from database import db, Project, Fase
-    
-    print("\n=== SINCRONIZANDO FASES DE TODOS OS PROJETOS ===\n")
-    
-    # Estatísticas antes
-    total_projetos = Project.query.count()
-    total_fases_antes = Fase.query.count()
-    media_antes = total_fases_antes / total_projetos if total_projetos > 0 else 0
-    
-    print(f"Estatísticas ANTES:")
-    print(f"- Total de projetos: {total_projetos}")
-    print(f"- Total de fases: {total_fases_antes}")
-    print(f"- Média de fases por projeto: {media_antes:.1f}\n")
-    
-    # Obter access token
-    try:
-        access_token = obter_access_token_zoho()
-    except Exception as e:
-        print(f"✗ Erro ao obter access token: {e}")
-        return
-    
-    # Sincronizar fases de cada projeto
-    projetos = Project.query.all()
-    total = len(projetos)
-    
-    print(f"[SYNC] Sincronizando fases para {total} projetos...\n")
-    
-    for idx, projeto in enumerate(projetos, 1):
-        project_id = projeto.id_zoho
-        project_name = projeto.name or "Sem nome"
-        
-        print(f"[{idx}/{total}] Sincronizando fases do projeto: {project_name} (ID: {project_id})")
-        
-        try:
-            fases_sincronizadas = sync_fases(project_id, access_token)
-            print(f"  ✓ {len(fases_sincronizadas)} fases sincronizadas")
-        except Exception as e:
-            print(f"  ✗ Erro ao sincronizar fases: {e}")
-        
-        # Pequeno delay para não sobrecarregar a API
-        if idx % 10 == 0:
-            print(f"  [SYNC] Processados {idx}/{total} projetos. Aguardando 2s...")
-            time.sleep(2)
-    
-    # Estatísticas depois
-    total_fases_depois = Fase.query.count()
-    media_depois = total_fases_depois / total_projetos if total_projetos > 0 else 0
-    fases_adicionadas = total_fases_depois - total_fases_antes
-    
-    print(f"\nEstatísticas DEPOIS:")
-    print(f"- Total de projetos: {total_projetos}")
-    print(f"- Total de fases: {total_fases_depois}")
-    print(f"- Média de fases por projeto: {media_depois:.1f}")
-    print(f"- Fases adicionadas: {fases_adicionadas}\n")
-    
-    print("[SYNC] ✅ Sincronização completa concluída!\n")
-=======
     from database import Session, Project, Fase
     
     print("\n=== SINCRONIZANDO FASES DE TODOS OS PROJETOS ===\n")
@@ -470,7 +412,6 @@ def sync_all_phases_for_existing_projects():
         
     finally:
         session.close()
->>>>>>> Stashed changes
 
 
 if __name__ == "__main__":
