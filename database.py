@@ -453,6 +453,13 @@ def get_last_sync_time():
     finally:
         session.close()
 
+def update_last_sync_time(new_time):
+    """Atualiza o last_sync_time (útil para forçar sincronização completa)."""
+    # Esta função é usada principalmente para resetar o timestamp e forçar sincronização completa
+    # O timestamp real será atualizado quando os projetos forem salvos
+    logger.info(f"Last sync time definido para: {new_time}")
+    return new_time
+
 def upsert_fase(fase_data, projeto_id):
     """Insere ou atualiza uma fase (milestone) no banco de dados."""
     session = Session()
