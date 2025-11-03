@@ -381,8 +381,8 @@ def sync_all_phases_for_existing_projects():
         print(f"[SYNC] Sincronizando fases para {total} projetos...\n")
         
         for idx, projeto in enumerate(projetos, 1):
-            project_id = projeto.id_zoho
-            project_name = projeto.name or "Sem nome"
+            project_id = projeto.id
+            project_name = projeto.nome or "Sem nome"
             
             print(f"[{idx}/{total}] Sincronizando fases do projeto: {project_name} (ID: {project_id})")
             
