@@ -53,14 +53,15 @@ class Project(Base):
     data_de_inicio_da_oa = Column(String)
     data_de_onboarding = Column(String)
     status_atual = Column(String)
+    status_id = Column(String)  # ✅ NOVO: ID do status do Zoho (ex: "2376502000000020119")
     dias_na_fase = Column(String)
     dias_total = Column(String)
     data_ultima_mudanca = Column(String)
     data_mudanca_status = Column(String)
     link_google = Column(String)
-    tags = Column(Text) # Comma-separated string
+    tags = Column(Text) # JSON array string com IDs das tags
     precisa_comentario = Column(Boolean, default=True)
-    full_data_json = Column(Text) # JSON string
+    full_data_json = Column(Text) # JSON string - DEPRECATED, usar colunas normalizadas
     data_ultimo_comentario = Column(String)
     implantador_ris = Column(String)
     implantador_pacs = Column(String)
@@ -394,6 +395,7 @@ def upsert_project(project_data):
             'data_inicio_oa': data_inicio_oa,
             'data_de_onboarding': _get_custom_field(project_data, 'Data de Onboarding'),
             'status_atual': project_data.get('status', {}).get('name'),
+            'status_id': project_data.get('status', {}).get('id'),  # ✅ NOVO: ID do status
             'dias_na_fase': dias_na_fase_calc,
             'dias_total': dias_total_calc,
             'data_ultima_mudanca': project_data.get('last_modified_time'),
@@ -452,13 +454,6 @@ def get_last_sync_time():
         return last_sync[0] if last_sync and last_sync[0] else '2000-01-01T00:00:00Z'
     finally:
         session.close()
-
-def update_last_sync_time(new_time):
-    """Atualiza o last_sync_time (útil para forçar sincronização completa)."""
-    # Esta função é usada principalmente para resetar o timestamp e forçar sincronização completa
-    # O timestamp real será atualizado quando os projetos forem salvos
-    logger.info(f"Last sync time definido para: {new_time}")
-    return new_time
 
 def upsert_fase(fase_data, projeto_id):
     """Insere ou atualiza uma fase (milestone) no banco de dados."""
