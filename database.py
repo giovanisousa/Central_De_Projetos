@@ -320,8 +320,12 @@ def upsert_project(project_data):
         integracao_escopo = desc_data['integracao_escopo']
         link_google = project_data.get('link_do_google') or desc_data['link_google']
 
+        # ✅ CORRIGIDO: Salvar tags como JSON array com IDs, não apenas nomes
         tags_list = project_data.get('tags', [])
-        tags_str = ', '.join(tag.get('name', '') for tag in tags_list if tag.get('name')) if tags_list else None
+        if tags_list:
+            tags_str = json.dumps(tags_list)  # Salva o JSON completo com IDs
+        else:
+            tags_str = None
 
         start_date = project_data.get('start_date') or project_data.get('start_date_string')
         created_time = project_data.get('created_time') or project_data.get('created_time_string')
