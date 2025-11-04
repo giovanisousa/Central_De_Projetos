@@ -2904,7 +2904,7 @@ def determinar_coluna_projeto_from_db(project_row) -> str:
     ✅ Versão otimizada que trabalha com colunas normalizadas, não JSON.
     
     Args:
-        project_row: Objeto database.Project com atributos como id_status, tags, etc.
+        project_row: Objeto database.Project com atributos como status_atual, tags, etc.
     
     Returns:
         str: Nome da coluna do Kanban
@@ -2924,20 +2924,23 @@ def determinar_coluna_projeto_from_db(project_row) -> str:
         print(f"Erro ao carregar mapeamento_colunas.json: {e}")
         return 'Status Desconhecido'
     
-    # Obtém dados do projeto (colunas do banco)
-    status_id = str(project_row.id_status or '')
+    # Obtém status_id do full_data_json (temporariamente até adicionar coluna)
+    status_id = ''
     status_name = (project_row.status_atual or '').strip()
     
-    # Parseia tags (armazenadas como JSON string ou lista)
+    if project_row.full_data_json:
+        try:
+            projeto_data = json.loads(project_row.full_data_json)
+            status_id = str(projeto_data.get('status', {}).get('id', ''))
+        except:
+            pass
+    
+    # Parseia tags (armazenadas como texto separado por vírgula OU JSON)
     tag_ids = []
     if project_row.tags:
         try:
-            if isinstance(project_row.tags, str):
-                tags_parsed = json.loads(project_row.tags)
-            else:
-                tags_parsed = project_row.tags
-            
-            # Se é lista de dicts, extrai IDs
+            # Tenta como JSON primeiro
+            tags_parsed = json.loads(project_row.tags)
             if isinstance(tags_parsed, list):
                 for tag in tags_parsed:
                     if isinstance(tag, dict):
@@ -2945,7 +2948,8 @@ def determinar_coluna_projeto_from_db(project_row) -> str:
                     else:
                         tag_ids.append(str(tag))
         except:
-            pass
+            # Se não for JSON, assume CSV
+            tag_ids = [t.strip() for t in project_row.tags.split(',') if t.strip()]
     
     # Verifica status especiais
     if status_name.lower() in ('completed', 'finalizado'):
