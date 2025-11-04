@@ -2924,20 +2924,29 @@ def determinar_coluna_projeto_from_db(project_row) -> str:
         print(f"Erro ao carregar mapeamento_colunas.json: {e}")
         return 'Status Desconhecido'
     
-    # Obtém status_id do full_data_json (temporariamente até adicionar coluna)
+    # Obtém status_id e tags do full_data_json (temporariamente até adicionar colunas)
     status_id = ''
     status_name = (project_row.status_atual or '').strip()
+    tag_ids = []
     
     if project_row.full_data_json:
         try:
             projeto_data = json.loads(project_row.full_data_json)
             status_id = str(projeto_data.get('status', {}).get('id', ''))
+            
+            # Extrai tags do JSON (mais confiável que a coluna tags que pode estar vazia)
+            tags_json = projeto_data.get('tags', [])
+            if isinstance(tags_json, list):
+                for tag in tags_json:
+                    if isinstance(tag, dict):
+                        tag_ids.append(str(tag.get('id', '')))
+                    else:
+                        tag_ids.append(str(tag))
         except:
             pass
     
-    # Parseia tags (armazenadas como texto separado por vírgula OU JSON)
-    tag_ids = []
-    if project_row.tags:
+    # Fallback: tenta parsear coluna tags se full_data_json falhou
+    if not tag_ids and project_row.tags:
         try:
             # Tenta como JSON primeiro
             tags_parsed = json.loads(project_row.tags)
