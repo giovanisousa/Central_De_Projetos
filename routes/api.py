@@ -757,7 +757,7 @@ def carregar_projetos():
                 'id': project_row.id,
                 'nome': project_row.nome or '',
                 'cliente': project_row.cliente or 'Cliente não informado',
-                'gp': project_row.nome_proprietario or 'GP não informado',
+                'gp': project_row.gp or 'GP não informado',
                 'data_inicio': project_row.data_inicio or '',
                 'data_criacao': project_row.data_criacao or '',
                 'data_inicio_formatada': project_row.data_inicio or '',
@@ -783,10 +783,19 @@ def carregar_projetos():
             projetos_por_status[status_kanban].append(info_projeto)
 
             if status_kanban not in colunas_validas:
+                # Extrai status_id do full_data_json para log de auditoria
+                status_id_audit = ''
+                if project_row.full_data_json:
+                    try:
+                        projeto_data = json.loads(project_row.full_data_json)
+                        status_id_audit = projeto_data.get('status', {}).get('id', '')
+                    except:
+                        pass
+                
                 projetos_nao_mapeados.append({
                     'id': project_row.id,
                     'nome': project_row.nome,
-                    'status_id': project_row.id_status,
+                    'status_id': status_id_audit,
                     'status_nome': project_row.status_atual,
                     'tags': project_row.tags,
                     'status_kanban': status_kanban,
