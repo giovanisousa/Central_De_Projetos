@@ -619,7 +619,12 @@ def api_criar_projeto():
 
 @api_bp.route('/carregar_projetos', methods=['POST'])
 def carregar_projetos():
-    """Carrega projetos para o Kanban a partir do banco de dados local (cache)."""
+    """
+    Carrega projetos para o Kanban consultando DIRETAMENTE as tabelas normalizadas.
+    ✅ Arquitetura correta: usa colunas do banco, não JSON duplicado
+    ✅ Performance superior: queries SQL diretas com índices
+    ✅ Sempre atualizado: single source of truth
+    """
     data = request.json
     gp_selecionado = data.get('gp')
     if not gp_selecionado or gp_selecionado not in DONOS_PROJETO:
@@ -627,16 +632,15 @@ def carregar_projetos():
 
     id_do_gp = DONOS_PROJETO[gp_selecionado]
 
-    from sqlalchemy import text
     session = database.Session()
     try:
-        rows = session.execute(text('SELECT full_data_json FROM projects')).mappings().all()
-        lista_completa_projetos = [json.loads(row['full_data_json']) for row in rows]
+        # ✅ Busca projetos diretamente da tabela normalizada filtrando por GP
+        from database import Project
+        projetos_do_gp = session.query(Project).filter(
+            Project.id_proprietario == id_do_gp
+        ).all()
     finally:
         session.close()
-
-    # O resto da lógica permanece o mesmo, pois opera sobre a estrutura de dados do Zoho
-    projetos_do_gp = [p for p in lista_completa_projetos if p.get('owner', {}).get('zpuid') == id_do_gp]
 
     projetos_por_status = {}
     colunas_validas = {
@@ -648,65 +652,27 @@ def carregar_projetos():
     projetos_nao_mapeados = []
 
     try:
-        for projeto in projetos_do_gp:
-            # Ignora projetos finalizados ou cancelados que ainda possam estar no cache
-            status_nome = (projeto.get('status', {}).get('name', '') or '').lower()
-            if projeto.get('is_completed') or status_nome in ('finalizado', 'cancelado'):
+        for project_row in projetos_do_gp:
+            # ✅ Ignora projetos finalizados ou cancelados
+            status_nome_lower = (project_row.status_atual or '').lower()
+            if status_nome_lower in ('finalizado', 'cancelado'):
                 continue
 
-            status_kanban = utils.determinar_coluna_projeto(projeto)
+            # ✅ Determina coluna do Kanban a partir das tags/status do projeto
+            status_kanban = utils.determinar_coluna_projeto_from_db(project_row)
             if status_kanban not in projetos_por_status:
                 projetos_por_status[status_kanban] = []
 
-            cliente = (
-                projeto.get('client_company', {}).get('name')
-                or projeto.get('client', {}).get('name')
-                or projeto.get('client_name')
-                or "Cliente não informado"
-            )
-            nome_projeto = projeto.get('name', '')
-            projeto_id = projeto.get('id')
-            
-            # Busca dados do banco incluindo produtos contratados
-            data_mudanca_status = None
-            data_homologacao_prevista = None
-            data_de_virada = None
-            data_de_inicio_da_oa = None
-            implantador_ris = None
-            implantador_pacs = None
-            implantador_homologacao_ris = None
-            implantador_homologacao_pacs = None
-            implantador_virada_ris = None
-            implantador_virada_pacs = None
-            produtos_contratados_json = None
+            # ✅ Parseia produtos contratados
+            produtos_contratados_json = project_row.produtos_contratados
             tem_ris = False
             tem_pacs = False
-            
-            try:
-                project_row = database.get_project_by_id(projeto_id)
-                if project_row:
-                    # Objeto SQLAlchemy Project: acessar como atributo
-                    data_mudanca_status = project_row.data_mudanca_status
-                    data_homologacao_prevista = project_row.data_homologacao_prevista
-                    data_de_virada = project_row.data_de_virada
-                    data_de_inicio_da_oa = project_row.data_de_inicio_da_oa
-                    implantador_ris = project_row.implantador_ris
-                    implantador_pacs = project_row.implantador_pacs
-                    implantador_homologacao_ris = project_row.implantador_homologacao_ris
-                    implantador_homologacao_pacs = project_row.implantador_homologacao_pacs
-                    implantador_virada_ris = project_row.implantador_virada_ris
-                    implantador_virada_pacs = project_row.implantador_virada_pacs
-                    produtos_contratados_json = project_row.produtos_contratados
-            except Exception as e:
-                logger.warning(f"Erro ao buscar dados do projeto {projeto_id}: {e}")
-            
-            # Determina produtos contratados (prioriza dados do banco)
             produto_info = ''
+            
             if produtos_contratados_json:
                 try:
                     produtos_lista = json.loads(produtos_contratados_json) if isinstance(produtos_contratados_json, str) else produtos_contratados_json
                     if isinstance(produtos_lista, list):
-                        # Verifica se tem RIS ou PACS na lista
                         for produto in produtos_lista:
                             produto_lower = str(produto).lower()
                             if 'ris' in produto_lower:
@@ -714,22 +680,18 @@ def carregar_projetos():
                             if 'pacs' in produto_lower:
                                 tem_pacs = True
                         
-                        # Monta string de exibição
                         if tem_ris and tem_pacs:
                             produto_info = 'netRIS e AnimatiPACS'
                         elif tem_ris:
                             produto_info = 'netRIS'
                         elif tem_pacs:
                             produto_info = 'AnimatiPACS'
-                        
-                        # LOG de debug
-                        logger.debug(f"[CARREGAR_PROJETOS] Projeto {projeto_id} ({nome_projeto}): produtos_lista={produtos_lista}, tem_ris={tem_ris}, tem_pacs={tem_pacs}, produto_info='{produto_info}'")
                 except Exception as e:
-                    logger.warning(f"Erro ao parsear produtos_contratados para projeto {projeto_id}: {e}")
+                    logger.warning(f"Erro ao parsear produtos para projeto {project_row.id}: {e}")
             
-            # Fallback: se não conseguiu determinar do banco, usa o nome do projeto
-            if not produto_info:  # String vazia ou None
-                logger.debug(f"[CARREGAR_PROJETOS] Usando fallback para projeto {projeto_id} ({nome_projeto})")
+            # ✅ Fallback: inferir do nome do projeto
+            if not produto_info:
+                nome_projeto = project_row.nome or ''
                 if ' - NR/AP' in nome_projeto:
                     produto_info = 'netRIS e AnimatiPACS'
                     tem_ris = True
@@ -741,21 +703,20 @@ def carregar_projetos():
                     produto_info = 'AnimatiPACS'
                     tem_pacs = True
             
-            # Calcula dias_na_fase dinamicamente
-            dias_na_fase_calc = utils.calcular_dias_na_fase_from_status(data_mudanca_status)
+            # ✅ Calcula dias na fase dinamicamente
+            dias_na_fase_calc = utils.calcular_dias_na_fase_from_status(project_row.data_mudanca_status)
             
-            # ✅ Verifica se está próximo da data de homologação (para destacar no kanban)
+            # ✅ Verifica proximidade da homologação
             proximo_homologacao = False
             dias_ate_homologacao = None
             
-            if status_kanban == 'Em Andamento - Implantação' and data_homologacao_prevista:
+            if status_kanban == 'Em Andamento - Implantação' and project_row.data_homologacao_prevista:
                 try:
                     from datetime import datetime
                     data_hoje = datetime.now().date()
-                    data_homol_dt = datetime.strptime(data_homologacao_prevista, '%Y-%m-%d').date()
+                    data_homol_dt = datetime.strptime(project_row.data_homologacao_prevista, '%Y-%m-%d').date()
                     dias_ate_homologacao = (data_homol_dt - data_hoje).days
                     
-                    # Lógica de proximidade baseada no tipo de produto
                     if tem_ris and dias_ate_homologacao <= 30:
                         proximo_homologacao = True
                     elif not tem_ris and tem_pacs and dias_ate_homologacao <= 15:
@@ -763,41 +724,43 @@ def carregar_projetos():
                 except (ValueError, TypeError):
                     pass
             
+            # ✅ Monta objeto do projeto (dados das colunas do banco)
             info_projeto = {
-                'id': projeto_id,
-                'nome': nome_projeto,
-                'cliente': cliente,
-                'gp': projeto.get('owner', {}).get('name', 'GP não informado'),
-                'data_inicio': projeto.get('start_date', ''),
-                'data_criacao': projeto.get('created_time', ''),
-                'data_inicio_formatada': projeto.get('start_date', ''),
-                'dias_na_fase': dias_na_fase_calc,  # ✅ Calculado dinamicamente
-                'dias_total': utils.calcular_dias_total_projeto(projeto.get('start_date', ''), projeto.get('created_time', '')),
+                'id': project_row.id,
+                'nome': project_row.nome or '',
+                'cliente': project_row.cliente or 'Cliente não informado',
+                'gp': project_row.nome_proprietario or 'GP não informado',
+                'data_inicio': project_row.data_inicio or '',
+                'data_criacao': project_row.data_criacao or '',
+                'data_inicio_formatada': project_row.data_inicio or '',
+                'dias_na_fase': dias_na_fase_calc,
+                'dias_total': project_row.dias_total or 0,
                 'status_atual': status_kanban,
                 'produto': produto_info,
-                'tem_ris': tem_ris,  # ✅ Flag se tem RIS contratado
-                'tem_pacs': tem_pacs,  # ✅ Flag se tem PACS contratado
-                'data_mudanca_status': data_mudanca_status,  # Para debug/auditoria
-                'data_homologacao_prevista': data_homologacao_prevista,  # Data de término original do Zoho
-                'data_de_virada': data_de_virada,  # Data de virada
-                'data_de_inicio_da_oa': data_de_inicio_da_oa,  # Data de início da OA
-                'implantador_ris': implantador_ris,  # ✅ Nome do implantador RIS
-                'implantador_pacs': implantador_pacs,  # ✅ Nome do implantador PACS
-                'implantador_homologacao_ris': implantador_homologacao_ris,  # ✅ Nome do implantador homologação RIS
-                'implantador_homologacao_pacs': implantador_homologacao_pacs,  # ✅ Nome do implantador homologação PACS
-                'implantador_virada_ris': implantador_virada_ris,  # ✅ Nome do implantador virada RIS
-                'implantador_virada_pacs': implantador_virada_pacs,  # ✅ Nome do implantador virada PACS
-                'proximo_homologacao': proximo_homologacao,  # ✅ Flag se está próximo da homologação
-                'dias_ate_homologacao': dias_ate_homologacao  # ✅ Dias restantes até homologação
+                'tem_ris': tem_ris,
+                'tem_pacs': tem_pacs,
+                'data_mudanca_status': project_row.data_mudanca_status,
+                'data_homologacao_prevista': project_row.data_homologacao_prevista,
+                'data_de_virada': project_row.data_de_virada,
+                'data_de_inicio_da_oa': project_row.data_de_inicio_da_oa,
+                'implantador_ris': project_row.implantador_ris,
+                'implantador_pacs': project_row.implantador_pacs,
+                'implantador_homologacao_ris': project_row.implantador_homologacao_ris,
+                'implantador_homologacao_pacs': project_row.implantador_homologacao_pacs,
+                'implantador_virada_ris': project_row.implantador_virada_ris,
+                'implantador_virada_pacs': project_row.implantador_virada_pacs,
+                'proximo_homologacao': proximo_homologacao,
+                'dias_ate_homologacao': dias_ate_homologacao
             }
             projetos_por_status[status_kanban].append(info_projeto)
 
             if status_kanban not in colunas_validas:
                 projetos_nao_mapeados.append({
-                    'id': projeto.get('id'), 'nome': projeto.get('name'),
-                    'status_id': str(projeto.get('status', {}).get('id', '')),
-                    'status_nome': str(projeto.get('status', {}).get('name', '')),
-                    'tags': [str(t.get('id', '')) for t in (projeto.get('tags') or [])],
+                    'id': project_row.id,
+                    'nome': project_row.nome,
+                    'status_id': project_row.id_status,
+                    'status_nome': project_row.status_atual,
+                    'tags': project_row.tags,
                     'status_kanban': status_kanban,
                 })
 

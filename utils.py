@@ -2898,6 +2898,97 @@ def determinar_coluna_projeto(project_data: dict) -> str:
     return 'Status Desconhecido'
 
 
+def determinar_coluna_projeto_from_db(project_row) -> str:
+    """
+    Determina a coluna do Kanban a partir de um objeto Project do banco de dados.
+    ✅ Versão otimizada que trabalha com colunas normalizadas, não JSON.
+    
+    Args:
+        project_row: Objeto database.Project com atributos como id_status, tags, etc.
+    
+    Returns:
+        str: Nome da coluna do Kanban
+    """
+    if not project_row:
+        return 'Status Desconhecido'
+    
+    # Carrega mapeamento de colunas
+    import json
+    import os
+    
+    try:
+        mapeamento_path = os.path.join(os.path.dirname(__file__), 'mapeamento_colunas.json')
+        with open(mapeamento_path, 'r', encoding='utf-8') as f:
+            mapeamento = json.load(f)
+    except Exception as e:
+        print(f"Erro ao carregar mapeamento_colunas.json: {e}")
+        return 'Status Desconhecido'
+    
+    # Obtém dados do projeto (colunas do banco)
+    status_id = str(project_row.id_status or '')
+    status_name = (project_row.status_atual or '').strip()
+    
+    # Parseia tags (armazenadas como JSON string ou lista)
+    tag_ids = []
+    if project_row.tags:
+        try:
+            if isinstance(project_row.tags, str):
+                tags_parsed = json.loads(project_row.tags)
+            else:
+                tags_parsed = project_row.tags
+            
+            # Se é lista de dicts, extrai IDs
+            if isinstance(tags_parsed, list):
+                for tag in tags_parsed:
+                    if isinstance(tag, dict):
+                        tag_ids.append(str(tag.get('id', '')))
+                    else:
+                        tag_ids.append(str(tag))
+        except:
+            pass
+    
+    # Verifica status especiais
+    if status_name.lower() in ('completed', 'finalizado'):
+        return 'Finalizado'
+    if status_name.lower() in ('cancelled', 'cancelado'):
+        return 'Cancelado'
+    
+    # Busca correspondência no mapeamento
+    matches_with_tags = []
+    matches_without_tags = []
+    
+    for coluna, config in mapeamento.items():
+        if config.get('zohoStatusId') == status_id:
+            tags_to_add = config.get('zohoTagsToAdd', [])
+            if tags_to_add:
+                if any(tag_id in tag_ids for tag_id in tags_to_add):
+                    matches_with_tags.append(coluna)
+            else:
+                matches_without_tags.append(coluna)
+    
+    # Prioriza matches com tags
+    if matches_with_tags:
+        return matches_with_tags[0]
+    elif matches_without_tags:
+        return matches_without_tags[0]
+    
+    # Fallback por status ID
+    status_fallback = {
+        '2376502000000020089': 'Aguardando Onboarding',
+        '2376502000000020092': 'Aguardando Cronograma',
+        '2376502000000020104': 'Projeto Parado',
+        '2376502000000020119': 'Em Operação Assistida',
+        '2376502000000020116': 'Finalizado',
+        '2376502000000020110': 'Cancelado'
+    }
+    
+    coluna_fallback = status_fallback.get(status_id)
+    if coluna_fallback:
+        return coluna_fallback
+    
+    return 'Status Desconhecido'
+
+
 def calcular_dias_uteis_desde(data_inicial_str: str) -> int:
     """
     Calcula o número de dias úteis (segunda a sexta) desde uma data até hoje.
