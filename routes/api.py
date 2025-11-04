@@ -3518,17 +3518,18 @@ def api_projetos_sem_atualizacao():
                 FROM projects
                 WHERE data_ultimo_comentario IS NOT NULL
             '''))
+            projetos = result.fetchall()
         finally:
             session.close()
-        projetos = result.fetchall()
         
         # Verifica quais projetos estão sem atualização há mais de 5 dias úteis
         projetos_alerta = []
         
         for projeto in projetos:
-            projeto_id = projeto['id']
-            data_ultimo = projeto['data_ultimo_comentario']
-            nome_projeto = projeto['nome'] if projeto['nome'] else 'Sem nome'
+            # ✅ Acessa por índice (tupla) ao invés de chave
+            projeto_id = projeto[0]  # id
+            data_ultimo = projeto[1]  # data_ultimo_comentario
+            nome_projeto = projeto[2] if projeto[2] else 'Sem nome'  # nome
             
             if data_ultimo:
                 dias_uteis = calcular_dias_uteis_desde(data_ultimo)
