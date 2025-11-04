@@ -637,7 +637,7 @@ def carregar_projetos():
         # ✅ Busca projetos diretamente da tabela normalizada filtrando por GP
         from database import Project
         projetos_do_gp = session.query(Project).filter(
-            Project.id_proprietario == id_do_gp
+            Project.gp == gp_selecionado
         ).all()
     finally:
         session.close()
