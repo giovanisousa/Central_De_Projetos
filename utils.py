@@ -2985,9 +2985,9 @@ def determinar_coluna_projeto_from_db(project_row) -> str:
     
     # ✅ Fallback por status ID (APENAS para status sem tags específicas)
     # ⚠️ IMPORTANTE: Este fallback é usado quando status_id existe mas não tem match no mapeamento
-    # Para status que dependem de tags (como 2376502000000020092), a lógica acima já resolve
+    # Para status que dependem de tags (como 2376502000000020092 e 2376502000000020089), a lógica acima já resolve
+    # Status "Aberto" (2376502000000020089) REMOVIDO do fallback - sempre depende de tags
     status_fallback = {
-        '2376502000000020089': 'Aguardando Onboarding',
         '2376502000000020104': 'Projeto Parado',
         '2376502000000020119': 'Em Operação Assistida',  # ✅ Nome correto da coluna no mapeamento
         '2376502000000020116': 'Finalizado',
