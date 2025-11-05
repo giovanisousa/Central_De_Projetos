@@ -61,6 +61,13 @@ class Project(Base):
     link_google = Column(String)
     tags = Column(Text) # JSON array string com IDs das tags
     precisa_comentario = Column(Boolean, default=True)
+    
+    # ✅ FASE 1: Colunas normalizadas (substituem full_data_json gradualmente)
+    owner_zpuid = Column(String)  # ZPUID do dono (GP) do projeto
+    owner_name = Column(String)   # Nome do dono (GP)
+    client_name = Column(String)  # Nome do cliente
+    project_name = Column(String) # Nome do projeto
+    
     full_data_json = Column(Text) # JSON string - DEPRECATED, usar colunas normalizadas
     data_ultimo_comentario = Column(String)
     implantador_ris = Column(String)
@@ -377,6 +384,22 @@ def upsert_project(project_data):
         data_de_virada = _get_custom_field(project_data, 'Data de Virada')
         data_de_inicio_da_oa = _get_custom_field(project_data, 'Data de Início da OA')
 
+        # ✅ FASE 1: Extrair dados normalizados de owner e client
+        owner_data = project_data.get('owner', {})
+        owner_zpuid = owner_data.get('zpuid')
+        owner_name = owner_data.get('name')
+        
+        # Cliente: prioriza client_company, depois client, depois client_name
+        client_company = project_data.get('client_company', {})
+        client_obj = project_data.get('client', {})
+        client_name = (
+            client_company.get('name') if isinstance(client_company, dict) else None
+        ) or (
+            client_obj.get('name') if isinstance(client_obj, dict) else None
+        ) or project_data.get('client_name')
+        
+        project_name = project_data.get('name', 'N/A')
+
         project_obj = {
             'id': project_id,
             'nome': project_data.get('name', 'N/A'),
@@ -413,6 +436,11 @@ def upsert_project(project_data):
             'implantador_virada_ris': implantador_virada_ris,
             'implantador_virada_pacs': implantador_virada_pacs,
             'precisa_comentario': True,
+            # ✅ FASE 1: Colunas normalizadas
+            'owner_zpuid': owner_zpuid,
+            'owner_name': owner_name,
+            'client_name': client_name,
+            'project_name': project_name,
             'full_data_json': json.dumps(project_data)
         }
 

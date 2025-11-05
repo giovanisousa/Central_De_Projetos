@@ -634,36 +634,16 @@ def carregar_projetos():
 
     session = database.Session()
     try:
-        # ✅ Busca projetos diretamente da tabela normalizada
+        # ✅ FASE 1: Filtrar usando coluna normalizada owner_zpuid
         from database import Project
-        from sqlalchemy import text
         
-        # 🔍 DEBUG: Verificar valores únicos de GP no banco
-        all_gps = session.query(Project.gp).distinct().all()
         logger.info(f"[DEBUG] GP selecionado: '{gp_selecionado}'")
         logger.info(f"[DEBUG] ID do GP (zpuid): '{id_do_gp}'")
-        logger.info(f"[DEBUG] GPs únicos no banco: {[gp[0] for gp in all_gps]}")
         
-        # DEBUG: Verificar como os dados estão armazenados
-        rows = session.execute(text('SELECT id, gp, full_data_json FROM projects LIMIT 3')).mappings().all()
-        for row in rows:
-            if row['full_data_json']:
-                projeto_json = json.loads(row['full_data_json'])
-                owner_zpuid = projeto_json.get('owner', {}).get('zpuid', '')
-                logger.info(f"[DEBUG] Projeto {row['id']}: gp_coluna='{row['gp']}', owner_zpuid='{owner_zpuid}'")
-        
-        # Solução TEMPORÁRIA: Filtrar por ZPUID usando full_data_json até adicionar coluna owner_zpuid
-        all_projects = session.query(Project).all()
-        projetos_do_gp = []
-        for p in all_projects:
-            if p.full_data_json:
-                try:
-                    projeto_data = json.loads(p.full_data_json)
-                    owner_zpuid = projeto_data.get('owner', {}).get('zpuid', '')
-                    if str(owner_zpuid) == str(id_do_gp):
-                        projetos_do_gp.append(p)
-                except:
-                    pass
+        # ✅ Query otimizada: usa índice em owner_zpuid
+        projetos_do_gp = session.query(Project).filter(
+            Project.owner_zpuid == str(id_do_gp)
+        ).all()
         
         logger.info(f"[DEBUG] Total de projetos encontrados para GP '{gp_selecionado}': {len(projetos_do_gp)}")
         
