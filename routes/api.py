@@ -1818,7 +1818,9 @@ def iniciar_implantacao():
         project_row = database.get_project_by_id(project_id)
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
-        detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
+        
+        # ✅ FASE 2: Usar colunas normalizadas (project_name ainda é usado como fallback)
+        project_name_normalized = project_row.project_name or ''
         
         # ==== IDENTIFICAR FERRAMENTAS CONTRATADAS DO BANCO DE DADOS ====
         # Regras de negócio:
@@ -1853,9 +1855,8 @@ def iniciar_implantacao():
             logger.debug(f"[INICIAR_IMPLANTACAO] Projeto apenas AnimatiPACS detectado (produtos: {produtos_list}) - Prazo: {dias_ate_homologacao} dias")
         else:
             # Fallback: se produtos não identificados, tenta pelo nome do projeto
-            proj_name = str((detalhes_zoho or {}).get('name', '') or '')
-            tem_netris_nome = ' - NR/AP' in proj_name or ' - NR' in proj_name
-            tem_apenas_ap_nome = ' - AP' in proj_name and not tem_netris_nome
+            tem_netris_nome = ' - NR/AP' in project_name_normalized or ' - NR' in project_name_normalized
+            tem_apenas_ap_nome = ' - AP' in project_name_normalized and not tem_netris_nome
             
             if tem_netris_nome:
                 dias_ate_homologacao = 60
@@ -2169,9 +2170,8 @@ def iniciar_implantacao():
         try:
             from google_calendar import criar_evento_homologacao, criar_evento_virada
             
-            # Obter nome do cliente para os eventos
-            proj_name = str((detalhes_zoho or {}).get('name', '') or '')
-            nome_cliente = proj_name.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+            # ✅ FASE 2: Obter nome do cliente das colunas normalizadas
+            nome_cliente = project_row.client_name or project_name_normalized.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
             
             if not nome_cliente:
                 nome_cliente = f"Projeto {project_id}"
@@ -2221,8 +2221,8 @@ def iniciar_implantacao():
         creds = utils.build_google_credentials_from_session()
         sheets_service = build('sheets', 'v4', credentials=creds)
 
-        proj_name = str((detalhes_zoho or {}).get('name', '') or '')
-        base_cliente = proj_name.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+        # ✅ FASE 2: Usar colunas normalizadas
+        base_cliente = project_row.client_name or project_name_normalized.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
         chave_busca = base_cliente
 
         if not chave_busca:
@@ -2331,7 +2331,10 @@ def agendar_homologacao():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         
+        # ✅ FASE 2: Preparar dados normalizados (detalhes_zoho ainda usado em _atualizar_zoho)
+        # Por enquanto mantemos para compatibilidade com _atualizar_zoho
         detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
+        project_name_normalized = project_row.project_name or ''
         
         # Obter access token
         try:
@@ -2493,10 +2496,10 @@ def agendar_homologacao():
             from googleapiclient.discovery import build
             sheets_service = build('sheets', 'v4', credentials=creds)
 
-            # Extrair nome do cliente
-            chave_busca = utils.extrair_cliente_planilha(detalhes_zoho.get('name', ''))
+            # ✅ FASE 2: Extrair nome do cliente das colunas normalizadas
+            chave_busca = project_row.client_name or utils.extrair_cliente_planilha(project_name_normalized)
             if not chave_busca:
-                chave_busca = project_row.get('cliente', '')
+                chave_busca = project_row.cliente or ''
             
             logger.debug(f"[AGENDAR_HOMOLOGACAO] Atualizando planilha para cliente: {chave_busca}")
 
@@ -2586,7 +2589,9 @@ def agendar_virada():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         
+        # ✅ FASE 2: Preparar dados normalizados (detalhes_zoho ainda usado em _atualizar_zoho)
         detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
+        project_name_normalized = project_row.project_name or ''
         
         # Obter access token
         try:
@@ -2755,10 +2760,10 @@ def agendar_virada():
             from googleapiclient.discovery import build
             sheets_service = build('sheets', 'v4', credentials=creds)
 
-            # Extrair nome do cliente
-            chave_busca = utils.extrair_cliente_planilha(detalhes_zoho.get('name', ''))
+            # ✅ FASE 2: Extrair nome do cliente das colunas normalizadas
+            chave_busca = project_row.client_name or utils.extrair_cliente_planilha(project_name_normalized)
             if not chave_busca:
-                chave_busca = project_row.get('cliente', '')
+                chave_busca = project_row.cliente or ''
             
             print(f"[DEBUG][AGENDAR_VIRADA] Atualizando planilha para cliente: {chave_busca}")
 
@@ -2838,6 +2843,8 @@ def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_me
                 project_row = database.get_project_by_id(projeto_id)
                 
                 if project_row:
+                    # ✅ FASE 2: Usar colunas normalizadas quando possível
+                    # Ainda precisa de full_data_json para validar tags (JSON completo)
                     import json
                     detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
                     
