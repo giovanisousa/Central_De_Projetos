@@ -539,16 +539,13 @@ def api_criar_projeto():
                 logger.debug(f"[SYNC] Resultado synchronize_single_project: {projeto_json}")
                 registro_db = database.get_project_by_id(str(id_do_novo_projeto))
                 logger.debug(f"[DB] Registro retornado do banco: {registro_db}")
-                if registro_db and registro_db['full_data_json']:
-                    dados_zoho = json.loads(registro_db['full_data_json'])
-                    nome_projeto = dados_zoho.get('name', utils.construir_titulo_projeto(dados))
-                    cliente = (
-                        (dados_zoho.get('client_company') or {}).get('name')
-                        or (dados_zoho.get('client') or {}).get('name')
-                        or dados_zoho.get('client_name')
-                        or "Cliente não informado"
-                    )
-                    gp_nome = (dados_zoho.get('owner') or {}).get('name', 'GP não informado')
+                if registro_db:
+                    # ✅ FASE 2: Usar colunas normalizadas ao invés de parsear full_data_json
+                    nome_projeto = registro_db.get('project_name') or registro_db.get('nome') or utils.construir_titulo_projeto(dados)
+                    cliente = registro_db.get('client_name') or registro_db.get('cliente') or "Cliente não informado"
+                    gp_nome = registro_db.get('owner_name') or registro_db.get('gp') or 'GP não informado'
+                    
+                    # Detectar produto pelo nome do projeto
                     produto_info = ''
                     if ' - NR/AP' in nome_projeto:
                         produto_info = 'netRIS e AnimatiPACS'
@@ -556,22 +553,23 @@ def api_criar_projeto():
                         produto_info = 'netRIS'
                     elif ' - AP' in nome_projeto:
                         produto_info = 'AnimatiPACS'
+                    
                     novo_projeto = {
                         "id": str(registro_db['id']),
                         "nome": nome_projeto,
                         "cliente": cliente,
                         "gp": gp_nome,
-                        "data_inicio": dados_zoho.get('start_date', ''),
-                        "data_criacao": dados_zoho.get('created_time', ''),
-                        "data_inicio_formatada": (dados_zoho.get('start_date') or '').replace('-', '/'),
-                        "dias_na_fase": registro_db.get('dias_na_fase') or utils.calcular_dias_na_fase(dados_zoho, utils.determinar_coluna_projeto(dados_zoho)),
-                        "dias_total": registro_db.get('dias_total') or utils.calcular_dias_total_projeto(dados_zoho.get('start_date'), dados_zoho.get('created_time')),
-                        "status_atual": utils.determinar_coluna_projeto(dados_zoho),
+                        "data_inicio": registro_db.get('data_inicio', ''),
+                        "data_criacao": registro_db.get('data_criacao', ''),
+                        "data_inicio_formatada": (registro_db.get('data_inicio') or '').replace('-', '/'),
+                        "dias_na_fase": registro_db.get('dias_na_fase', 0),
+                        "dias_total": registro_db.get('dias_total', 0),
+                        "status_atual": registro_db.get('status_atual', 'Aguardando Onboarding'),
                         "produto": produto_info
                     }
                     logger.debug(f"[DB] Novo projeto montado para resposta: {novo_projeto}")
                 else:
-                    logger.debug(f"[DB] Projeto não encontrado ou sem full_data_json após sync. ID: {id_do_novo_projeto}")
+                    logger.debug(f"[DB] Projeto não encontrado após sync. ID: {id_do_novo_projeto}")
             except Exception as sync_error:
                 logger.error(f"[ERRO] Falha ao sincronizar projeto recém-criado {id_do_novo_projeto}: {sync_error}")
                 novo_projeto = None
@@ -763,14 +761,8 @@ def carregar_projetos():
             projetos_por_status[status_kanban].append(info_projeto)
 
             if status_kanban not in colunas_validas:
-                # Extrai status_id do full_data_json para log de auditoria
-                status_id_audit = ''
-                if project_row.full_data_json:
-                    try:
-                        projeto_data = json.loads(project_row.full_data_json)
-                        status_id_audit = projeto_data.get('status', {}).get('id', '')
-                    except:
-                        pass
+                # ✅ FASE 2: Usa coluna normalizada status_id ao invés de parsear JSON
+                status_id_audit = project_row.status_id or ''
                 
                 projetos_nao_mapeados.append({
                     'id': project_row.id,
