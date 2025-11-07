@@ -322,23 +322,34 @@ def api_criar_projeto():
 
                 # Aguardar tempo suficiente para tarefas do template materializarem
                 logger.info("Sincronização das tarefas iniciada. (Polling para aguardar materialização das tarefas)")
-                # Polling: aguarda até 5s ou até que tarefas sejam criadas (otimizado para evitar timeout)
+                # Polling: aguarda até 20s ou até que tarefas suficientes sejam criadas
+                # AJUSTADO: Aumentado de 5s para 20s - o Zoho precisa de tempo para criar tarefas do template
+                # Anteriormente era 45s, mas isso causava timeout. 20s é um meio-termo razoável.
                 import time
-                polling_timeout = 5  # REDUZIDO: 5s para evitar timeout do Gunicorn
-                polling_interval = 1  # REDUZIDO: 1s para fazer mais tentativas rápidas
+                polling_timeout = 20  # AUMENTADO: de 5s para 20s (anteriormente era 45s)
+                polling_interval = 2  # AUMENTADO: de 1s para 2s (menos requests, mais eficiente)
                 polling_start = time.time()
                 tasks = []
+                tentativas = 0
                 while time.time() - polling_start < polling_timeout:
+                    tentativas += 1
                     try:
                         tasks = _listar_tarefas_quick(str(id_do_novo_projeto), headers)
                     except Exception as e:
-                        logger.warning(f"Polling falhou: {e}")
+                        logger.warning(f"Polling tentativa {tentativas} falhou: {e}")
                         tasks = []
-                    if tasks and len(tasks) >= 1:
-                        logger.info(f"Polling: tarefas encontradas ({len(tasks)}) após {int(time.time()-polling_start)}s.")
+                    
+                    # Critério de sucesso: pelo menos 50 tarefas criadas (template típico tem ~189 tarefas)
+                    # Isso garante que já temos tarefas suficientes para atribuir/concluir
+                    if tasks and len(tasks) >= 50:
+                        logger.info(f"✅ Polling: {len(tasks)} tarefas encontradas após {int(time.time()-polling_start)}s (tentativa {tentativas}).")
                         break
-                    logger.info(f"Polling: aguardando tarefas... ({int(time.time()-polling_start)}s)")
+                    
+                    logger.info(f"⏳ Polling tentativa {tentativas}: {len(tasks)} tarefas encontradas, aguardando mais... ({int(time.time()-polling_start)}s)")
                     time.sleep(polling_interval)
+                
+                if not tasks or len(tasks) < 50:
+                    logger.warning(f"⚠️ Polling finalizado com apenas {len(tasks)} tarefas após {int(time.time()-polling_start)}s. Prosseguindo mesmo assim.")
 
                 # Pós-criação: atribuir tarefas ao GP, concluir tarefas iniciais e lançar tempo
                 # Otimizado para executar rapidamente e evitar timeout do Gunicorn (30s)
@@ -412,11 +423,11 @@ def api_criar_projeto():
                                     return task
                             return None
 
-                        # Limite de tempo total para processamento pós-criação: 10 segundos
-                        # Com polling de ~5s, temos ~10s para pós-criação e ainda ~15s de margem para resposta (total 30s)
+                        # Limite de tempo total para processamento pós-criação: 35 segundos
+                        # Com polling de ~23s, temos ~35s para pós-criação (total ~58s, dentro do timeout do Gunicorn de 60s)
                         import time
                         post_creation_start = time.time()
-                        post_creation_timeout = 10  # REDUZIDO: de 15s para 10s
+                        post_creation_timeout = 35  # AUMENTADO: de 30s para 35s (margem para timesheets)
                         
                         def check_timeout():
                             """Verifica se ainda há tempo disponível para processamento"""
@@ -426,43 +437,66 @@ def api_criar_projeto():
                                 return True
                             return False
 
-                        # 3) Atribuir tarefas ao GP (com limite de tempo)
+                        # 3) Atribuir tarefas ao GP (com limite de tempo) - OTIMIZADO COM THREADS
                         if not check_timeout():
-                            for nome_tarefa in TAREFAS_PARA_ATRIBUIR:
-                                if check_timeout():
-                                    break
-                                t = _get_task_by_name(nome_tarefa)
-                                if not t:
-                                    logger.info(f"Tarefa para atribuir não encontrada no projeto: '{nome_tarefa}'")
-                                    continue
-                                owner = (t.get('owner') or {}).get('zpuid')
-                                if str(owner) == str(gp_zpuid):
-                                    continue
+                            from concurrent.futures import ThreadPoolExecutor, as_completed
+                            import threading
+                            
+                            def atribuir_tarefa(nome_tarefa):
+                                """Atribui uma tarefa ao GP (função para executar em thread)"""
                                 try:
+                                    t = _get_task_by_name(nome_tarefa)
+                                    if not t:
+                                        logger.info(f"Tarefa para atribuir não encontrada: '{nome_tarefa}'")
+                                        return False
+                                    owner = (t.get('owner') or {}).get('zpuid')
+                                    if str(owner) == str(gp_zpuid):
+                                        logger.info(f"Tarefa '{nome_tarefa}' já atribuída ao GP")
+                                        return True
+                                    
                                     task_id = t.get('id')
-                                    try:
-                                        url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
-                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                        payload_rest = {"person_responsible": str(gp_zpuid)}
-                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)  # Timeout reduzido para 5s
-                                        if resp_rest.status_code in (200, 201):
-                                            logger.info(f"Atribuição via REST bem-sucedida '{nome_tarefa}'.")
-                                        else:
-                                            logger.warning(f"Atribuição (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
-                                    except Exception as e2:
-                                        logger.warning(f"Erro no REST de atribuição '{nome_tarefa}': {e2}")
+                                    url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
+                                    headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                    payload_rest = {"person_responsible": str(gp_zpuid)}
+                                    resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)
+                                    if resp_rest.status_code in (200, 201):
+                                        logger.info(f"✅ Atribuição bem-sucedida: '{nome_tarefa}'")
+                                        return True
+                                    else:
+                                        logger.warning(f"❌ Atribuição falhou '{nome_tarefa}': {resp_rest.status_code}")
+                                        return False
                                 except Exception as e:
-                                    logger.warning(f"Erro ao atribuir '{nome_tarefa}': {e}")
+                                    logger.warning(f"❌ Erro ao atribuir '{nome_tarefa}': {e}")
+                                    return False
+                            
+                            logger.info(f"📋 Iniciando atribuição de {len(TAREFAS_PARA_ATRIBUIR)} tarefas (em paralelo)...")
+                            with ThreadPoolExecutor(max_workers=5) as executor:
+                                # Submeter todas as atribuições em paralelo
+                                futures = {executor.submit(atribuir_tarefa, nome): nome for nome in TAREFAS_PARA_ATRIBUIR}
+                                
+                                # Aguardar conclusão com timeout
+                                for future in as_completed(futures, timeout=15):
+                                    if check_timeout():
+                                        logger.warning("⏰ Timeout durante atribuições paralelas")
+                                        break
+                                    try:
+                                        resultado = future.result()
+                                    except Exception as e:
+                                        logger.warning(f"Erro em atribuição paralela: {e}")
 
                         # 4) Concluir tarefas iniciais (atribui ao GP se necessário) - com limite de tempo
                         if not check_timeout():
+                            logger.info(f"📋 Iniciando conclusão de {len(TAREFAS_PARA_CONCLUIR)} tarefas...")
                             for nome_tarefa in TAREFAS_PARA_CONCLUIR:
                                 if check_timeout():
+                                    logger.warning(f"⏰ Timeout atingido durante conclusão de tarefas. Abortando.")
                                     break
+                                logger.info(f"🔍 Buscando tarefa para concluir: '{nome_tarefa}'")
                                 t = _get_task_by_name(nome_tarefa)
                                 if not t:
-                                    logger.warning(f"Tarefa para concluir não encontrada no projeto: '{nome_tarefa}'")
+                                    logger.warning(f"❌ Tarefa para concluir não encontrada no projeto: '{nome_tarefa}'")
                                     continue
+                                logger.info(f"✅ Tarefa encontrada: '{t.get('name')}' (ID: {t.get('id')})")
                                 try:
                                     task_id = t.get('id')
                                     url_patch_task = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}"
@@ -493,40 +527,57 @@ def api_criar_projeto():
                                 except Exception as e:
                                     logger.warning(f"Erro ao concluir '{nome_tarefa}': {e}")
 
-                        # 5) Lançar timesheet nas tarefas concluídas conforme TEMPO_RELATO
+                        # 5) Lançar timesheet nas tarefas concluídas conforme TEMPO_RELATO - OTIMIZADO COM THREADS
                         if not check_timeout():
-                            from datetime import date as _date
+                            from datetime import date as _date, datetime as _dt
+                            from concurrent.futures import ThreadPoolExecutor, as_completed
+                            
                             hoje = _date.today().strftime('%Y-%m-%d')
-                            for nome_tarefa, tempo_hhmm in TEMPO_RELATO.items():
-                                if check_timeout():
-                                    break
-                                t = _get_task_by_name(nome_tarefa)
-                                if not t:
-                                    continue
+                            mmddyyyy = _dt.strptime(hoje, "%Y-%m-%d").strftime("%m-%d-%Y")
+                            
+                            def lancar_timesheet(nome_tarefa, tempo_hhmm):
+                                """Lança timesheet em uma tarefa (função para executar em thread)"""
                                 try:
+                                    t = _get_task_by_name(nome_tarefa)
+                                    if not t:
+                                        return False
+                                    
                                     task_id = t.get('id')
-                                    # Timesheet diretamente via REST (MM-DD-YYYY)
-                                    try:
-                                        from datetime import datetime as _dt
-                                        mmddyyyy = _dt.strptime(hoje, "%Y-%m-%d").strftime("%m-%d-%Y")
-                                        url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/logs/"
-                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                        payload_rest = {
-                                            "owner_zpuid": str(gp_zpuid),
-                                            "hours": tempo_hhmm,
-                                            "date": mmddyyyy,
-                                            "bill_status": "Billable",
-                                            "notes": "Relatado via automação."
-                                        }
-                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)  # Timeout reduzido para 5s
-                                        if resp_rest.status_code in (200, 201):
-                                            logger.info(f"Timesheet via REST bem-sucedido '{nome_tarefa}'.")
-                                        else:
-                                            logger.warning(f"Timesheet (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
-                                    except Exception as e2:
-                                        logger.warning(f"Erro no REST de timesheet '{nome_tarefa}': {e2}")
+                                    url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/logs/"
+                                    headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                    payload_rest = {
+                                        "owner_zpuid": str(gp_zpuid),
+                                        "hours": tempo_hhmm,
+                                        "date": mmddyyyy,
+                                        "bill_status": "Billable",
+                                        "notes": "Relatado via automação."
+                                    }
+                                    resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)
+                                    if resp_rest.status_code in (200, 201):
+                                        logger.info(f"✅ Timesheet lançado: '{nome_tarefa}' ({tempo_hhmm})")
+                                        return True
+                                    else:
+                                        logger.warning(f"❌ Timesheet falhou '{nome_tarefa}': {resp_rest.status_code}")
+                                        return False
                                 except Exception as e:
-                                    logger.warning(f"Erro ao lançar timesheet '{nome_tarefa}': {e}")
+                                    logger.warning(f"❌ Erro ao lançar timesheet '{nome_tarefa}': {e}")
+                                    return False
+                            
+                            logger.info(f"📋 Lançando {len(TEMPO_RELATO)} timesheets (em paralelo)...")
+                            with ThreadPoolExecutor(max_workers=4) as executor:
+                                # Submeter todos os timesheets em paralelo
+                                futures = {executor.submit(lancar_timesheet, nome, tempo): nome 
+                                          for nome, tempo in TEMPO_RELATO.items()}
+                                
+                                # Aguardar conclusão com timeout
+                                for future in as_completed(futures, timeout=10):
+                                    if check_timeout():
+                                        logger.warning("⏰ Timeout durante lançamento de timesheets")
+                                        break
+                                    try:
+                                        resultado = future.result()
+                                    except Exception as e:
+                                        logger.warning(f"Erro em timesheet paralelo: {e}")
                     else:
                         logger.info("Projeto não criado ou GP inválido; etapa de pós-criação ignorada.")
                 except Exception as e:
