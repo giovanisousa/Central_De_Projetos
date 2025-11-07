@@ -75,26 +75,37 @@ def _listar_tarefas_quick(project_id: str, headers: dict) -> list[dict]:
 
     def _collect_once():
         status = 'all'
-        # OTIMIZADO: Apenas as tentativas mais eficientes para evitar timeout
-        # 1) Range simples (geralmente funciona)
-        url = f"{base}?range=1-400&status={status}"
-        chunk = _get(url)
-        for t in chunk:
-            tid = t.get('id')
-            if tid and tid not in tasks_by_id:
-                tasks_by_id[tid] = t
+        # SOLUÇÃO CORRETA: Usar page/per_page igual ao implantacao_manager.py
+        # Este método retorna 200 tarefas por página (não 100)!
         
-        # 2) Se não pegou tarefas suficientes, tenta com index
-        if len(tasks_by_id) < 50:
-            url = f"{base}?index=1&range=1-400&status=all"
+        # Buscar até 3 páginas (600 tarefas) para cobrir a maioria dos projetos
+        for page_num in range(1, 4):  # páginas 1, 2, 3
+            logger.info(f"[TASKS] Buscando página {page_num} (page={page_num}, per_page=200)...")
+            # Usar page/per_page em vez de index/range
+            url = f"{base}?page={page_num}&per_page=200&status={status}"
             chunk = _get(url)
+            logger.info(f"[TASKS] Página {page_num}: {len(chunk)} tarefas retornadas")
+            
+            count_before = len(tasks_by_id)
             for t in chunk:
                 tid = t.get('id')
                 if tid and tid not in tasks_by_id:
                     tasks_by_id[tid] = t
+            
+            novas = len(tasks_by_id) - count_before
+            logger.info(f"[TASKS] Após página {page_num}: {len(tasks_by_id)} únicas ({novas} novas)")
+            
+            # Se não retornou tarefas, acabou
+            if not chunk:
+                logger.info(f"[TASKS] Sem mais tarefas, finalizando paginação")
+                break
+            
+            # Se retornou menos de 200, é a última página
+            if len(chunk) < 200:
+                logger.info(f"[TASKS] Última página ({len(chunk)} tarefas), finalizando paginação")
+                break
 
     _collect_once()
-    # REMOVIDO: Segunda coleta que causava dobro de tempo
 
     # Fallback por Custom View se configurada e ainda baixo
     if len(tasks_by_id) < 120 and DEFAULT_TASKS_CUSTOM_VIEW_ID:
