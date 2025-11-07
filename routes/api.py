@@ -541,9 +541,10 @@ def api_criar_projeto():
                 logger.debug(f"[DB] Registro retornado do banco: {registro_db}")
                 if registro_db:
                     # ✅ FASE 2: Usar colunas normalizadas ao invés de parsear full_data_json
-                    nome_projeto = registro_db.get('project_name') or registro_db.get('nome') or utils.construir_titulo_projeto(dados)
-                    cliente = registro_db.get('client_name') or registro_db.get('cliente') or "Cliente não informado"
-                    gp_nome = registro_db.get('owner_name') or registro_db.get('gp') or 'GP não informado'
+                    # registro_db é um objeto SQLAlchemy Project, não um dict
+                    nome_projeto = registro_db.project_name or registro_db.nome or utils.construir_titulo_projeto(dados)
+                    cliente = registro_db.client_name or registro_db.cliente or "Cliente não informado"
+                    gp_nome = registro_db.owner_name or registro_db.gp or 'GP não informado'
                     
                     # Detectar produto pelo nome do projeto
                     produto_info = ''
@@ -555,16 +556,16 @@ def api_criar_projeto():
                         produto_info = 'AnimatiPACS'
                     
                     novo_projeto = {
-                        "id": str(registro_db['id']),
+                        "id": str(registro_db.id),
                         "nome": nome_projeto,
                         "cliente": cliente,
                         "gp": gp_nome,
-                        "data_inicio": registro_db.get('data_inicio', ''),
-                        "data_criacao": registro_db.get('data_criacao', ''),
-                        "data_inicio_formatada": (registro_db.get('data_inicio') or '').replace('-', '/'),
-                        "dias_na_fase": registro_db.get('dias_na_fase', 0),
-                        "dias_total": registro_db.get('dias_total', 0),
-                        "status_atual": registro_db.get('status_atual', 'Aguardando Onboarding'),
+                        "data_inicio": registro_db.data_inicio or '',
+                        "data_criacao": registro_db.data_criacao or '',
+                        "data_inicio_formatada": (registro_db.data_inicio or '').replace('-', '/'),
+                        "dias_na_fase": registro_db.dias_na_fase or 0,
+                        "dias_total": registro_db.dias_total or 0,
+                        "status_atual": registro_db.status_atual or 'Aguardando Onboarding',
                         "produto": produto_info
                     }
                     logger.debug(f"[DB] Novo projeto montado para resposta: {novo_projeto}")
@@ -708,6 +709,9 @@ def carregar_projetos():
                 elif ' - AP' in nome_projeto:
                     produto_info = 'AnimatiPACS'
                     tem_pacs = True
+            
+            # DEBUG: Log dos produtos detectados
+            logger.debug(f"[PRODUTOS] Projeto {project_row.id} ({project_row.nome[:50]}...): tem_ris={tem_ris}, tem_pacs={tem_pacs}, produto_info='{produto_info}'")
             
             # ✅ Calcula dias na fase dinamicamente
             dias_na_fase_calc = utils.calcular_dias_na_fase_from_status(project_row.data_mudanca_status)
@@ -1163,7 +1167,11 @@ def _atualizar_zoho(
 
     # 3) Disparo de triggers configurados da coluna de DESTINO (onEnter)
     triggers = info_dest.get("triggers", []) or []
+    logger.info(f"[TRIGGERS] Coluna destino: '{coluna_destino}' | Triggers encontrados: {len(triggers)}")
     if triggers:
+        logger.info(f"[TRIGGERS] Executando {len(triggers)} trigger(s) da coluna '{coluna_destino}'")
+        for i, t in enumerate(triggers):
+            logger.info(f"[TRIGGERS] Trigger {i+1}: type={t.get('type')}, taskName={t.get('taskName', 'N/A')}")
         _executar_triggers(
             triggers=triggers,
             projeto_id=projeto_id,
@@ -1172,6 +1180,8 @@ def _atualizar_zoho(
             headers=headers,
             access_token=access_token
         )
+    else:
+        logger.info(f"[TRIGGERS] Nenhum trigger configurado para coluna '{coluna_destino}'")
 
     # 3.1) Disparo de triggers configurados da coluna de ORIGEM (onExit)
     if coluna_origem:
@@ -1477,21 +1487,27 @@ def _executar_triggers(
     access_token: str
 ) -> None:
     """Executa os gatilhos associados à coluna destino."""
-    for trigger in triggers:
+    logger.info(f"[_executar_triggers] Iniciando execução de {len(triggers)} trigger(s)")
+    for i, trigger in enumerate(triggers):
         if not isinstance(trigger, dict):
+            logger.warning(f"[_executar_triggers] Trigger {i+1} não é um dict, pulando: {trigger}")
             continue
         tipo = trigger.get("type")
+        logger.info(f"[_executar_triggers] Processando trigger {i+1}/{len(triggers)}: type={tipo}")
         
         try:
             if tipo == "projectComment":
+                logger.info(f"[_executar_triggers] Executando projectComment...")
                 _postar_comentario_projeto(projeto_id, headers, trigger.get("template", ""))
             elif tipo == "taskComment":
+                logger.info(f"[_executar_triggers] Executando taskComment para tarefa '{trigger.get('taskName')}'...")
                 _postar_comentario_tarefa(
                     projeto_id=projeto_id,
                     headers=headers,
                     detalhes_zoho=detalhes_zoho,
                     trigger=trigger
                 )
+                logger.info(f"[_executar_triggers] taskComment executado com sucesso!")
             elif tipo == "workflow":
                 # Workflow triggers não estão implementados ainda
                 logger.warning(f"Trigger de workflow '{trigger.get('name')}' ignorado (não implementado)")
@@ -1525,37 +1541,63 @@ def _postar_comentario_tarefa(projeto_id: str, headers: dict, detalhes_zoho: dic
     tarefas = _listar_tarefas_quick(projeto_id, headers)
     alvo = None
     task_name_norm = (task_name or "").strip().casefold()
+    
+    logger.info(f"[TASK_COMMENT] Buscando tarefa: '{task_name}' (normalizado: '{task_name_norm}')")
+    logger.info(f"[TASK_COMMENT] Total de tarefas no projeto: {len(tarefas)}")
 
     for tarefa in tarefas:
         nome_tarefa = (tarefa.get("name") or "").strip()
         if not nome_tarefa:
             continue
         nome_norm = nome_tarefa.casefold()
-        if nome_norm == task_name_norm or nome_norm.startswith(task_name_norm) or task_name_norm in nome_norm:
+        
+        # Log de cada comparação
+        match_exato = nome_norm == task_name_norm
+        match_startswith = nome_norm.startswith(task_name_norm)
+        match_substring = task_name_norm in nome_norm
+        
+        if match_exato or match_startswith or match_substring:
+            logger.info(f"[TASK_COMMENT] ✅ Tarefa encontrada! Nome: '{nome_tarefa}' | Match: exato={match_exato}, startswith={match_startswith}, substring={match_substring}")
             alvo = tarefa
             break
 
     if not alvo:
         exemplos = ", ".join((t.get("name") or "<sem nome>") for t in tarefas[:10])
         if is_optional:
-            logger.debug(f"Tarefa opcional '{task_name}' não encontrada para comentário - pulando")
+            logger.info(f"[TASK_COMMENT] ⚠️ Tarefa opcional '{task_name}' não encontrada - pulando")
+            logger.info(f"[TASK_COMMENT] Primeiras 10 tarefas disponíveis: {exemplos}")
             return
         else:
-            logger.debug(f"Tarefa obrigatória '{task_name}' não encontrada para comentário. Tarefas disponíveis: {exemplos}")
+            logger.error(f"[TASK_COMMENT] ❌ Tarefa obrigatória '{task_name}' não encontrada!")
+            logger.error(f"[TASK_COMMENT] Tarefas disponíveis: {exemplos}")
             raise RuntimeError(
                 f"Tarefa obrigatória '{task_name}' não encontrada para comentário. Encontradas: {exemplos}"
             )
 
+    logger.info(f"[TASK_COMMENT] Tarefa encontrada! ID: {alvo.get('id')}, Nome: {alvo.get('name')}")
+    logger.info(f"[TASK_COMMENT] Aplicando menções ao template...")
     comentario_template = utils.zoho_apply_mentions(template)
+    logger.info(f"[TASK_COMMENT] Template processado (primeiros 100 chars): {comentario_template[:100]}...")
 
     task_id = alvo.get("id")
     url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/tasks/{task_id}/comments"
     payload = {"comment": comentario_template, "content": comentario_template}
+    
+    logger.info(f"[TASK_COMMENT] Postando comentário na tarefa ID {task_id}...")
+    logger.info(f"[TASK_COMMENT] URL: {url}")
+    
     response = requests.post(url, headers=headers, json=payload, timeout=30)
+    
+    logger.info(f"[TASK_COMMENT] Resposta da API: status_code={response.status_code}")
+    
     if response.status_code not in (200, 201):
+        logger.error(f"[TASK_COMMENT] ❌ Erro ao postar comentário! Status: {response.status_code}, Response: {response.text[:400]}")
         raise RuntimeError(
             f"Falha ao postar comentário na tarefa '{task_name}': {response.status_code} - {response.text[:400]}"
         )
+    else:
+        logger.info(f"[TASK_COMMENT] ✅ Comentário postado com sucesso na tarefa '{task_name}'!")
+
 
 
 def _render_template_mencoes(template: str, mentions: list) -> str:

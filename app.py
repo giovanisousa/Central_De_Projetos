@@ -131,8 +131,10 @@ except Exception as e:
     logger.error(f"[SYNC] Falha ao tentar sincronizar projetos automaticamente: {e}")
 
 if __name__ == '__main__':
+    # Permite OAuth em HTTP quando rodar localmente via python app.py
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    
     if app.config.get('FLASK_ENV', 'production') == 'development':
-        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
         debug_mode = True
     else:
         debug_mode = False

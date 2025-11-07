@@ -1242,8 +1242,16 @@
                 if (inputId) inputId.value = projeto.id || '';
 
                 // Mostrar selects certos conforme produtos contratados (usa flags do backend)
+                console.log('[DEBUG MODAL] Projeto:', projeto.nome);
+                console.log('[DEBUG MODAL] tem_ris:', projeto.tem_ris, 'tipo:', typeof projeto.tem_ris);
+                console.log('[DEBUG MODAL] tem_pacs:', projeto.tem_pacs, 'tipo:', typeof projeto.tem_pacs);
+                console.log('[DEBUG MODAL] produtos_contratados:', projeto.produtos_contratados);
+                
                 const temRIS = projeto.tem_ris === true || projeto.tem_ris === 1;
                 const temPACS = projeto.tem_pacs === true || projeto.tem_pacs === 1;
+                
+                console.log('[DEBUG MODAL] temRIS calculado:', temRIS);
+                console.log('[DEBUG MODAL] temPACS calculado:', temPACS);
                 
                 const risGroup = document.getElementById('implantador-ris-group');
                 const pacsGroup = document.getElementById('implantador-pacs-group');
@@ -1252,11 +1260,13 @@
                 if (risGroup) {
                     risGroup.classList.remove('hidden');
                     if (!temRIS) risGroup.classList.add('hidden');
+                    console.log('[DEBUG MODAL] RIS Group - hidden:', risGroup.classList.contains('hidden'));
                 }
                 
                 if (pacsGroup) {
                     pacsGroup.classList.remove('hidden');
                     if (!temPACS) pacsGroup.classList.add('hidden');
+                    console.log('[DEBUG MODAL] PACS Group - hidden:', pacsGroup.classList.contains('hidden'));
                 }
 
                 modal.classList.remove('hidden');

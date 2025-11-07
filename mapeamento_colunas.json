@@ -27,19 +27,19 @@
       {
         "type": "taskComment",
         "taskName": "Validação do DEIP",
-        "template": "Bom dia @{William Floriano}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Infraestrutura. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
+        "template": "Bom dia @{Giovani Sousa}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Infraestrutura. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
         "optional": true
       },
       {
         "type": "taskComment",
         "taskName": "Contato inicial com o cliente",
-        "template": "Bom dia @{Carlo Tristão}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Importação. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
+        "template": "Bom dia @{Giovani Sousa}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Importação. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
         "optional": true
       },
       {
         "type": "taskComment",
         "taskName": "Solicitar dados ao RIS/HIS para integração de worklist",
-        "template": "Bom dia @{Roger Machado}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Integração. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
+        "template": "Bom dia @{Giovani Sousa}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Integração. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
         "optional": true
       }
     ],
