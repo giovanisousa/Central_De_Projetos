@@ -700,19 +700,46 @@ def limpar_comentarios_projeto(projeto_id):
 
 def count_open_impediments(projeto_id: str) -> int:
     """Conta tarefas abertas (não concluídas) do projeto na fase de impeditivos."""
+    NOME_FASE_IMPEDITIVOS = "00 - Itens impeditivos de virada"
     session = Session()
     try:
-        count = session.query(Tarefa).filter_by(projeto_id=projeto_id, concluida=False).count()
+        # Buscar fase de impeditivos do projeto
+        fase_impeditivos = session.query(Fase).filter_by(
+            projeto_id=projeto_id, 
+            nome=NOME_FASE_IMPEDITIVOS
+        ).first()
+        
+        if not fase_impeditivos:
+            return 0
+        
+        # Contar apenas tarefas não concluídas dessa fase específica
+        count = session.query(Tarefa).filter_by(
+            projeto_id=projeto_id, 
+            fase_id=fase_impeditivos.id,
+            concluida=False
+        ).count()
         return count
     finally:
         session.close()
 
 def get_any_impediments_tasklist_id(projeto_id: str) -> str | None:
     """Retorna uma tasklist do projeto que possua tarefas (as sincronizadas de impeditivos)."""
+    NOME_FASE_IMPEDITIVOS = "00 - Itens impeditivos de virada"
     session = Session()
     try:
+        # Buscar fase de impeditivos do projeto
+        fase_impeditivos = session.query(Fase).filter_by(
+            projeto_id=projeto_id, 
+            nome=NOME_FASE_IMPEDITIVOS
+        ).first()
+        
+        if not fase_impeditivos:
+            return None
+        
+        # Buscar tasklist da fase de impeditivos que tenha tarefas
         tasklist = session.query(ListaDeTarefas.id).join(Tarefa).filter(
-            ListaDeTarefas.projeto_id == projeto_id
+            ListaDeTarefas.projeto_id == projeto_id,
+            ListaDeTarefas.fase_id == fase_impeditivos.id
         ).first()
         return tasklist[0] if tasklist else None
     finally:
