@@ -901,6 +901,35 @@ def api_impeditivos(project_id):
         logger.error(f"Erro no endpoint impeditivos: {e}")
         return jsonify({"erro": str(e)}), 500
 
+@api_bp.route('/dias-sem-comentario/<project_id>', methods=['GET'])
+def api_dias_sem_comentario(project_id):
+    """
+    Endpoint para verificar quantos dias se passaram desde o último comentário.
+    Retorna alerta se >= 5 dias sem comentário.
+    """
+    try:
+        dias = database.get_dias_sem_comentario(project_id)
+        
+        if dias is None:
+            return jsonify({
+                "project_id": project_id,
+                "dias": None,
+                "precisa_comentario": False,
+                "mensagem": "Sem histórico de comentários"
+            })
+        
+        precisa_comentario = dias >= 5
+        
+        return jsonify({
+            "project_id": project_id,
+            "dias": dias,
+            "precisa_comentario": precisa_comentario,
+            "mensagem": f"{dias} dia(s) sem comentário" if dias > 0 else "Comentário hoje"
+        })
+    except Exception as e:
+        logger.error(f"Erro no endpoint dias-sem-comentario: {e}")
+        return jsonify({"erro": str(e)}), 500
+
 @api_bp.route('/dias-na-fase/<project_id>', methods=['GET'])
 def api_dias_na_fase(project_id):
     """

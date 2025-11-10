@@ -1,4 +1,4 @@
-# Função utilitária para contar projetos
+﻿# FunÃ§Ã£o utilitÃ¡ria para contar projetos
 def count_projects():
     session = Session()
     count = session.query(Project).count()
@@ -14,21 +14,21 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 from config import SQLALCHEMY_DATABASE_URI, BASE_DIR
-import utils # Import local para evitar ciclos em importação de app
+import utils # Import local para evitar ciclos em importaÃ§Ã£o de app
 
 logger = logging.getLogger(__name__) # Logger para database.py
 
-# Configuração do SQLAlchemy
+# ConfiguraÃ§Ã£o do SQLAlchemy
 Base = declarative_base()
 engine = create_engine(SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
 
-# Função para obter conexão direta ao banco (para queries SQL raw)
+# FunÃ§Ã£o para obter conexÃ£o direta ao banco (para queries SQL raw)
 def get_db_connection():
-    """Retorna uma conexão SQLAlchemy para executar queries SQL diretas."""
+    """Retorna uma conexÃ£o SQLAlchemy para executar queries SQL diretas."""
     return engine.connect()
 
-# --- Definição dos Modelos SQLAlchemy ---
+# --- DefiniÃ§Ã£o dos Modelos SQLAlchemy ---
 
 class Project(Base):
     __tablename__ = 'projects'
@@ -53,7 +53,7 @@ class Project(Base):
     data_de_inicio_da_oa = Column(String)
     data_de_onboarding = Column(String)
     status_atual = Column(String)
-    status_id = Column(String)  # ✅ NOVO: ID do status do Zoho (ex: "2376502000000020119")
+    status_id = Column(String)  # âœ… NOVO: ID do status do Zoho (ex: "2376502000000020119")
     dias_na_fase = Column(String)
     dias_total = Column(String)
     data_ultima_mudanca = Column(String)
@@ -62,7 +62,7 @@ class Project(Base):
     tags = Column(Text) # JSON array string com IDs das tags
     precisa_comentario = Column(Boolean, default=True)
     
-    # ✅ FASE 1: Colunas normalizadas (substituem full_data_json gradualmente)
+    # âœ… FASE 1: Colunas normalizadas (substituem full_data_json gradualmente)
     owner_zpuid = Column(String)  # ZPUID do dono (GP) do projeto
     owner_name = Column(String)   # Nome do dono (GP)
     client_name = Column(String)  # Nome do cliente
@@ -122,7 +122,7 @@ class Usuario(Base):
     email = Column(String, nullable=False, unique=True)
     ativo = Column(Boolean, nullable=False, default=False)
 
-# --- Funções de Interação com o Banco de Dados ---
+# --- FunÃ§Ãµes de InteraÃ§Ã£o com o Banco de Dados ---
 
 def init_db():
     """Inicializa o banco de dados e cria todas as tabelas do schema."""
@@ -130,7 +130,7 @@ def init_db():
     logger.info("Banco de dados verificado/inicializado com o schema completo.")
 
 def insert_initial_users():
-    """Insere os usuários iniciais no banco de dados se eles não existirem."""
+    """Insere os usuÃ¡rios iniciais no banco de dados se eles nÃ£o existirem."""
     users_to_insert = [
         {'nome': 'Giovani de Sousa', 'email': 'giovani.sousa@animati.com.br', 'ativo': True},
         {'nome': 'Willian dos Anjos', 'email': 'willian.anjos@animati.com.br', 'ativo': True}
@@ -147,19 +147,19 @@ def insert_initial_users():
                     ativo=user_data['ativo']
                 )
                 session.add(new_user)
-                logger.info(f"Usuário '{user_data['nome']}' inserido.")
+                logger.info(f"UsuÃ¡rio '{user_data['nome']}' inserido.")
         session.commit()
     except IntegrityError:
         session.rollback()
-        logger.warning("Erro de integridade ao inserir usuários iniciais (talvez já existam).")
+        logger.warning("Erro de integridade ao inserir usuÃ¡rios iniciais (talvez jÃ¡ existam).")
     except Exception as e:
         session.rollback()
-        logger.error(f"Erro ao inserir usuários iniciais: {e}")
+        logger.error(f"Erro ao inserir usuÃ¡rios iniciais: {e}")
     finally:
         session.close()
 
 def get_user_by_email(email):
-    """Busca um usuário pelo email."""
+    """Busca um usuÃ¡rio pelo email."""
     session = Session()
     try:
         user = session.query(Usuario).filter_by(email=email, ativo=True).first()
@@ -169,7 +169,7 @@ def get_user_by_email(email):
 
 def _get_custom_field(project_data, field_name):
     """
-    Função auxiliar para buscar valores em campos customizados que não são o foco principal.
+    FunÃ§Ã£o auxiliar para buscar valores em campos customizados que nÃ£o sÃ£o o foco principal.
     """
     if field_name in project_data:
         return project_data[field_name]
@@ -238,7 +238,7 @@ def _formatar_implantadores(implantadores_data):
 
 def parse_description(description):
     """
-    Analisa a descrição HTML de um projeto para extrair informações estruturadas (fallback para dados legados).
+    Analisa a descriÃ§Ã£o HTML de um projeto para extrair informaÃ§Ãµes estruturadas (fallback para dados legados).
     """
     if not description:
         return {
@@ -256,18 +256,18 @@ def parse_description(description):
         produtos_raw = re.findall(r"<li>\[\s*X\s*\](.*?)</li>", ferramentas_match.group(1))
         produtos = [re.sub(r"<.*?>", "", p).strip() for p in produtos_raw]
 
-    tem_importacao = True if re.search(r"Haverá importação\?.*?\(X\)\s*Sim", description, re.DOTALL | re.IGNORECASE) else False
+    tem_importacao = True if re.search(r"HaverÃ¡ importaÃ§Ã£o\?.*?\(X\)\s*Sim", description, re.DOTALL | re.IGNORECASE) else False
     importacao_escopo = None
     if tem_importacao:
-        escopo_match = re.search(r"Se Sim, selecione os itens para importação:.*?<ul>(.*?)</ul>", description, re.DOTALL | re.IGNORECASE)
+        escopo_match = re.search(r"Se Sim, selecione os itens para importaÃ§Ã£o:.*?<ul>(.*?)</ul>", description, re.DOTALL | re.IGNORECASE)
         if escopo_match:
             escopo_raw = re.findall(r"<li>\[\s*X\s*\](.*?)</li>", escopo_match.group(1))
             importacao_escopo = [re.sub(r"<.*?>", "", item).strip() for item in escopo_raw]
 
-    tem_integracao = True if re.search(r"Haverá integração\?.*?\(X\)\s*Sim", description, re.DOTALL | re.IGNORECASE) else False
+    tem_integracao = True if re.search(r"HaverÃ¡ integraÃ§Ã£o\?.*?\(X\)\s*Sim", description, re.DOTALL | re.IGNORECASE) else False
     integracao_escopo = None
     if tem_integracao:
-        escopo_match = re.search(r"Se Sim, selecione as integrações:.*?<ul>(.*?)</ul>", description, re.DOTALL | re.IGNORECASE)
+        escopo_match = re.search(r"Se Sim, selecione as integraÃ§Ãµes:.*?<ul>(.*?)</ul>", description, re.DOTALL | re.IGNORECASE)
         if escopo_match:
             escopo_raw = re.findall(r"<li>\[\s*X\s*\](.*?)</li>", escopo_match.group(1))
             integracao_escopo = [re.sub(r"<.*?>", "", item).strip() for item in escopo_raw]
@@ -288,7 +288,7 @@ def parse_description(description):
 
 def upsert_project(project_data):
     """
-    Insere ou atualiza um projeto, tratando dados estruturados e legados (via descrição).
+    Insere ou atualiza um projeto, tratando dados estruturados e legados (via descriÃ§Ã£o).
     """
     session = Session()
     try:
@@ -313,7 +313,7 @@ def upsert_project(project_data):
         importacoes_list = project_data.get('importacoes')
         if importacoes_list and isinstance(importacoes_list, list):
             valores = [item['value'] for item in importacoes_list]
-            valores_corrigidos = [v.replace('Prontuários', 'Prontuário') for v in valores]
+            valores_corrigidos = [v.replace('ProntuÃ¡rios', 'ProntuÃ¡rio') for v in valores]
             importacao_escopo = json.dumps(valores_corrigidos)
         else:
             importacao_escopo = desc_data['importacao_escopo']
@@ -327,7 +327,7 @@ def upsert_project(project_data):
         integracao_escopo = desc_data['integracao_escopo']
         link_google = project_data.get('link_do_google') or desc_data['link_google']
 
-        # ✅ CORRIGIDO: Salvar tags como JSON array com IDs, não apenas nomes
+        # âœ… CORRIGIDO: Salvar tags como JSON array com IDs, nÃ£o apenas nomes
         tags_list = project_data.get('tags', [])
         if tags_list:
             tags_str = json.dumps(tags_list)  # Salva o JSON completo com IDs
@@ -336,11 +336,11 @@ def upsert_project(project_data):
 
         start_date = project_data.get('start_date') or project_data.get('start_date_string')
         created_time = project_data.get('created_time') or project_data.get('created_time_string')
-        data_inicio_implantacao = _get_custom_field(project_data, 'Data Início Implantação')
-        data_homologacao = _get_custom_field(project_data, 'Data Homologação')
+        data_inicio_implantacao = _get_custom_field(project_data, 'Data InÃ­cio ImplantaÃ§Ã£o')
+        data_homologacao = _get_custom_field(project_data, 'Data HomologaÃ§Ã£o')
         data_homologacao_prevista = project_data.get('data_de_termino_original')
         data_virada = project_data.get('data_de_virada')
-        data_inicio_oa = _get_custom_field(project_data, 'Data Início OA')
+        data_inicio_oa = _get_custom_field(project_data, 'Data InÃ­cio OA')
 
         coluna_hint = utils.determinar_coluna_projeto(project_data)
         dias_total_calc = utils.calcular_dias_total_projeto(start_date, created_time)
@@ -359,7 +359,7 @@ def upsert_project(project_data):
         if len(parts) >= 2:
             cliente_formatado = f"{parts[0].strip()} - {parts[1].strip()}"
         else:
-            cliente_formatado = name or "Cliente não informado"
+            cliente_formatado = name or "Cliente nÃ£o informado"
 
         owner = project_data.get('owner', {})
         gp_nome = owner.get('first_name', '')
@@ -382,9 +382,9 @@ def upsert_project(project_data):
         implantador_virada_pacs = implantador_virada_pacs_raw if isinstance(implantador_virada_pacs_raw, str) else (_formatar_implantadores(implantador_virada_pacs_raw) if implantador_virada_pacs_raw else None)
         
         data_de_virada = _get_custom_field(project_data, 'Data de Virada')
-        data_de_inicio_da_oa = _get_custom_field(project_data, 'Data de Início da OA')
+        data_de_inicio_da_oa = _get_custom_field(project_data, 'Data de InÃ­cio da OA')
 
-        # ✅ FASE 1: Extrair dados normalizados de owner e client
+        # âœ… FASE 1: Extrair dados normalizados de owner e client
         owner_data = project_data.get('owner', {})
         owner_zpuid = owner_data.get('zpuid')
         owner_name = owner_data.get('name')
@@ -412,7 +412,7 @@ def upsert_project(project_data):
             'integracao_escopo': integracao_escopo,
             'data_inicio': start_date,
             'data_criacao': created_time,
-            'data_liberacao_servidor': _get_custom_field(project_data, 'Data Liberação Servidor'),
+            'data_liberacao_servidor': _get_custom_field(project_data, 'Data LiberaÃ§Ã£o Servidor'),
             'data_inicio_implantacao': data_inicio_implantacao,
             'data_homologacao': data_homologacao,
             'data_homologacao_prevista': data_homologacao_prevista,
@@ -422,11 +422,11 @@ def upsert_project(project_data):
             'data_inicio_oa': data_inicio_oa,
             'data_de_onboarding': _get_custom_field(project_data, 'Data de Onboarding'),
             'status_atual': project_data.get('status', {}).get('name'),
-            'status_id': project_data.get('status', {}).get('id'),  # ✅ NOVO: ID do status
+            'status_id': project_data.get('status', {}).get('id'),  # âœ… NOVO: ID do status
             'dias_na_fase': dias_na_fase_calc,
             'dias_total': dias_total_calc,
             'data_ultima_mudanca': project_data.get('last_modified_time'),
-            'data_mudanca_status': None, # Será preenchido apenas na movimentação manual
+            'data_mudanca_status': None, # SerÃ¡ preenchido apenas na movimentaÃ§Ã£o manual
             'link_google': link_google,
             'tags': tags_str,
             'implantador_ris': implantador_ris,
@@ -436,7 +436,7 @@ def upsert_project(project_data):
             'implantador_virada_ris': implantador_virada_ris,
             'implantador_virada_pacs': implantador_virada_pacs,
             'precisa_comentario': True,
-            # ✅ FASE 1: Colunas normalizadas
+            # âœ… FASE 1: Colunas normalizadas
             'owner_zpuid': owner_zpuid,
             'owner_name': owner_name,
             'client_name': client_name,
@@ -452,14 +452,14 @@ def upsert_project(project_data):
                 k: v for k, v in project_obj.items() if k != 'id' and k != 'data_mudanca_status'
             }
         )
-        # Lógica para data_mudanca_status: COALESCE(projects.data_mudanca_status, excluded.data_mudanca_status)
-        # Isso é um pouco mais complexo com on_conflict_do_update diretamente no set,
-        # então faremos uma atualização separada se necessário ou garantiremos que o valor inicial seja None
-        # e só seja setado manualmente. Por enquanto, o comportamento é que ele será atualizado se o valor
-        # no project_obj não for None. Se for None, ele não será alterado pelo update.
-        # Para replicar COALESCE, precisaríamos de uma expressão mais complexa no set,
-        # mas para a maioria dos casos, o comportamento atual é aceitável se data_mudanca_status
-        # só for setado explicitamente.
+        # LÃ³gica para data_mudanca_status: COALESCE(projects.data_mudanca_status, excluded.data_mudanca_status)
+        # Isso Ã© um pouco mais complexo com on_conflict_do_update diretamente no set,
+        # entÃ£o faremos uma atualizaÃ§Ã£o separada se necessÃ¡rio ou garantiremos que o valor inicial seja None
+        # e sÃ³ seja setado manualmente. Por enquanto, o comportamento Ã© que ele serÃ¡ atualizado se o valor
+        # no project_obj nÃ£o for None. Se for None, ele nÃ£o serÃ¡ alterado pelo update.
+        # Para replicar COALESCE, precisarÃ­amos de uma expressÃ£o mais complexa no set,
+        # mas para a maioria dos casos, o comportamento atual Ã© aceitÃ¡vel se data_mudanca_status
+        # sÃ³ for setado explicitamente.
 
         session.execute(on_conflict_stmt)
         session.commit()
@@ -578,7 +578,7 @@ def upsert_tarefa(tarefa_data, lista_de_tarefas_id, fase_id, projeto_id):
 
 def upsert_comentario(comentario_data, projeto_id):
     """
-    Insere ou atualiza um comentário no banco de dados.
+    Insere ou atualiza um comentÃ¡rio no banco de dados.
     """
     session = Session()
     try:
@@ -616,13 +616,13 @@ def upsert_comentario(comentario_data, projeto_id):
         return comentario_id
     except Exception as e:
         session.rollback()
-        logger.error(f"Erro ao inserir/atualizar comentário: {e}")
+        logger.error(f"Erro ao inserir/atualizar comentÃ¡rio: {e}")
     finally:
         session.close()
 
 def get_comentarios_projeto(projeto_id, limit=None, offset=0):
     """
-    Busca comentários de um projeto ordenados por data (mais recentes primeiro).
+    Busca comentÃ¡rios de um projeto ordenados por data (mais recentes primeiro).
     """
     session = Session()
     try:
@@ -635,7 +635,7 @@ def get_comentarios_projeto(projeto_id, limit=None, offset=0):
 
 def get_ultimo_comentario_projeto(projeto_id):
     """
-    Busca o comentário mais recente de um projeto.
+    Busca o comentÃ¡rio mais recente de um projeto.
     """
     session = Session()
     try:
@@ -647,7 +647,7 @@ def get_ultimo_comentario_projeto(projeto_id):
 def atualizar_data_ultimo_comentario(projeto_id, data_comentario=None):
     """
     Atualiza a coluna data_ultimo_comentario na tabela projects
-    com a data do comentário mais recente.
+    com a data do comentÃ¡rio mais recente.
     """
     session = Session()
     try:
@@ -665,13 +665,13 @@ def atualizar_data_ultimo_comentario(projeto_id, data_comentario=None):
         session.commit()
     except Exception as e:
         session.rollback()
-        logger.error(f"Erro ao atualizar data do último comentário: {e}")
+        logger.error(f"Erro ao atualizar data do Ãºltimo comentÃ¡rio: {e}")
     finally:
         session.close()
 
 def contar_comentarios_projeto(projeto_id):
     """
-    Conta o número total de comentários de um projeto.
+    Conta o nÃºmero total de comentÃ¡rios de um projeto.
     """
     session = Session()
     try:
@@ -682,7 +682,7 @@ def contar_comentarios_projeto(projeto_id):
 
 def limpar_comentarios_projeto(projeto_id):
     """
-    Remove todos os comentários de um projeto específico.
+    Remove todos os comentÃ¡rios de um projeto especÃ­fico.
     """
     session = Session()
     try:
@@ -694,12 +694,12 @@ def limpar_comentarios_projeto(projeto_id):
         return deleted_count
     except Exception as e:
         session.rollback()
-        logger.error(f"Erro ao limpar comentários do projeto: {e}")
+        logger.error(f"Erro ao limpar comentÃ¡rios do projeto: {e}")
     finally:
         session.close()
 
 def count_open_impediments(projeto_id: str) -> int:
-    """Conta tarefas abertas (não concluídas) do projeto na fase de impeditivos."""
+    """Conta tarefas abertas (nÃ£o concluÃ­das) do projeto na fase de impeditivos."""
     NOME_FASE_IMPEDITIVOS = "00 - Itens impeditivos de virada"
     session = Session()
     try:
@@ -712,7 +712,7 @@ def count_open_impediments(projeto_id: str) -> int:
         if not fase_impeditivos:
             return 0
         
-        # Contar apenas tarefas não concluídas dessa fase específica
+        # Contar apenas tarefas nÃ£o concluÃ­das dessa fase especÃ­fica
         count = session.query(Tarefa).filter_by(
             projeto_id=projeto_id, 
             fase_id=fase_impeditivos.id,
@@ -745,6 +745,46 @@ def get_any_impediments_tasklist_id(projeto_id: str) -> str | None:
     finally:
         session.close()
 
-# Inicializa o DB na importação do módulo
+def get_dias_sem_comentario(projeto_id: str) -> int | None:
+    """
+    Calcula quantos dias se passaram desde o ultimo comentario do projeto.
+    Retorna None se nao houver data_ultimo_comentario registrada.
+    """
+    session = Session()
+    try:
+        projeto = session.query(Project).filter_by(id=projeto_id).first()
+        
+        if not projeto or not projeto.data_ultimo_comentario:
+            return None
+        
+        from datetime import datetime
+        
+        # Tentar parsear a data no formato ISO (YYYY-MM-DDTHH:MM:SS)
+        try:
+            data_ultimo = datetime.fromisoformat(projeto.data_ultimo_comentario.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            # Se falhar, tentar formato YYYY-MM-DD
+            try:
+                data_ultimo = datetime.strptime(projeto.data_ultimo_comentario[:10], '%Y-%m-%d')
+            except (ValueError, AttributeError):
+                return None
+        
+        # Calcular diferenca em dias
+        hoje = datetime.now()
+        if data_ultimo.tzinfo:
+            # Se data_ultimo tem timezone, adicionar timezone a hoje
+            from datetime import timezone
+            hoje = datetime.now(timezone.utc)
+        
+        diferenca = hoje - data_ultimo
+        dias = diferenca.days
+        
+        return dias
+    finally:
+        session.close()
+
+
+
+# Inicializa o DB na importaÃ§Ã£o do mÃ³dulo
 init_db()
 insert_initial_users()

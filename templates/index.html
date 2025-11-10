@@ -848,6 +848,57 @@
                                 });
                         } catch(_) {}
 
+                        // Busca indicador de comentários
+                        try {
+                            fetch(`/api/dias-sem-comentario/${encodeURIComponent(projeto.id)}`)
+                                .then(r => r.json())
+                                .then(data => {
+                                    const ind = cardElement.querySelector('.comment-indicator');
+                                    const daysEl = cardElement.querySelector('.comment-days');
+                                    if (!ind || !daysEl) return;
+                                    
+                                    const dias = data && typeof data.dias === 'number' ? data.dias : null;
+                                    const precisaComentario = data && data.precisa_comentario === true;
+                                    
+                                    ind.classList.remove('neutral');
+                                    
+                                    if (dias === null) {
+                                        // Sem histórico de comentários
+                                        daysEl.textContent = '(-)';
+                                        ind.classList.add('inactive');
+                                        ind.title = 'Sem histórico de comentários';
+                                    } else if (precisaComentario) {
+                                        // >= 5 dias sem comentário - ALERTA
+                                        daysEl.textContent = `(${dias}d)`;
+                                        ind.classList.add('warning');
+                                        ind.title = `⚠️ ${dias} dia(s) sem comentário - Adicione um comentário!`;
+                                    } else {
+                                        // < 5 dias - OK
+                                        daysEl.textContent = `(${dias}d)`;
+                                        ind.classList.add('ok');
+                                        ind.title = dias === 0 ? 'Comentário adicionado hoje ✓' : `${dias} dia(s) desde último comentário ✓`;
+                                    }
+                                    
+                                    // Clique no indicador abre modal de comentários
+                                    ind.addEventListener('pointerdown', (e) => e.stopPropagation());
+                                    ind.addEventListener('mousedown', (e) => e.stopPropagation());
+                                    ind.addEventListener('click', (ev) => {
+                                        ev.preventDefault();
+                                        ev.stopPropagation();
+                                        abrirModalComentarios(projeto.id, projeto.nome);
+                                    });
+                                })
+                                .catch(() => {
+                                    const ind = cardElement.querySelector('.comment-indicator');
+                                    const daysEl = cardElement.querySelector('.comment-days');
+                                    if (ind && daysEl) {
+                                        daysEl.textContent = '(?)';
+                                        ind.classList.add('neutral');
+                                        ind.title = 'Erro ao carregar status de comentários';
+                                    }
+                                });
+                        } catch(_) {}
+
                         // Colorir imediatamente se já temos dados locais
                         try {
                             const span = cardElement.querySelector('.dias-na-fase');
@@ -988,6 +1039,12 @@
             const impedimentoHtml = `
                 <button type="button" class="impediment-indicator neutral" title="Itens impeditivos de virada">
                     ! <span class="imp-count">...</span>
+                </button>`;
+
+            // 1.5. Indicador de comentário (placeholder inicial)
+            const comentarioHtml = `
+                <button type="button" class="comment-indicator neutral" title="Status de comentários">
+                    💬 <span class="comment-days">...</span>
                 </button>`;
 
             // 2. Data de Homologação Prevista (apenas para coluna "Em Andamento - Implantação")
@@ -1172,6 +1229,7 @@
             // 3. HTML principal do card
             card.innerHTML = `
                 ${impedimentoHtml}
+                ${comentarioHtml}
                 <div>
                     <div class="project-name" data-tooltip="${projeto.nome}">${nomeExibido}</div>
                     <div class="project-info">
