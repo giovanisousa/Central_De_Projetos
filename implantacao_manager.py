@@ -404,6 +404,7 @@ class ImplantacaoManager:
         1. Adiciona implantadores ao projeto
         2. Atribui tarefas aos implantadores
         3. Atualiza custom fields no Zoho com os implantadores
+        4. Calcula e atualiza datas de implantação (início, homologação prevista, virada prevista)
         
         Args:
             project_id: ID do projeto
@@ -420,6 +421,7 @@ class ImplantacaoManager:
             "tarefas_nao_encontradas": [],
             "tarefas_falharam": [],
             "custom_fields_atualizados": False,
+            "datas_atualizadas": False,
             "mensagem": ""
         }
         
@@ -496,6 +498,86 @@ class ImplantacaoManager:
                 else:
                     logger.warning(f"⚠️  Tipo de projeto '{tipo_projeto}' inválido")
             
+            # 3.5. Calcular e atualizar datas de implantação
+            try:
+                from datetime import datetime, timedelta
+                
+                # Obter detalhes do projeto para saber produtos contratados
+                url_detalhes = f"https://projectsapi.zoho.com/api/v3/portal/{self.portal_id}/projects/{project_id}"
+                headers = {
+                    "Authorization": f"Zoho-oauthtoken {self.access_token}",
+                    "Content-Type": "application/json"
+                }
+                response_detalhes = requests.get(url_detalhes, headers=headers, timeout=30)
+                
+                if response_detalhes.status_code == 200:
+                    project_data = response_detalhes.json().get('project', {})
+                    custom_fields = project_data.get('custom_fields', {})
+                    produtos_contratados = custom_fields.get('produtos_contratados', '')
+                    
+                    logger.info(f"📋 Produtos contratados: {produtos_contratados}")
+                    
+                    # Data de início da implantação = hoje
+                    data_inicio = datetime.now()
+                    data_inicio_implantacao = data_inicio.strftime('%Y-%m-%d')
+                    
+                    # Calcular dias até homologação baseado em produtos
+                    produtos_lower = produtos_contratados.lower()
+                    if 'netris' in produtos_lower or 'net ris' in produtos_lower:
+                        dias_homologacao = 95
+                    elif 'animatipacs' in produtos_lower or 'animati pacs' in produtos_lower:
+                        dias_homologacao = 35
+                    else:
+                        # Default para RIS se não conseguir determinar
+                        dias_homologacao = 95
+                    
+                    logger.info(f"📅 Dias até homologação: {dias_homologacao} (baseado em: {produtos_contratados})")
+                    
+                    # Data de homologação prevista
+                    data_homologacao = data_inicio + timedelta(days=dias_homologacao)
+                    
+                    # Ajustar para segunda-feira (se não for)
+                    while data_homologacao.weekday() != 0:  # 0 = segunda-feira
+                        data_homologacao += timedelta(days=1)
+                    
+                    data_termino_original = data_homologacao.strftime('%Y-%m-%d')
+                    
+                    # Data de virada prevista (1 semana após homologação)
+                    data_virada = data_homologacao + timedelta(days=7)
+                    
+                    # Ajustar para segunda-feira
+                    while data_virada.weekday() != 0:
+                        data_virada += timedelta(days=1)
+                    
+                    data_de_termino_original = data_virada.strftime('%Y-%m-%d')
+                    
+                    logger.info(f"📅 Datas calculadas:")
+                    logger.info(f"  - Início Implantação: {data_inicio_implantacao}")
+                    logger.info(f"  - Homologação Prevista: {data_termino_original}")
+                    logger.info(f"  - Virada Prevista: {data_de_termino_original}")
+                    
+                    # Atualizar no Zoho
+                    payload_datas = {
+                        "custom_fields": {
+                            "data_de_inicio_da_implantacao": data_inicio_implantacao,
+                            "data_de_termino_original": data_termino_original,
+                            "data_de_virada_original": data_de_termino_original
+                        }
+                    }
+                    
+                    response_datas = requests.patch(url_detalhes, headers=headers, json=payload_datas, timeout=30)
+                    
+                    if response_datas.status_code in [200, 201]:
+                        logger.info(f"✅ Datas de implantação atualizadas no Zoho")
+                        resultado["datas_atualizadas"] = True
+                    else:
+                        logger.warning(f"⚠️  Falha ao atualizar datas: {response_datas.status_code} - {response_datas.text[:200]}")
+                else:
+                    logger.warning(f"⚠️  Não foi possível obter detalhes do projeto: {response_detalhes.status_code}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️  Erro ao calcular/atualizar datas: {e}")
+            
             # 4. Carregar tarefas do tipo de projeto
             tarefas_para_atribuir = self.carregar_tarefas(tipo_projeto)
             logger.info(f"📋 {len(tarefas_para_atribuir)} tarefas para atribuir")
@@ -549,12 +631,18 @@ class ImplantacaoManager:
             if resultado["tarefas_falharam"]:
                 logger.warning(f"⚠️  {len(resultado['tarefas_falharam'])} tarefas falharam na atribuição")
             
-            resultado["sucesso"] = True
-            resultado["mensagem"] = (
+            # Atualizar mensagem de sucesso incluindo datas
+            mensagem_base = (
                 f"Implantação agendada! "
                 f"{len(resultado['usuarios_adicionados'])} usuários adicionados, "
                 f"{len(resultado['tarefas_atribuidas'])} tarefas atribuídas"
             )
+            
+            if resultado["datas_atualizadas"]:
+                mensagem_base += ", datas atualizadas"
+            
+            resultado["sucesso"] = True
+            resultado["mensagem"] = mensagem_base
             
         except Exception as e:
             logger.error(f"❌ Erro ao agendar implantação: {e}")

@@ -75,26 +75,37 @@ def _listar_tarefas_quick(project_id: str, headers: dict) -> list[dict]:
 
     def _collect_once():
         status = 'all'
-        # OTIMIZADO: Apenas as tentativas mais eficientes para evitar timeout
-        # 1) Range simples (geralmente funciona)
-        url = f"{base}?range=1-400&status={status}"
-        chunk = _get(url)
-        for t in chunk:
-            tid = t.get('id')
-            if tid and tid not in tasks_by_id:
-                tasks_by_id[tid] = t
+        # SOLUÇÃO CORRETA: Usar page/per_page igual ao implantacao_manager.py
+        # Este método retorna 200 tarefas por página (não 100)!
         
-        # 2) Se não pegou tarefas suficientes, tenta com index
-        if len(tasks_by_id) < 50:
-            url = f"{base}?index=1&range=1-400&status=all"
+        # Buscar até 3 páginas (600 tarefas) para cobrir a maioria dos projetos
+        for page_num in range(1, 4):  # páginas 1, 2, 3
+            logger.info(f"[TASKS] Buscando página {page_num} (page={page_num}, per_page=200)...")
+            # Usar page/per_page em vez de index/range
+            url = f"{base}?page={page_num}&per_page=200&status={status}"
             chunk = _get(url)
+            logger.info(f"[TASKS] Página {page_num}: {len(chunk)} tarefas retornadas")
+            
+            count_before = len(tasks_by_id)
             for t in chunk:
                 tid = t.get('id')
                 if tid and tid not in tasks_by_id:
                     tasks_by_id[tid] = t
+            
+            novas = len(tasks_by_id) - count_before
+            logger.info(f"[TASKS] Após página {page_num}: {len(tasks_by_id)} únicas ({novas} novas)")
+            
+            # Se não retornou tarefas, acabou
+            if not chunk:
+                logger.info(f"[TASKS] Sem mais tarefas, finalizando paginação")
+                break
+            
+            # Se retornou menos de 200, é a última página
+            if len(chunk) < 200:
+                logger.info(f"[TASKS] Última página ({len(chunk)} tarefas), finalizando paginação")
+                break
 
     _collect_once()
-    # REMOVIDO: Segunda coleta que causava dobro de tempo
 
     # Fallback por Custom View se configurada e ainda baixo
     if len(tasks_by_id) < 120 and DEFAULT_TASKS_CUSTOM_VIEW_ID:
@@ -311,23 +322,34 @@ def api_criar_projeto():
 
                 # Aguardar tempo suficiente para tarefas do template materializarem
                 logger.info("Sincronização das tarefas iniciada. (Polling para aguardar materialização das tarefas)")
-                # Polling: aguarda até 5s ou até que tarefas sejam criadas (otimizado para evitar timeout)
+                # Polling: aguarda até 20s ou até que tarefas suficientes sejam criadas
+                # AJUSTADO: Aumentado de 5s para 20s - o Zoho precisa de tempo para criar tarefas do template
+                # Anteriormente era 45s, mas isso causava timeout. 20s é um meio-termo razoável.
                 import time
-                polling_timeout = 5  # REDUZIDO: 5s para evitar timeout do Gunicorn
-                polling_interval = 1  # REDUZIDO: 1s para fazer mais tentativas rápidas
+                polling_timeout = 20  # AUMENTADO: de 5s para 20s (anteriormente era 45s)
+                polling_interval = 2  # AUMENTADO: de 1s para 2s (menos requests, mais eficiente)
                 polling_start = time.time()
                 tasks = []
+                tentativas = 0
                 while time.time() - polling_start < polling_timeout:
+                    tentativas += 1
                     try:
                         tasks = _listar_tarefas_quick(str(id_do_novo_projeto), headers)
                     except Exception as e:
-                        logger.warning(f"Polling falhou: {e}")
+                        logger.warning(f"Polling tentativa {tentativas} falhou: {e}")
                         tasks = []
-                    if tasks and len(tasks) >= 1:
-                        logger.info(f"Polling: tarefas encontradas ({len(tasks)}) após {int(time.time()-polling_start)}s.")
+                    
+                    # Critério de sucesso: pelo menos 50 tarefas criadas (template típico tem ~189 tarefas)
+                    # Isso garante que já temos tarefas suficientes para atribuir/concluir
+                    if tasks and len(tasks) >= 50:
+                        logger.info(f"✅ Polling: {len(tasks)} tarefas encontradas após {int(time.time()-polling_start)}s (tentativa {tentativas}).")
                         break
-                    logger.info(f"Polling: aguardando tarefas... ({int(time.time()-polling_start)}s)")
+                    
+                    logger.info(f"⏳ Polling tentativa {tentativas}: {len(tasks)} tarefas encontradas, aguardando mais... ({int(time.time()-polling_start)}s)")
                     time.sleep(polling_interval)
+                
+                if not tasks or len(tasks) < 50:
+                    logger.warning(f"⚠️ Polling finalizado com apenas {len(tasks)} tarefas após {int(time.time()-polling_start)}s. Prosseguindo mesmo assim.")
 
                 # Pós-criação: atribuir tarefas ao GP, concluir tarefas iniciais e lançar tempo
                 # Otimizado para executar rapidamente e evitar timeout do Gunicorn (30s)
@@ -401,11 +423,11 @@ def api_criar_projeto():
                                     return task
                             return None
 
-                        # Limite de tempo total para processamento pós-criação: 10 segundos
-                        # Com polling de ~5s, temos ~10s para pós-criação e ainda ~15s de margem para resposta (total 30s)
+                        # Limite de tempo total para processamento pós-criação: 35 segundos
+                        # Com polling de ~23s, temos ~35s para pós-criação (total ~58s, dentro do timeout do Gunicorn de 60s)
                         import time
                         post_creation_start = time.time()
-                        post_creation_timeout = 10  # REDUZIDO: de 15s para 10s
+                        post_creation_timeout = 35  # AUMENTADO: de 30s para 35s (margem para timesheets)
                         
                         def check_timeout():
                             """Verifica se ainda há tempo disponível para processamento"""
@@ -415,43 +437,66 @@ def api_criar_projeto():
                                 return True
                             return False
 
-                        # 3) Atribuir tarefas ao GP (com limite de tempo)
+                        # 3) Atribuir tarefas ao GP (com limite de tempo) - OTIMIZADO COM THREADS
                         if not check_timeout():
-                            for nome_tarefa in TAREFAS_PARA_ATRIBUIR:
-                                if check_timeout():
-                                    break
-                                t = _get_task_by_name(nome_tarefa)
-                                if not t:
-                                    logger.info(f"Tarefa para atribuir não encontrada no projeto: '{nome_tarefa}'")
-                                    continue
-                                owner = (t.get('owner') or {}).get('zpuid')
-                                if str(owner) == str(gp_zpuid):
-                                    continue
+                            from concurrent.futures import ThreadPoolExecutor, as_completed
+                            import threading
+                            
+                            def atribuir_tarefa(nome_tarefa):
+                                """Atribui uma tarefa ao GP (função para executar em thread)"""
                                 try:
+                                    t = _get_task_by_name(nome_tarefa)
+                                    if not t:
+                                        logger.info(f"Tarefa para atribuir não encontrada: '{nome_tarefa}'")
+                                        return False
+                                    owner = (t.get('owner') or {}).get('zpuid')
+                                    if str(owner) == str(gp_zpuid):
+                                        logger.info(f"Tarefa '{nome_tarefa}' já atribuída ao GP")
+                                        return True
+                                    
                                     task_id = t.get('id')
-                                    try:
-                                        url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
-                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                        payload_rest = {"person_responsible": str(gp_zpuid)}
-                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)  # Timeout reduzido para 5s
-                                        if resp_rest.status_code in (200, 201):
-                                            logger.info(f"Atribuição via REST bem-sucedida '{nome_tarefa}'.")
-                                        else:
-                                            logger.warning(f"Atribuição (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
-                                    except Exception as e2:
-                                        logger.warning(f"Erro no REST de atribuição '{nome_tarefa}': {e2}")
+                                    url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/"
+                                    headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                    payload_rest = {"person_responsible": str(gp_zpuid)}
+                                    resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)
+                                    if resp_rest.status_code in (200, 201):
+                                        logger.info(f"✅ Atribuição bem-sucedida: '{nome_tarefa}'")
+                                        return True
+                                    else:
+                                        logger.warning(f"❌ Atribuição falhou '{nome_tarefa}': {resp_rest.status_code}")
+                                        return False
                                 except Exception as e:
-                                    logger.warning(f"Erro ao atribuir '{nome_tarefa}': {e}")
+                                    logger.warning(f"❌ Erro ao atribuir '{nome_tarefa}': {e}")
+                                    return False
+                            
+                            logger.info(f"📋 Iniciando atribuição de {len(TAREFAS_PARA_ATRIBUIR)} tarefas (em paralelo)...")
+                            with ThreadPoolExecutor(max_workers=5) as executor:
+                                # Submeter todas as atribuições em paralelo
+                                futures = {executor.submit(atribuir_tarefa, nome): nome for nome in TAREFAS_PARA_ATRIBUIR}
+                                
+                                # Aguardar conclusão com timeout
+                                for future in as_completed(futures, timeout=15):
+                                    if check_timeout():
+                                        logger.warning("⏰ Timeout durante atribuições paralelas")
+                                        break
+                                    try:
+                                        resultado = future.result()
+                                    except Exception as e:
+                                        logger.warning(f"Erro em atribuição paralela: {e}")
 
                         # 4) Concluir tarefas iniciais (atribui ao GP se necessário) - com limite de tempo
                         if not check_timeout():
+                            logger.info(f"📋 Iniciando conclusão de {len(TAREFAS_PARA_CONCLUIR)} tarefas...")
                             for nome_tarefa in TAREFAS_PARA_CONCLUIR:
                                 if check_timeout():
+                                    logger.warning(f"⏰ Timeout atingido durante conclusão de tarefas. Abortando.")
                                     break
+                                logger.info(f"🔍 Buscando tarefa para concluir: '{nome_tarefa}'")
                                 t = _get_task_by_name(nome_tarefa)
                                 if not t:
-                                    logger.warning(f"Tarefa para concluir não encontrada no projeto: '{nome_tarefa}'")
+                                    logger.warning(f"❌ Tarefa para concluir não encontrada no projeto: '{nome_tarefa}'")
                                     continue
+                                logger.info(f"✅ Tarefa encontrada: '{t.get('name')}' (ID: {t.get('id')})")
                                 try:
                                     task_id = t.get('id')
                                     url_patch_task = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}"
@@ -482,40 +527,57 @@ def api_criar_projeto():
                                 except Exception as e:
                                     logger.warning(f"Erro ao concluir '{nome_tarefa}': {e}")
 
-                        # 5) Lançar timesheet nas tarefas concluídas conforme TEMPO_RELATO
+                        # 5) Lançar timesheet nas tarefas concluídas conforme TEMPO_RELATO - OTIMIZADO COM THREADS
                         if not check_timeout():
-                            from datetime import date as _date
+                            from datetime import date as _date, datetime as _dt
+                            from concurrent.futures import ThreadPoolExecutor, as_completed
+                            
                             hoje = _date.today().strftime('%Y-%m-%d')
-                            for nome_tarefa, tempo_hhmm in TEMPO_RELATO.items():
-                                if check_timeout():
-                                    break
-                                t = _get_task_by_name(nome_tarefa)
-                                if not t:
-                                    continue
+                            mmddyyyy = _dt.strptime(hoje, "%Y-%m-%d").strftime("%m-%d-%Y")
+                            
+                            def lancar_timesheet(nome_tarefa, tempo_hhmm):
+                                """Lança timesheet em uma tarefa (função para executar em thread)"""
                                 try:
+                                    t = _get_task_by_name(nome_tarefa)
+                                    if not t:
+                                        return False
+                                    
                                     task_id = t.get('id')
-                                    # Timesheet diretamente via REST (MM-DD-YYYY)
-                                    try:
-                                        from datetime import datetime as _dt
-                                        mmddyyyy = _dt.strptime(hoje, "%Y-%m-%d").strftime("%m-%d-%Y")
-                                        url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/logs/"
-                                        headers_rest = {"Authorization": f"Bearer {access_token}"}
-                                        payload_rest = {
-                                            "owner_zpuid": str(gp_zpuid),
-                                            "hours": tempo_hhmm,
-                                            "date": mmddyyyy,
-                                            "bill_status": "Billable",
-                                            "notes": "Relatado via automação."
-                                        }
-                                        resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)  # Timeout reduzido para 5s
-                                        if resp_rest.status_code in (200, 201):
-                                            logger.info(f"Timesheet via REST bem-sucedido '{nome_tarefa}'.")
-                                        else:
-                                            logger.warning(f"Timesheet (REST) falhou '{nome_tarefa}': {resp_rest.status_code} - {resp_rest.text[:400]}")
-                                    except Exception as e2:
-                                        logger.warning(f"Erro no REST de timesheet '{nome_tarefa}': {e2}")
+                                    url_rest = f"https://projectsapi.zoho.com/restapi/portal/{ZOHO_PORTAL_ID}/projects/{id_do_novo_projeto}/tasks/{task_id}/logs/"
+                                    headers_rest = {"Authorization": f"Bearer {access_token}"}
+                                    payload_rest = {
+                                        "owner_zpuid": str(gp_zpuid),
+                                        "hours": tempo_hhmm,
+                                        "date": mmddyyyy,
+                                        "bill_status": "Billable",
+                                        "notes": "Relatado via automação."
+                                    }
+                                    resp_rest = requests.post(url_rest, headers=headers_rest, data=payload_rest, timeout=5)
+                                    if resp_rest.status_code in (200, 201):
+                                        logger.info(f"✅ Timesheet lançado: '{nome_tarefa}' ({tempo_hhmm})")
+                                        return True
+                                    else:
+                                        logger.warning(f"❌ Timesheet falhou '{nome_tarefa}': {resp_rest.status_code}")
+                                        return False
                                 except Exception as e:
-                                    logger.warning(f"Erro ao lançar timesheet '{nome_tarefa}': {e}")
+                                    logger.warning(f"❌ Erro ao lançar timesheet '{nome_tarefa}': {e}")
+                                    return False
+                            
+                            logger.info(f"📋 Lançando {len(TEMPO_RELATO)} timesheets (em paralelo)...")
+                            with ThreadPoolExecutor(max_workers=4) as executor:
+                                # Submeter todos os timesheets em paralelo
+                                futures = {executor.submit(lancar_timesheet, nome, tempo): nome 
+                                          for nome, tempo in TEMPO_RELATO.items()}
+                                
+                                # Aguardar conclusão com timeout
+                                for future in as_completed(futures, timeout=10):
+                                    if check_timeout():
+                                        logger.warning("⏰ Timeout durante lançamento de timesheets")
+                                        break
+                                    try:
+                                        resultado = future.result()
+                                    except Exception as e:
+                                        logger.warning(f"Erro em timesheet paralelo: {e}")
                     else:
                         logger.info("Projeto não criado ou GP inválido; etapa de pós-criação ignorada.")
                 except Exception as e:
@@ -539,16 +601,14 @@ def api_criar_projeto():
                 logger.debug(f"[SYNC] Resultado synchronize_single_project: {projeto_json}")
                 registro_db = database.get_project_by_id(str(id_do_novo_projeto))
                 logger.debug(f"[DB] Registro retornado do banco: {registro_db}")
-                if registro_db and registro_db['full_data_json']:
-                    dados_zoho = json.loads(registro_db['full_data_json'])
-                    nome_projeto = dados_zoho.get('name', utils.construir_titulo_projeto(dados))
-                    cliente = (
-                        (dados_zoho.get('client_company') or {}).get('name')
-                        or (dados_zoho.get('client') or {}).get('name')
-                        or dados_zoho.get('client_name')
-                        or "Cliente não informado"
-                    )
-                    gp_nome = (dados_zoho.get('owner') or {}).get('name', 'GP não informado')
+                if registro_db:
+                    # ✅ FASE 2: Usar colunas normalizadas ao invés de parsear full_data_json
+                    # registro_db é um objeto SQLAlchemy Project, não um dict
+                    nome_projeto = registro_db.project_name or registro_db.nome or utils.construir_titulo_projeto(dados)
+                    cliente = registro_db.client_name or registro_db.cliente or "Cliente não informado"
+                    gp_nome = registro_db.owner_name or registro_db.gp or 'GP não informado'
+                    
+                    # Detectar produto pelo nome do projeto
                     produto_info = ''
                     if ' - NR/AP' in nome_projeto:
                         produto_info = 'netRIS e AnimatiPACS'
@@ -556,22 +616,23 @@ def api_criar_projeto():
                         produto_info = 'netRIS'
                     elif ' - AP' in nome_projeto:
                         produto_info = 'AnimatiPACS'
+                    
                     novo_projeto = {
-                        "id": str(registro_db['id']),
+                        "id": str(registro_db.id),
                         "nome": nome_projeto,
                         "cliente": cliente,
                         "gp": gp_nome,
-                        "data_inicio": dados_zoho.get('start_date', ''),
-                        "data_criacao": dados_zoho.get('created_time', ''),
-                        "data_inicio_formatada": (dados_zoho.get('start_date') or '').replace('-', '/'),
-                        "dias_na_fase": registro_db.get('dias_na_fase') or utils.calcular_dias_na_fase(dados_zoho, utils.determinar_coluna_projeto(dados_zoho)),
-                        "dias_total": registro_db.get('dias_total') or utils.calcular_dias_total_projeto(dados_zoho.get('start_date'), dados_zoho.get('created_time')),
-                        "status_atual": utils.determinar_coluna_projeto(dados_zoho),
+                        "data_inicio": registro_db.data_inicio or '',
+                        "data_criacao": registro_db.data_criacao or '',
+                        "data_inicio_formatada": (registro_db.data_inicio or '').replace('-', '/'),
+                        "dias_na_fase": registro_db.dias_na_fase or 0,
+                        "dias_total": registro_db.dias_total or 0,
+                        "status_atual": registro_db.status_atual or 'Aguardando Onboarding',
                         "produto": produto_info
                     }
                     logger.debug(f"[DB] Novo projeto montado para resposta: {novo_projeto}")
                 else:
-                    logger.debug(f"[DB] Projeto não encontrado ou sem full_data_json após sync. ID: {id_do_novo_projeto}")
+                    logger.debug(f"[DB] Projeto não encontrado após sync. ID: {id_do_novo_projeto}")
             except Exception as sync_error:
                 logger.error(f"[ERRO] Falha ao sincronizar projeto recém-criado {id_do_novo_projeto}: {sync_error}")
                 novo_projeto = None
@@ -711,6 +772,9 @@ def carregar_projetos():
                     produto_info = 'AnimatiPACS'
                     tem_pacs = True
             
+            # DEBUG: Log dos produtos detectados
+            logger.debug(f"[PRODUTOS] Projeto {project_row.id} ({project_row.nome[:50]}...): tem_ris={tem_ris}, tem_pacs={tem_pacs}, produto_info='{produto_info}'")
+            
             # ✅ Calcula dias na fase dinamicamente
             dias_na_fase_calc = utils.calcular_dias_na_fase_from_status(project_row.data_mudanca_status)
             
@@ -763,14 +827,8 @@ def carregar_projetos():
             projetos_por_status[status_kanban].append(info_projeto)
 
             if status_kanban not in colunas_validas:
-                # Extrai status_id do full_data_json para log de auditoria
-                status_id_audit = ''
-                if project_row.full_data_json:
-                    try:
-                        projeto_data = json.loads(project_row.full_data_json)
-                        status_id_audit = projeto_data.get('status', {}).get('id', '')
-                    except:
-                        pass
+                # ✅ FASE 2: Usa coluna normalizada status_id ao invés de parsear JSON
+                status_id_audit = project_row.status_id or ''
                 
                 projetos_nao_mapeados.append({
                     'id': project_row.id,
@@ -841,6 +899,35 @@ def api_impeditivos(project_id):
         return jsonify({"project_id": project_id, "count": count, "has_impediments": count > 0, "web_url": web_url})
     except Exception as e:
         logger.error(f"Erro no endpoint impeditivos: {e}")
+        return jsonify({"erro": str(e)}), 500
+
+@api_bp.route('/dias-sem-comentario/<project_id>', methods=['GET'])
+def api_dias_sem_comentario(project_id):
+    """
+    Endpoint para verificar quantos dias se passaram desde o último comentário.
+    Retorna alerta se >= 5 dias sem comentário.
+    """
+    try:
+        dias = database.get_dias_sem_comentario(project_id)
+        
+        if dias is None:
+            return jsonify({
+                "project_id": project_id,
+                "dias": None,
+                "precisa_comentario": False,
+                "mensagem": "Sem histórico de comentários"
+            })
+        
+        precisa_comentario = dias >= 5
+        
+        return jsonify({
+            "project_id": project_id,
+            "dias": dias,
+            "precisa_comentario": precisa_comentario,
+            "mensagem": f"{dias} dia(s) sem comentário" if dias > 0 else "Comentário hoje"
+        })
+    except Exception as e:
+        logger.error(f"Erro no endpoint dias-sem-comentario: {e}")
         return jsonify({"erro": str(e)}), 500
 
 @api_bp.route('/dias-na-fase/<project_id>', methods=['GET'])
@@ -1171,7 +1258,11 @@ def _atualizar_zoho(
 
     # 3) Disparo de triggers configurados da coluna de DESTINO (onEnter)
     triggers = info_dest.get("triggers", []) or []
+    logger.info(f"[TRIGGERS] Coluna destino: '{coluna_destino}' | Triggers encontrados: {len(triggers)}")
     if triggers:
+        logger.info(f"[TRIGGERS] Executando {len(triggers)} trigger(s) da coluna '{coluna_destino}'")
+        for i, t in enumerate(triggers):
+            logger.info(f"[TRIGGERS] Trigger {i+1}: type={t.get('type')}, taskName={t.get('taskName', 'N/A')}")
         _executar_triggers(
             triggers=triggers,
             projeto_id=projeto_id,
@@ -1180,6 +1271,8 @@ def _atualizar_zoho(
             headers=headers,
             access_token=access_token
         )
+    else:
+        logger.info(f"[TRIGGERS] Nenhum trigger configurado para coluna '{coluna_destino}'")
 
     # 3.1) Disparo de triggers configurados da coluna de ORIGEM (onExit)
     if coluna_origem:
@@ -1485,21 +1578,27 @@ def _executar_triggers(
     access_token: str
 ) -> None:
     """Executa os gatilhos associados à coluna destino."""
-    for trigger in triggers:
+    logger.info(f"[_executar_triggers] Iniciando execução de {len(triggers)} trigger(s)")
+    for i, trigger in enumerate(triggers):
         if not isinstance(trigger, dict):
+            logger.warning(f"[_executar_triggers] Trigger {i+1} não é um dict, pulando: {trigger}")
             continue
         tipo = trigger.get("type")
+        logger.info(f"[_executar_triggers] Processando trigger {i+1}/{len(triggers)}: type={tipo}")
         
         try:
             if tipo == "projectComment":
+                logger.info(f"[_executar_triggers] Executando projectComment...")
                 _postar_comentario_projeto(projeto_id, headers, trigger.get("template", ""))
             elif tipo == "taskComment":
+                logger.info(f"[_executar_triggers] Executando taskComment para tarefa '{trigger.get('taskName')}'...")
                 _postar_comentario_tarefa(
                     projeto_id=projeto_id,
                     headers=headers,
                     detalhes_zoho=detalhes_zoho,
                     trigger=trigger
                 )
+                logger.info(f"[_executar_triggers] taskComment executado com sucesso!")
             elif tipo == "workflow":
                 # Workflow triggers não estão implementados ainda
                 logger.warning(f"Trigger de workflow '{trigger.get('name')}' ignorado (não implementado)")
@@ -1533,37 +1632,63 @@ def _postar_comentario_tarefa(projeto_id: str, headers: dict, detalhes_zoho: dic
     tarefas = _listar_tarefas_quick(projeto_id, headers)
     alvo = None
     task_name_norm = (task_name or "").strip().casefold()
+    
+    logger.info(f"[TASK_COMMENT] Buscando tarefa: '{task_name}' (normalizado: '{task_name_norm}')")
+    logger.info(f"[TASK_COMMENT] Total de tarefas no projeto: {len(tarefas)}")
 
     for tarefa in tarefas:
         nome_tarefa = (tarefa.get("name") or "").strip()
         if not nome_tarefa:
             continue
         nome_norm = nome_tarefa.casefold()
-        if nome_norm == task_name_norm or nome_norm.startswith(task_name_norm) or task_name_norm in nome_norm:
+        
+        # Log de cada comparação
+        match_exato = nome_norm == task_name_norm
+        match_startswith = nome_norm.startswith(task_name_norm)
+        match_substring = task_name_norm in nome_norm
+        
+        if match_exato or match_startswith or match_substring:
+            logger.info(f"[TASK_COMMENT] ✅ Tarefa encontrada! Nome: '{nome_tarefa}' | Match: exato={match_exato}, startswith={match_startswith}, substring={match_substring}")
             alvo = tarefa
             break
 
     if not alvo:
         exemplos = ", ".join((t.get("name") or "<sem nome>") for t in tarefas[:10])
         if is_optional:
-            logger.debug(f"Tarefa opcional '{task_name}' não encontrada para comentário - pulando")
+            logger.info(f"[TASK_COMMENT] ⚠️ Tarefa opcional '{task_name}' não encontrada - pulando")
+            logger.info(f"[TASK_COMMENT] Primeiras 10 tarefas disponíveis: {exemplos}")
             return
         else:
-            logger.debug(f"Tarefa obrigatória '{task_name}' não encontrada para comentário. Tarefas disponíveis: {exemplos}")
+            logger.error(f"[TASK_COMMENT] ❌ Tarefa obrigatória '{task_name}' não encontrada!")
+            logger.error(f"[TASK_COMMENT] Tarefas disponíveis: {exemplos}")
             raise RuntimeError(
                 f"Tarefa obrigatória '{task_name}' não encontrada para comentário. Encontradas: {exemplos}"
             )
 
+    logger.info(f"[TASK_COMMENT] Tarefa encontrada! ID: {alvo.get('id')}, Nome: {alvo.get('name')}")
+    logger.info(f"[TASK_COMMENT] Aplicando menções ao template...")
     comentario_template = utils.zoho_apply_mentions(template)
+    logger.info(f"[TASK_COMMENT] Template processado (primeiros 100 chars): {comentario_template[:100]}...")
 
     task_id = alvo.get("id")
     url = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{projeto_id}/tasks/{task_id}/comments"
     payload = {"comment": comentario_template, "content": comentario_template}
+    
+    logger.info(f"[TASK_COMMENT] Postando comentário na tarefa ID {task_id}...")
+    logger.info(f"[TASK_COMMENT] URL: {url}")
+    
     response = requests.post(url, headers=headers, json=payload, timeout=30)
+    
+    logger.info(f"[TASK_COMMENT] Resposta da API: status_code={response.status_code}")
+    
     if response.status_code not in (200, 201):
+        logger.error(f"[TASK_COMMENT] ❌ Erro ao postar comentário! Status: {response.status_code}, Response: {response.text[:400]}")
         raise RuntimeError(
             f"Falha ao postar comentário na tarefa '{task_name}': {response.status_code} - {response.text[:400]}"
         )
+    else:
+        logger.info(f"[TASK_COMMENT] ✅ Comentário postado com sucesso na tarefa '{task_name}'!")
+
 
 
 def _render_template_mencoes(template: str, mentions: list) -> str:
@@ -1826,7 +1951,9 @@ def iniciar_implantacao():
         project_row = database.get_project_by_id(project_id)
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
-        detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
+        
+        # ✅ FASE 2: Usar colunas normalizadas (project_name ainda é usado como fallback)
+        project_name_normalized = project_row.project_name or ''
         
         # ==== IDENTIFICAR FERRAMENTAS CONTRATADAS DO BANCO DE DADOS ====
         # Regras de negócio:
@@ -1861,9 +1988,8 @@ def iniciar_implantacao():
             logger.debug(f"[INICIAR_IMPLANTACAO] Projeto apenas AnimatiPACS detectado (produtos: {produtos_list}) - Prazo: {dias_ate_homologacao} dias")
         else:
             # Fallback: se produtos não identificados, tenta pelo nome do projeto
-            proj_name = str((detalhes_zoho or {}).get('name', '') or '')
-            tem_netris_nome = ' - NR/AP' in proj_name or ' - NR' in proj_name
-            tem_apenas_ap_nome = ' - AP' in proj_name and not tem_netris_nome
+            tem_netris_nome = ' - NR/AP' in project_name_normalized or ' - NR' in project_name_normalized
+            tem_apenas_ap_nome = ' - AP' in project_name_normalized and not tem_netris_nome
             
             if tem_netris_nome:
                 dias_ate_homologacao = 60
@@ -2177,9 +2303,8 @@ def iniciar_implantacao():
         try:
             from google_calendar import criar_evento_homologacao, criar_evento_virada
             
-            # Obter nome do cliente para os eventos
-            proj_name = str((detalhes_zoho or {}).get('name', '') or '')
-            nome_cliente = proj_name.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+            # ✅ FASE 2: Obter nome do cliente das colunas normalizadas
+            nome_cliente = project_row.client_name or project_name_normalized.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
             
             if not nome_cliente:
                 nome_cliente = f"Projeto {project_id}"
@@ -2229,8 +2354,8 @@ def iniciar_implantacao():
         creds = utils.build_google_credentials_from_session()
         sheets_service = build('sheets', 'v4', credentials=creds)
 
-        proj_name = str((detalhes_zoho or {}).get('name', '') or '')
-        base_cliente = proj_name.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
+        # ✅ FASE 2: Usar colunas normalizadas
+        base_cliente = project_row.client_name or project_name_normalized.split(' - NR')[0].split(' - AP')[0].split(' - NR/AP')[0].strip()
         chave_busca = base_cliente
 
         if not chave_busca:
@@ -2339,7 +2464,10 @@ def agendar_homologacao():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         
+        # ✅ FASE 2: Preparar dados normalizados (detalhes_zoho ainda usado em _atualizar_zoho)
+        # Por enquanto mantemos para compatibilidade com _atualizar_zoho
         detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
+        project_name_normalized = project_row.project_name or ''
         
         # Obter access token
         try:
@@ -2501,10 +2629,10 @@ def agendar_homologacao():
             from googleapiclient.discovery import build
             sheets_service = build('sheets', 'v4', credentials=creds)
 
-            # Extrair nome do cliente
-            chave_busca = utils.extrair_cliente_planilha(detalhes_zoho.get('name', ''))
+            # ✅ FASE 2: Extrair nome do cliente das colunas normalizadas
+            chave_busca = project_row.client_name or utils.extrair_cliente_planilha(project_name_normalized)
             if not chave_busca:
-                chave_busca = project_row.get('cliente', '')
+                chave_busca = project_row.cliente or ''
             
             logger.debug(f"[AGENDAR_HOMOLOGACAO] Atualizando planilha para cliente: {chave_busca}")
 
@@ -2594,7 +2722,9 @@ def agendar_virada():
         if not project_row:
             return jsonify({"sucesso": False, "erro": f"Projeto {project_id} não encontrado no cache."}), 404
         
+        # ✅ FASE 2: Preparar dados normalizados (detalhes_zoho ainda usado em _atualizar_zoho)
         detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
+        project_name_normalized = project_row.project_name or ''
         
         # Obter access token
         try:
@@ -2763,10 +2893,10 @@ def agendar_virada():
             from googleapiclient.discovery import build
             sheets_service = build('sheets', 'v4', credentials=creds)
 
-            # Extrair nome do cliente
-            chave_busca = utils.extrair_cliente_planilha(detalhes_zoho.get('name', ''))
+            # ✅ FASE 2: Extrair nome do cliente das colunas normalizadas
+            chave_busca = project_row.client_name or utils.extrair_cliente_planilha(project_name_normalized)
             if not chave_busca:
-                chave_busca = project_row.get('cliente', '')
+                chave_busca = project_row.cliente or ''
             
             print(f"[DEBUG][AGENDAR_VIRADA] Atualizando planilha para cliente: {chave_busca}")
 
@@ -2846,6 +2976,8 @@ def _sincronizar_db_local_forcado(projeto_id: str, access_token: str, coletor_me
                 project_row = database.get_project_by_id(projeto_id)
                 
                 if project_row:
+                    # ✅ FASE 2: Usar colunas normalizadas quando possível
+                    # Ainda precisa de full_data_json para validar tags (JSON completo)
                     import json
                     detalhes_zoho = json.loads(project_row.full_data_json) if project_row.full_data_json else {}
                     
@@ -3276,6 +3408,8 @@ def api_agendar_implantacao():
     Endpoint para agendar implantação:
     - Adiciona implantadores ao projeto
     - Atribui tarefas RIS ou PACS aos implantadores
+    - Calcula e atualiza datas de implantação (início, homologação, virada)
+    - Atualiza planilha Google Sheets com as datas
     
     Body esperado:
     {
@@ -3331,6 +3465,105 @@ def api_agendar_implantacao():
         
         if resultado['sucesso']:
             logger.info(f"✅ Implantação agendada com sucesso: {resultado['mensagem']}")
+            
+            # Atualizar planilha Google Sheets se as datas foram atualizadas
+            if resultado.get('datas_atualizadas'):
+                try:
+                    logger.info(f"📊 Atualizando planilha Google Sheets com datas de implantação...")
+                    
+                    # Obter detalhes do projeto para encontrar cliente
+                    url_projeto = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+                    headers = {
+                        "Authorization": f"Zoho-oauthtoken {access_token}",
+                        "Content-Type": "application/json"
+                    }
+                    response = requests.get(url_projeto, headers=headers, timeout=30)
+                    
+                    if response.status_code == 200:
+                        project_data = response.json().get('project', {})
+                        project_name = project_data.get('name', '')
+                        custom_fields = project_data.get('custom_fields', {})
+                        
+                        # Extrair nome do cliente
+                        cliente = utils.extrair_cliente_planilha(project_name)
+                        
+                        if cliente:
+                            # Obter credenciais Google
+                            creds = utils.build_google_credentials_from_session()
+                            from googleapiclient.discovery import build
+                            sheets_service = build('sheets', 'v4', credentials=creds)
+                            
+                            # Obter datas do custom fields
+                            data_inicio = custom_fields.get('data_de_inicio_da_implantacao')
+                            data_homologacao = custom_fields.get('data_de_termino_original')
+                            data_virada = custom_fields.get('data_de_virada_original')
+                            
+                            # Converter datas para formato dd/mm/yyyy
+                            def _fmt_ddmmyyyy(s: str) -> str:
+                                if not s:
+                                    return ''
+                                try:
+                                    y, m, d = s.split('-')
+                                    return f"{d.zfill(2)}/{m.zfill(2)}/{y}"
+                                except Exception:
+                                    return s
+                            
+                            # Atualizar colunas na planilha
+                            colunas_atualizadas = []
+                            
+                            if data_inicio:
+                                try:
+                                    utils.update_col_value_by_cliente_tolerant(
+                                        sheets_service, 
+                                        cliente, 
+                                        "Data Implantação", 
+                                        _fmt_ddmmyyyy(data_inicio)
+                                    )
+                                    colunas_atualizadas.append(f"Data Implantação: {_fmt_ddmmyyyy(data_inicio)}")
+                                    logger.info(f"✅ Coluna 'Data Implantação' atualizada")
+                                except Exception as e:
+                                    logger.warning(f"⚠️  Erro ao atualizar Data Implantação: {e}")
+                            
+                            if data_homologacao:
+                                try:
+                                    utils.update_col_value_by_cliente_tolerant(
+                                        sheets_service, 
+                                        cliente, 
+                                        "Homolog. Prevista", 
+                                        _fmt_ddmmyyyy(data_homologacao)
+                                    )
+                                    colunas_atualizadas.append(f"Homolog. Prevista: {_fmt_ddmmyyyy(data_homologacao)}")
+                                    logger.info(f"✅ Coluna 'Homolog. Prevista' atualizada")
+                                except Exception as e:
+                                    logger.warning(f"⚠️  Erro ao atualizar Homolog. Prevista: {e}")
+                            
+                            if data_virada:
+                                try:
+                                    utils.update_col_value_by_cliente_tolerant(
+                                        sheets_service, 
+                                        cliente, 
+                                        "Virada Prevista", 
+                                        _fmt_ddmmyyyy(data_virada)
+                                    )
+                                    colunas_atualizadas.append(f"Virada Prevista: {_fmt_ddmmyyyy(data_virada)}")
+                                    logger.info(f"✅ Coluna 'Virada Prevista' atualizada")
+                                except Exception as e:
+                                    logger.warning(f"⚠️  Erro ao atualizar Virada Prevista: {e}")
+                            
+                            if colunas_atualizadas:
+                                resultado['planilha_atualizada'] = True
+                                resultado['colunas_atualizadas'] = colunas_atualizadas
+                                logger.info(f"✅ Planilha atualizada com {len(colunas_atualizadas)} colunas")
+                        else:
+                            logger.warning(f"⚠️  Cliente não encontrado no nome do projeto: {project_name}")
+                    else:
+                        logger.warning(f"⚠️  Não foi possível obter detalhes do projeto: {response.status_code}")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️  Erro ao atualizar planilha: {e}")
+                    # Não falhar a operação principal por causa da planilha
+                    resultado['aviso_planilha'] = f"Planilha não pôde ser atualizada: {str(e)}"
+            
             return jsonify(resultado), 200
         else:
             logger.error(f"❌ Falha ao agendar implantação: {resultado['mensagem']}")
@@ -3369,8 +3602,20 @@ def api_buscar_comentarios(projeto_id):
         comentarios = database.get_comentarios_projeto(projeto_id, limit=limit, offset=offset)
         total = database.contar_comentarios_projeto(projeto_id)
         
-        # Converte sqlite3.Row para dict
-        comentarios_list = [dict(c) for c in comentarios]
+        # Converte objetos SQLAlchemy Comentario para dict
+        comentarios_list = []
+        for c in comentarios:
+            comentarios_list.append({
+                'id': c.id,
+                'projeto_id': c.projeto_id,
+                'conteudo': c.conteudo,
+                'autor_zpuid': c.autor_zpuid,
+                'autor_nome': c.autor_nome,
+                'autor_email': c.autor_email,
+                'data_criacao': c.data_criacao,
+                'data_modificacao': c.data_modificacao,
+                'adicionado_via': c.adicionado_via
+            })
         
         return jsonify({
             'sucesso': True,

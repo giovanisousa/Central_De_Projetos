@@ -56,12 +56,13 @@ def login_page():
 
 @main_bp.route('/google_login')
 def google_login():
-    redirect_uri = url_for('main.oauth2callback', _external=True, _scheme='https')
+    # Detectar scheme automaticamente (http local, https produção)
+    redirect_uri = url_for('main.oauth2callback', _external=True)
     print(f"Redirect URI enviado para o Google: {redirect_uri}")
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_PATH,
         scopes=SCOPES_GOOGLE,
-        redirect_uri=url_for('main.oauth2callback', _external=True, _scheme='https')
+        redirect_uri=redirect_uri
     )
     authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent')
     session['state'] = state
@@ -86,7 +87,7 @@ def oauth2callback():
         CREDENTIALS_PATH,
         scopes=SCOPES_GOOGLE,
         state=state,
-        redirect_uri=url_for('main.oauth2callback', _external=True, _scheme='https')
+        redirect_uri=url_for('main.oauth2callback', _external=True)
     )
     authorization_response = request.url
     

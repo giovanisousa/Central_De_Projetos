@@ -110,31 +110,32 @@ def add_header(response):
             response.cache_control.public = True
     return response
 
-    # Sincronização automática se o banco estiver vazio (executa sempre que o app é importado)
-    try:
-        from database import Session, Project
-        session = Session()
-        projetos_count = session.query(Project).count()
-        session.close()
-        logger.info(f"[SYNC] Projetos no banco: {projetos_count}")
-        if projetos_count == 0:
-            logger.info("[SYNC] Nenhum projeto encontrado no banco. Iniciando sincronização automática com Zoho...")
-            from sync_zoho import synchronize_projects
-            try:
-                synchronize_projects()
-                logger.info("[SYNC] Sincronização automática concluída.")
-            except Exception as sync_err:
-                logger.error(f"[SYNC] Erro durante sincronização automática: {sync_err}")
-        else:
-            logger.info("[SYNC] Sincronização automática não necessária. Projetos já presentes no banco.")
-    except Exception as e:
-        logger.error(f"[SYNC] Falha ao tentar sincronizar projetos automaticamente: {e}")
+# Sincronização automática se o banco estiver vazio (executa sempre que o app é importado)
+try:
+    from database import Session, Project
+    db_session = Session()
+    projetos_count = db_session.query(Project).count()
+    db_session.close()
+    logger.info(f"[SYNC] Projetos no banco: {projetos_count}")
+    if projetos_count == 0:
+        logger.info("[SYNC] Nenhum projeto encontrado no banco. Iniciando sincronização automática com Zoho...")
+        from sync_zoho import synchronize_projects
+        try:
+            synchronize_projects()
+            logger.info("[SYNC] Sincronização automática concluída.")
+        except Exception as sync_err:
+            logger.error(f"[SYNC] Erro durante sincronização automática: {sync_err}")
+    else:
+        logger.info("[SYNC] Sincronização automática não necessária. Projetos já presentes no banco.")
+except Exception as e:
+    logger.error(f"[SYNC] Falha ao tentar sincronizar projetos automaticamente: {e}")
 
-    if __name__ == '__main__':
-        if app.config.get('FLASK_ENV', 'production') == 'development':
-            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-            debug_mode = True
-        else:
-            debug_mode = False
-        app.run(debug=debug_mode, port=5000, use_reloader=False)
-        session.close()
+if __name__ == '__main__':
+    # Permite OAuth em HTTP quando rodar localmente via python app.py
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    
+    if app.config.get('FLASK_ENV', 'production') == 'development':
+        debug_mode = True
+    else:
+        debug_mode = False
+    app.run(debug=debug_mode, port=5000, use_reloader=False)

@@ -848,6 +848,111 @@
                                 });
                         } catch(_) {}
 
+                        // Busca indicador de comentários
+                        try {
+                            fetch(`/api/dias-sem-comentario/${encodeURIComponent(projeto.id)}`)
+                                .then(r => r.json())
+                                .then(data => {
+                                    const ind = cardElement.querySelector('.comment-indicator');
+                                    const daysEl = cardElement.querySelector('.comment-days');
+                                    if (!ind || !daysEl) return;
+                                    
+                                    const dias = data && typeof data.dias === 'number' ? data.dias : null;
+                                    const precisaComentario = data && data.precisa_comentario === true;
+                                    
+                                    ind.classList.remove('neutral');
+                                    
+                                    if (dias === null) {
+                                        // Sem histórico de comentários
+                                        daysEl.textContent = '(-)';
+                                        ind.classList.add('inactive');
+                                        ind.title = 'Sem histórico de comentários';
+                                    } else if (precisaComentario) {
+                                        // >= 5 dias sem comentário - ALERTA
+                                        daysEl.textContent = `(${dias}d)`;
+                                        ind.classList.add('warning');
+                                        ind.title = `⚠️ ${dias} dia(s) sem comentário - Adicione um comentário!`;
+                                    } else {
+                                        // < 5 dias - OK
+                                        daysEl.textContent = `(${dias}d)`;
+                                        ind.classList.add('ok');
+                                        ind.title = dias === 0 ? 'Comentário adicionado hoje ✓' : `${dias} dia(s) desde último comentário ✓`;
+                                    }
+                                    
+                                    // Clique no indicador abre modal de comentários
+                                    ind.addEventListener('pointerdown', (e) => e.stopPropagation());
+                                    ind.addEventListener('mousedown', (e) => e.stopPropagation());
+                                    ind.addEventListener('click', (ev) => {
+                                        ev.preventDefault();
+                                        ev.stopPropagation();
+                                        abrirModalComentarios(projeto.id, projeto.nome);
+                                    });
+                                })
+                                .catch(() => {
+                                    const ind = cardElement.querySelector('.comment-indicator');
+                                    const daysEl = cardElement.querySelector('.comment-days');
+                                    if (ind && daysEl) {
+                                        daysEl.textContent = '(?)';
+                                        ind.classList.add('neutral');
+                                        ind.title = 'Erro ao carregar status de comentários';
+                                    }
+                                });
+                        } catch(_) {}
+
+                        // Busca indicador de comentários
+                        try {
+                            fetch(`/api/dias-sem-comentario/${encodeURIComponent(projeto.id)}`)
+                                .then(r => r.json())
+                                .then(data => {
+                                    const ind = cardElement.querySelector('.comment-indicator');
+                                    const daysEl = cardElement.querySelector('.comment-days');
+                                    if (!ind || !daysEl) return;
+                                    
+                                    const dias = (data && typeof data.dias === 'number') ? data.dias : null;
+                                    const precisaComentario = data && data.precisa_comentario === true;
+                                    
+                                    ind.classList.remove('neutral');
+                                    
+                                    if (dias === null) {
+                                        // Sem histórico
+                                        daysEl.textContent = '(-)';
+                                        ind.classList.add('inactive');
+                                        ind.title = 'Sem histórico de comentários';
+                                    } else if (precisaComentario) {
+                                        // >= 5 dias: warning com animação
+                                        daysEl.textContent = `(${dias}d)`;
+                                        ind.classList.add('warning');
+                                        ind.title = `⚠️ ${dias} dia(s) sem comentário - Adicionar atualização!`;
+                                    } else {
+                                        // < 5 dias: ok
+                                        daysEl.textContent = `(${dias}d)`;
+                                        ind.classList.add('ok');
+                                        ind.title = `✅ Último comentário há ${dias} dia(s)`;
+                                    }
+                                    
+                                    // Clique no indicador abre modal de comentários
+                                    ind.addEventListener('pointerdown', (e) => e.stopPropagation());
+                                    ind.addEventListener('mousedown', (e) => e.stopPropagation());
+                                    ind.addEventListener('click', (ev) => {
+                                        ev.preventDefault();
+                                        ev.stopPropagation();
+                                        // Buscar botão de comentários do card e clicar nele
+                                        const commentBtn = cardElement.querySelector('.add-comment-btn');
+                                        if (commentBtn) {
+                                            commentBtn.click();
+                                        }
+                                    });
+                                })
+                                .catch(() => {
+                                    const ind = cardElement.querySelector('.comment-indicator');
+                                    const daysEl = cardElement.querySelector('.comment-days');
+                                    if (ind && daysEl) {
+                                        daysEl.textContent = '(?)';
+                                        ind.classList.add('neutral');
+                                    }
+                                });
+                        } catch(_) {}
+
                         // Colorir imediatamente se já temos dados locais
                         try {
                             const span = cardElement.querySelector('.dias-na-fase');
@@ -988,6 +1093,12 @@
             const impedimentoHtml = `
                 <button type="button" class="impediment-indicator neutral" title="Itens impeditivos de virada">
                     ! <span class="imp-count">...</span>
+                </button>`;
+
+            // 1.5. Indicador de comentário (placeholder inicial)
+            const comentarioHtml = `
+                <button type="button" class="comment-indicator neutral" title="Status de comentários">
+                    💬 <span class="comment-days">...</span>
                 </button>`;
 
             // 2. Data de Homologação Prevista (apenas para coluna "Em Andamento - Implantação")
@@ -1172,6 +1283,7 @@
             // 3. HTML principal do card
             card.innerHTML = `
                 ${impedimentoHtml}
+                ${comentarioHtml}
                 <div>
                     <div class="project-name" data-tooltip="${projeto.nome}">${nomeExibido}</div>
                     <div class="project-info">
@@ -1242,8 +1354,16 @@
                 if (inputId) inputId.value = projeto.id || '';
 
                 // Mostrar selects certos conforme produtos contratados (usa flags do backend)
+                console.log('[DEBUG MODAL] Projeto:', projeto.nome);
+                console.log('[DEBUG MODAL] tem_ris:', projeto.tem_ris, 'tipo:', typeof projeto.tem_ris);
+                console.log('[DEBUG MODAL] tem_pacs:', projeto.tem_pacs, 'tipo:', typeof projeto.tem_pacs);
+                console.log('[DEBUG MODAL] produtos_contratados:', projeto.produtos_contratados);
+                
                 const temRIS = projeto.tem_ris === true || projeto.tem_ris === 1;
                 const temPACS = projeto.tem_pacs === true || projeto.tem_pacs === 1;
+                
+                console.log('[DEBUG MODAL] temRIS calculado:', temRIS);
+                console.log('[DEBUG MODAL] temPACS calculado:', temPACS);
                 
                 const risGroup = document.getElementById('implantador-ris-group');
                 const pacsGroup = document.getElementById('implantador-pacs-group');
@@ -1252,11 +1372,13 @@
                 if (risGroup) {
                     risGroup.classList.remove('hidden');
                     if (!temRIS) risGroup.classList.add('hidden');
+                    console.log('[DEBUG MODAL] RIS Group - hidden:', risGroup.classList.contains('hidden'));
                 }
                 
                 if (pacsGroup) {
                     pacsGroup.classList.remove('hidden');
                     if (!temPACS) pacsGroup.classList.add('hidden');
+                    console.log('[DEBUG MODAL] PACS Group - hidden:', pacsGroup.classList.contains('hidden'));
                 }
 
                 modal.classList.remove('hidden');
