@@ -3379,6 +3379,8 @@ def api_agendar_implantacao():
     Endpoint para agendar implantação:
     - Adiciona implantadores ao projeto
     - Atribui tarefas RIS ou PACS aos implantadores
+    - Calcula e atualiza datas de implantação (início, homologação, virada)
+    - Atualiza planilha Google Sheets com as datas
     
     Body esperado:
     {
@@ -3434,6 +3436,105 @@ def api_agendar_implantacao():
         
         if resultado['sucesso']:
             logger.info(f"✅ Implantação agendada com sucesso: {resultado['mensagem']}")
+            
+            # Atualizar planilha Google Sheets se as datas foram atualizadas
+            if resultado.get('datas_atualizadas'):
+                try:
+                    logger.info(f"📊 Atualizando planilha Google Sheets com datas de implantação...")
+                    
+                    # Obter detalhes do projeto para encontrar cliente
+                    url_projeto = f"https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/{project_id}"
+                    headers = {
+                        "Authorization": f"Zoho-oauthtoken {access_token}",
+                        "Content-Type": "application/json"
+                    }
+                    response = requests.get(url_projeto, headers=headers, timeout=30)
+                    
+                    if response.status_code == 200:
+                        project_data = response.json().get('project', {})
+                        project_name = project_data.get('name', '')
+                        custom_fields = project_data.get('custom_fields', {})
+                        
+                        # Extrair nome do cliente
+                        cliente = utils.extrair_cliente_planilha(project_name)
+                        
+                        if cliente:
+                            # Obter credenciais Google
+                            creds = utils.build_google_credentials_from_session()
+                            from googleapiclient.discovery import build
+                            sheets_service = build('sheets', 'v4', credentials=creds)
+                            
+                            # Obter datas do custom fields
+                            data_inicio = custom_fields.get('data_de_inicio_da_implantacao')
+                            data_homologacao = custom_fields.get('data_de_termino_original')
+                            data_virada = custom_fields.get('data_de_virada_original')
+                            
+                            # Converter datas para formato dd/mm/yyyy
+                            def _fmt_ddmmyyyy(s: str) -> str:
+                                if not s:
+                                    return ''
+                                try:
+                                    y, m, d = s.split('-')
+                                    return f"{d.zfill(2)}/{m.zfill(2)}/{y}"
+                                except Exception:
+                                    return s
+                            
+                            # Atualizar colunas na planilha
+                            colunas_atualizadas = []
+                            
+                            if data_inicio:
+                                try:
+                                    utils.update_col_value_by_cliente_tolerant(
+                                        sheets_service, 
+                                        cliente, 
+                                        "Data Implantação", 
+                                        _fmt_ddmmyyyy(data_inicio)
+                                    )
+                                    colunas_atualizadas.append(f"Data Implantação: {_fmt_ddmmyyyy(data_inicio)}")
+                                    logger.info(f"✅ Coluna 'Data Implantação' atualizada")
+                                except Exception as e:
+                                    logger.warning(f"⚠️  Erro ao atualizar Data Implantação: {e}")
+                            
+                            if data_homologacao:
+                                try:
+                                    utils.update_col_value_by_cliente_tolerant(
+                                        sheets_service, 
+                                        cliente, 
+                                        "Homolog. Prevista", 
+                                        _fmt_ddmmyyyy(data_homologacao)
+                                    )
+                                    colunas_atualizadas.append(f"Homolog. Prevista: {_fmt_ddmmyyyy(data_homologacao)}")
+                                    logger.info(f"✅ Coluna 'Homolog. Prevista' atualizada")
+                                except Exception as e:
+                                    logger.warning(f"⚠️  Erro ao atualizar Homolog. Prevista: {e}")
+                            
+                            if data_virada:
+                                try:
+                                    utils.update_col_value_by_cliente_tolerant(
+                                        sheets_service, 
+                                        cliente, 
+                                        "Virada Prevista", 
+                                        _fmt_ddmmyyyy(data_virada)
+                                    )
+                                    colunas_atualizadas.append(f"Virada Prevista: {_fmt_ddmmyyyy(data_virada)}")
+                                    logger.info(f"✅ Coluna 'Virada Prevista' atualizada")
+                                except Exception as e:
+                                    logger.warning(f"⚠️  Erro ao atualizar Virada Prevista: {e}")
+                            
+                            if colunas_atualizadas:
+                                resultado['planilha_atualizada'] = True
+                                resultado['colunas_atualizadas'] = colunas_atualizadas
+                                logger.info(f"✅ Planilha atualizada com {len(colunas_atualizadas)} colunas")
+                        else:
+                            logger.warning(f"⚠️  Cliente não encontrado no nome do projeto: {project_name}")
+                    else:
+                        logger.warning(f"⚠️  Não foi possível obter detalhes do projeto: {response.status_code}")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️  Erro ao atualizar planilha: {e}")
+                    # Não falhar a operação principal por causa da planilha
+                    resultado['aviso_planilha'] = f"Planilha não pôde ser atualizada: {str(e)}"
+            
             return jsonify(resultado), 200
         else:
             logger.error(f"❌ Falha ao agendar implantação: {resultado['mensagem']}")
@@ -3472,8 +3573,20 @@ def api_buscar_comentarios(projeto_id):
         comentarios = database.get_comentarios_projeto(projeto_id, limit=limit, offset=offset)
         total = database.contar_comentarios_projeto(projeto_id)
         
-        # Converte sqlite3.Row para dict
-        comentarios_list = [dict(c) for c in comentarios]
+        # Converte objetos SQLAlchemy Comentario para dict
+        comentarios_list = []
+        for c in comentarios:
+            comentarios_list.append({
+                'id': c.id,
+                'projeto_id': c.projeto_id,
+                'conteudo': c.conteudo,
+                'autor_zpuid': c.autor_zpuid,
+                'autor_nome': c.autor_nome,
+                'autor_email': c.autor_email,
+                'data_criacao': c.data_criacao,
+                'data_modificacao': c.data_modificacao,
+                'adicionado_via': c.adicionado_via
+            })
         
         return jsonify({
             'sucesso': True,
