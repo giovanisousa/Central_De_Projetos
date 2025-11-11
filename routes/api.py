@@ -3788,9 +3788,9 @@ def api_trigger_sync():
     """
     Endpoint para executar sincronização completa via GitHub Actions.
     Protegido por token de autorização.
+    Executa em background para evitar timeout do Gunicorn.
     """
-    from io import StringIO
-    import sys
+    import threading
     
     try:
         # Verificar token de autorização
@@ -3814,42 +3814,37 @@ def api_trigger_sync():
         
         logger.info("🔄 Iniciando sincronização via endpoint /api/trigger-sync")
         
-        # Capturar stdout para retornar no response
-        captured_output = StringIO()
-        old_stdout = sys.stdout
-        sys.stdout = captured_output
+        # Função para executar em background
+        def sync_background():
+            try:
+                from sync_zoho import sync_all_phases_for_existing_projects
+                
+                logger.info("="*80)
+                logger.info(f"  SINCRONIZAÇÃO COMPLETA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                logger.info("="*80)
+                
+                # Executar sincronização de todas as fases
+                sync_all_phases_for_existing_projects()
+                
+                logger.info("✅ Sincronização concluída com sucesso!")
+                
+            except Exception as e:
+                logger.error(f"❌ Erro na sincronização em background: {e}")
+                logger.error(traceback.format_exc())
         
-        try:
-            # Chamar a função de sincronização diretamente
-            from sync_zoho import sync_all_phases_for_existing_projects
-            
-            print("\n" + "="*80)
-            print(f"  SINCRONIZAÇÃO COMPLETA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print("="*80 + "\n")
-            
-            # Executar sincronização de todas as fases
-            sync_all_phases_for_existing_projects()
-            
-            print("\n✅ Sincronização concluída com sucesso!")
-            
-        finally:
-            # Restaurar stdout
-            sys.stdout = old_stdout
+        # Iniciar sincronização em thread separada
+        sync_thread = threading.Thread(target=sync_background, daemon=True)
+        sync_thread.start()
         
-        output = captured_output.getvalue()
-        logger.info("✅ Sincronização concluída com sucesso")
-        logger.info(f"Output: {output[:200]}...")
+        logger.info("✅ Sincronização iniciada em background")
         
         return jsonify({
             'sucesso': True,
-            'mensagem': 'Sincronização concluída com sucesso',
-            'output': output
+            'mensagem': 'Sincronização iniciada em background. Verifique os logs do servidor para acompanhar o progresso.',
+            'output': 'Sincronização em execução. Logs disponíveis no servidor.'
         }), 200
             
     except Exception as e:
-        # Restaurar stdout em caso de erro
-        sys.stdout = old_stdout
-        
         error_details = traceback.format_exc()
         logger.error(f"❌ Erro ao executar sincronização: {e}")
         logger.error(f"Traceback: {error_details}")
