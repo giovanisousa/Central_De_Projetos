@@ -3789,8 +3789,8 @@ def api_trigger_sync():
     Endpoint para executar sincronização completa via GitHub Actions.
     Protegido por token de autorização.
     """
+    from io import StringIO
     import sys
-    import subprocess
     
     try:
         # Verificar token de autorização
@@ -3814,46 +3814,42 @@ def api_trigger_sync():
         
         logger.info("🔄 Iniciando sincronização via endpoint /api/trigger-sync")
         
-        # Usar sys.executable para garantir o Python correto
-        python_exe = sys.executable
-        logger.info(f"📍 Usando Python: {python_exe}")
+        # Capturar stdout para retornar no response
+        captured_output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = captured_output
         
-        # Executar sync_complete.py
-        result = subprocess.run(
-            [python_exe, 'sync_complete.py'],
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 minutos timeout
-            cwd=os.path.dirname(os.path.abspath(__file__)).replace('routes', '')
-        )
-        
-        logger.info(f"📊 Return code: {result.returncode}")
-        logger.info(f"📤 STDOUT: {result.stdout[:500] if result.stdout else 'vazio'}")
-        if result.stderr:
-            logger.error(f"📥 STDERR: {result.stderr[:500]}")
-        
-        if result.returncode == 0:
-            logger.info("✅ Sincronização concluída com sucesso")
-            return jsonify({
-                'sucesso': True,
-                'mensagem': 'Sincronização concluída com sucesso',
-                'output': result.stdout
-            }), 200
-        else:
-            logger.error(f"❌ Erro na sincronização: {result.stderr}")
-            return jsonify({
-                'sucesso': False,
-                'erro': result.stderr,
-                'output': result.stdout
-            }), 500
+        try:
+            # Chamar a função de sincronização diretamente
+            from sync_zoho import sync_all_phases_for_existing_projects
             
-    except subprocess.TimeoutExpired as e:
-        logger.error("❌ Timeout na sincronização (> 5 minutos)")
+            print("\n" + "="*80)
+            print(f"  SINCRONIZAÇÃO COMPLETA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print("="*80 + "\n")
+            
+            # Executar sincronização de todas as fases
+            sync_all_phases_for_existing_projects()
+            
+            print("\n✅ Sincronização concluída com sucesso!")
+            
+        finally:
+            # Restaurar stdout
+            sys.stdout = old_stdout
+        
+        output = captured_output.getvalue()
+        logger.info("✅ Sincronização concluída com sucesso")
+        logger.info(f"Output: {output[:200]}...")
+        
         return jsonify({
-            'sucesso': False,
-            'erro': 'Timeout na sincronização (> 5 minutos)'
-        }), 500
+            'sucesso': True,
+            'mensagem': 'Sincronização concluída com sucesso',
+            'output': output
+        }), 200
+            
     except Exception as e:
+        # Restaurar stdout em caso de erro
+        sys.stdout = old_stdout
+        
         error_details = traceback.format_exc()
         logger.error(f"❌ Erro ao executar sincronização: {e}")
         logger.error(f"Traceback: {error_details}")
