@@ -11,24 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v3
-      
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-      
-      - name: Instalar Railway CLI
+      - name: Executar Sincronização via HTTP
         run: |
-          npm i -g @railway/cli
-      
-      - name: Executar Sincronização via Railway CLI
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-          RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE }}
-        run: |
-          echo "Executando sincronização completa no Railway..."
-          railway run python sync_complete.py --phases-only
-          echo "Sincronização concluída!"
+          echo "Executando sincronização completa..."
+          response=$(curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.SYNC_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -w "\n%{http_code}" \
+            https://centraldeprojetos-production.up.railway.app/api/trigger-sync)
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ Sincronização concluída com sucesso!"
+            exit 0
+          else
+            echo "❌ Erro na sincronização"
+            exit 1
+          fi
