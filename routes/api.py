@@ -3860,5 +3860,22 @@ def api_trigger_sync():
         }), 500
 
 
+@api_bp.route('/health-check', methods=['GET'])
+def health_check():
+    """Endpoint simples de health check para verificar se a API está funcionando."""
+    try:
+        return jsonify({
+            'status': 'ok',
+            'timestamp': datetime.now().isoformat(),
+            'message': 'API está funcionando'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'erro': str(e)
+        }), 500
+
+
+
 
 
