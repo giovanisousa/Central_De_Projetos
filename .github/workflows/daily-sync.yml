@@ -28,6 +28,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           echo "Executando sincronização completa no Railway..."
-          # Executa o comando diretamente no container do Railway (sem timeout HTTP)
+          # Link ao projeto Railway e executa o comando
+          railway link ${{ secrets.RAILWAY_PROJECT_ID }}
           railway run python sync_complete.py --phases-only
           echo "Sincronização concluída!"
