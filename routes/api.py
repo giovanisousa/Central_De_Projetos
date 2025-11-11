@@ -3789,10 +3789,14 @@ def api_trigger_sync():
     Endpoint para executar sincronização completa via GitHub Actions.
     Protegido por token de autorização.
     """
+    import sys
+    import subprocess
+    
     try:
         # Verificar token de autorização
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
+            logger.warning("❌ Token de autorização não fornecido")
             return jsonify({
                 'sucesso': False,
                 'erro': 'Token de autorização não fornecido'
@@ -3802,21 +3806,31 @@ def api_trigger_sync():
         sync_token = os.environ.get('SYNC_TOKEN')
         
         if not sync_token or token != sync_token:
+            logger.warning("❌ Token de autorização inválido")
             return jsonify({
                 'sucesso': False,
                 'erro': 'Token de autorização inválido'
             }), 403
         
-        logger.info("🔄 Iniciando sincronização via endpoint /api/sync")
+        logger.info("🔄 Iniciando sincronização via endpoint /api/trigger-sync")
+        
+        # Usar sys.executable para garantir o Python correto
+        python_exe = sys.executable
+        logger.info(f"📍 Usando Python: {python_exe}")
         
         # Executar sync_complete.py
-        import subprocess
         result = subprocess.run(
-            ['python', 'sync_complete.py', '--phases-only'],
+            [python_exe, 'sync_complete.py'],
             capture_output=True,
             text=True,
-            timeout=300  # 5 minutos timeout
+            timeout=300,  # 5 minutos timeout
+            cwd=os.path.dirname(os.path.abspath(__file__)).replace('routes', '')
         )
+        
+        logger.info(f"📊 Return code: {result.returncode}")
+        logger.info(f"📤 STDOUT: {result.stdout[:500] if result.stdout else 'vazio'}")
+        if result.stderr:
+            logger.error(f"📥 STDERR: {result.stderr[:500]}")
         
         if result.returncode == 0:
             logger.info("✅ Sincronização concluída com sucesso")
@@ -3833,18 +3847,20 @@ def api_trigger_sync():
                 'output': result.stdout
             }), 500
             
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         logger.error("❌ Timeout na sincronização (> 5 minutos)")
         return jsonify({
             'sucesso': False,
-            'erro': 'Timeout na sincronização'
+            'erro': 'Timeout na sincronização (> 5 minutos)'
         }), 500
     except Exception as e:
+        error_details = traceback.format_exc()
         logger.error(f"❌ Erro ao executar sincronização: {e}")
-        traceback.print_exc()
+        logger.error(f"Traceback: {error_details}")
         return jsonify({
             'sucesso': False,
-            'erro': str(e)
+            'erro': str(e),
+            'traceback': error_details
         }), 500
 
 
