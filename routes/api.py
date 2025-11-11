@@ -3783,4 +3783,70 @@ def api_projetos_sem_atualizacao():
         }), 500
 
 
+@api_bp.route('/trigger-sync', methods=['POST'])
+def api_trigger_sync():
+    """
+    Endpoint para executar sincronização completa via GitHub Actions.
+    Protegido por token de autorização.
+    """
+    try:
+        # Verificar token de autorização
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({
+                'sucesso': False,
+                'erro': 'Token de autorização não fornecido'
+            }), 401
+        
+        token = auth_header.replace('Bearer ', '')
+        sync_token = os.environ.get('SYNC_TOKEN')
+        
+        if not sync_token or token != sync_token:
+            return jsonify({
+                'sucesso': False,
+                'erro': 'Token de autorização inválido'
+            }), 403
+        
+        logger.info("🔄 Iniciando sincronização via endpoint /api/sync")
+        
+        # Executar sync_complete.py
+        import subprocess
+        result = subprocess.run(
+            ['python', 'sync_complete.py', '--phases-only'],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutos timeout
+        )
+        
+        if result.returncode == 0:
+            logger.info("✅ Sincronização concluída com sucesso")
+            return jsonify({
+                'sucesso': True,
+                'mensagem': 'Sincronização concluída com sucesso',
+                'output': result.stdout
+            }), 200
+        else:
+            logger.error(f"❌ Erro na sincronização: {result.stderr}")
+            return jsonify({
+                'sucesso': False,
+                'erro': result.stderr,
+                'output': result.stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        logger.error("❌ Timeout na sincronização (> 5 minutos)")
+        return jsonify({
+            'sucesso': False,
+            'erro': 'Timeout na sincronização'
+        }), 500
+    except Exception as e:
+        logger.error(f"❌ Erro ao executar sincronização: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'sucesso': False,
+            'erro': str(e)
+        }), 500
+
+
+
 
