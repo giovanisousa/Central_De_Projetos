@@ -53,7 +53,7 @@ def main():
     
     # Importar módulos necessários
     try:
-        from sync_zoho import synchronize_projects, sync_all_phases_for_existing_projects, sync_single_project
+        from sync_zoho import synchronize_projects, sync_all_phases_for_existing_projects, synchronize_single_project
         from database import Session, Project, Fase, count_projects
         
         print("✓ Módulos carregados com sucesso")
@@ -77,7 +77,9 @@ def main():
         if project_id:
             # Sincronizar apenas um projeto específico
             print_section(f"Sincronizando projeto específico: {project_id}")
-            success = sync_single_project(project_id)
+            from utils import obter_access_token
+            access_token = obter_access_token()
+            success = synchronize_single_project(project_id, access_token)
             if success:
                 print(f"✓ Projeto {project_id} sincronizado com sucesso")
             else:
