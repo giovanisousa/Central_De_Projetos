@@ -26,9 +26,8 @@ jobs:
       - name: Executar Sincronização via Railway CLI
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
           echo "Executando sincronização completa no Railway..."
-          # Link ao projeto Railway e executa o comando
-          railway link ${{ secrets.RAILWAY_PROJECT_ID }}
           railway run python sync_complete.py --phases-only
           echo "Sincronização concluída!"
