@@ -3,6 +3,7 @@
 """
 Script de Sincronização Completa com o Zoho Projects
 =====================================================
+Versão: 2.0 (corrigido importação synchronize_single_project)
 
 Este script sincroniza TODOS os dados do Zoho para o banco de dados local:
 - Projetos (informações básicas)
