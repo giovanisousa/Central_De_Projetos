@@ -9,37 +9,54 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 5  # Timeout para a requisição (não afeta a sincronização em background)
     
     steps:
-      - name: Executar Sincronização via HTTP
+      - name: Executar Sincronização via HTTP (Render)
         run: |
-          echo "Executando sincronização completa..."
+          echo "🔄 Executando sincronização completa via Render..."
+          echo "=================================="
           
-          # URL da aplicação (configure APP_URL nos secrets ou use diretamente)
+          # URL da aplicação no Render
+          # Configure APP_URL nos secrets do GitHub ou deixe o padrão abaixo
           APP_URL="${{ secrets.APP_URL }}"
           if [ -z "$APP_URL" ]; then
             APP_URL="https://central-de-projetos.onrender.com"
+            echo "ℹ️  Usando URL padrão: $APP_URL"
+          else
+            echo "ℹ️  Usando URL configurada nos secrets"
           fi
+          
+          echo "📡 Enviando requisição para /api/trigger-sync..."
           
           response=$(curl -X POST \
             -H "Authorization: Bearer ${{ secrets.SYNC_TOKEN }}" \
             -H "Content-Type: application/json" \
             -w "\n%{http_code}" \
             -s \
+            -m 30 \
             "${APP_URL}/api/trigger-sync")
           
           http_code=$(echo "$response" | tail -n1)
           body=$(echo "$response" | sed '$d')
           
+          echo ""
+          echo "📊 Resposta do servidor:"
           echo "HTTP Status: $http_code"
-          echo "Response: $body"
+          echo "Body: $body"
+          echo ""
           
           if [ "$http_code" -eq 200 ]; then
-            echo "✅ Sincronização iniciada em background!"
-            echo "ℹ️  Verifique os logs do servidor para acompanhar o progresso."
+            echo "✅ Sincronização iniciada em background no Render!"
+            echo "📝 A sincronização está rodando no servidor e pode levar 5-10 minutos."
+            echo "🔍 Verifique os logs do Render para acompanhar o progresso:"
+            echo "   https://dashboard.render.com → Seu Service → Logs"
             exit 0
           else
             echo "❌ Erro ao iniciar sincronização"
+            echo "⚠️  Verifique:"
+            echo "   - Se SYNC_TOKEN está configurado corretamente nos secrets"
+            echo "   - Se a aplicação está online no Render"
+            echo "   - Os logs do Render para mais detalhes"
             exit 1
           fi
-
