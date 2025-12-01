@@ -2,8 +2,8 @@ name: Sincronização Diária com Zoho
 
 on:
   schedule:
-    # Executa todos os dias às 02:00 AM UTC (23:00 horário de Brasília no horário de verão)
-    - cron: '0 2 * * *'
+    # Executa todos os dias às 06:00 AM UTC (03:00 horário de Brasília)
+    - cron: '0 6 * * *'
   workflow_dispatch:  # Permite execução manual via interface do GitHub
 
 jobs:
@@ -14,22 +14,32 @@ jobs:
       - name: Executar Sincronização via HTTP
         run: |
           echo "Executando sincronização completa..."
+          
+          # URL da aplicação (configure APP_URL nos secrets ou use diretamente)
+          APP_URL="${{ secrets.APP_URL }}"
+          if [ -z "$APP_URL" ]; then
+            APP_URL="https://central-de-projetos.onrender.com"
+          fi
+          
           response=$(curl -X POST \
             -H "Authorization: Bearer ${{ secrets.SYNC_TOKEN }}" \
             -H "Content-Type: application/json" \
             -w "\n%{http_code}" \
-            https://centraldeprojetos-production.up.railway.app/api/trigger-sync)
+            -s \
+            "${APP_URL}/api/trigger-sync")
           
           http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
+          body=$(echo "$response" | sed '$d')
           
           echo "HTTP Status: $http_code"
           echo "Response: $body"
           
           if [ "$http_code" -eq 200 ]; then
-            echo "✅ Sincronização concluída com sucesso!"
+            echo "✅ Sincronização iniciada em background!"
+            echo "ℹ️  Verifique os logs do servidor para acompanhar o progresso."
             exit 0
           else
-            echo "❌ Erro na sincronização"
+            echo "❌ Erro ao iniciar sincronização"
             exit 1
           fi
+

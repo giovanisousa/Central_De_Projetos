@@ -110,25 +110,25 @@ def add_header(response):
             response.cache_control.public = True
     return response
 
-# Sincronização automática se o banco estiver vazio (executa sempre que o app é importado)
+# Verificação do banco de dados no startup (SEM sincronização automática)
+# Para evitar timeout no deploy (Render, Railway, etc), a sincronização deve ser feita
+# APÓS o deploy via endpoint /api/trigger-sync ou manualmente
 try:
     from database import Session, Project
     db_session = Session()
     projetos_count = db_session.query(Project).count()
     db_session.close()
     logger.info(f"[SYNC] Projetos no banco: {projetos_count}")
+    
     if projetos_count == 0:
-        logger.info("[SYNC] Nenhum projeto encontrado no banco. Iniciando sincronização automática com Zoho...")
-        from sync_zoho import synchronize_projects
-        try:
-            synchronize_projects()
-            logger.info("[SYNC] Sincronização automática concluída.")
-        except Exception as sync_err:
-            logger.error(f"[SYNC] Erro durante sincronização automática: {sync_err}")
+        logger.warning("[SYNC] ⚠️  Banco de dados vazio! Execute sincronização após deploy via:")
+        logger.warning("[SYNC]     POST /api/trigger-sync (com token de autorização)")
+        logger.warning("[SYNC]     ou execute: python sync_complete.py")
     else:
-        logger.info("[SYNC] Sincronização automática não necessária. Projetos já presentes no banco.")
+        logger.info(f"[SYNC] ✅ Banco de dados OK com {projetos_count} projetos.")
+        
 except Exception as e:
-    logger.error(f"[SYNC] Falha ao tentar sincronizar projetos automaticamente: {e}")
+    logger.error(f"[SYNC] Erro ao verificar banco de dados: {e}")
 
 if __name__ == '__main__':
     # Permite OAuth em HTTP quando rodar localmente via python app.py
