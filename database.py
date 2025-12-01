@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__) # Logger para database.py
 
 # ConfiguraÃ§Ã£o do SQLAlchemy
 Base = declarative_base()
-engine = create_engine(SQLALCHEMY_DATABASE_URI)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URI,
+    pool_pre_ping=True,   # <--- OBRIGATÓRIO: Testa a conexão antes de usar
+    pool_recycle=300      # Opcional: Joga fora conexões com mais de 5 min
+)
 Session = sessionmaker(bind=engine)
 
 # FunÃ§Ã£o para obter conexÃ£o direta ao banco (para queries SQL raw)
