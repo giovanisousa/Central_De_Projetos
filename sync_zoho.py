@@ -439,8 +439,15 @@ def sync_all_phases_for_existing_projects():
         print(f"- Média de fases por projeto: {media_depois:.1f}")
         print(f"- Fases adicionadas: {fases_adicionadas}")
         print(f"\nResumo da sincronização:")
-        print(f"- ✓ Sucessos: {sucessos}/{total} ({sucessos/total*100:.1f}%)")
-        print(f"- ✗ Falhas: {falhas}/{total} ({falhas/total*100:.1f}%)")
+        
+        # Evitar divisão por zero
+        if total > 0:
+            print(f"- ✓ Sucessos: {sucessos}/{total} ({sucessos/total*100:.1f}%)")
+            print(f"- ✗ Falhas: {falhas}/{total} ({falhas/total*100:.1f}%)")
+        else:
+            print(f"- ✓ Sucessos: {sucessos}/{total} (N/A - nenhum projeto no banco)")
+            print(f"- ✗ Falhas: {falhas}/{total} (N/A - nenhum projeto no banco)")
+        
         print(f"- 📊 Fases sincronizadas nesta execução: {fases_total_sincronizadas}")
         print(f"{'='*80}\n")
         
