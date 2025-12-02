@@ -3817,16 +3817,24 @@ def api_trigger_sync():
         # Função para executar em background
         def sync_background():
             try:
-                from sync_zoho import sync_all_phases_for_existing_projects
+                from sync_zoho import synchronize_projects, sync_all_phases_for_existing_projects
                 
                 logger.info("="*80)
                 logger.info(f"  SINCRONIZAÇÃO COMPLETA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 logger.info("="*80)
                 
-                # Executar sincronização de todas as fases
+                # Primeiro: Sincronizar projetos do Zoho
+                logger.info("📥 ETAPA 1: Sincronizando projetos do Zoho...")
+                synchronize_projects()
+                logger.info("✅ Projetos sincronizados!")
+                
+                # Segundo: Sincronizar fases de todos os projetos
+                logger.info("\n📊 ETAPA 2: Sincronizando fases de todos os projetos...")
                 sync_all_phases_for_existing_projects()
                 
-                logger.info("✅ Sincronização concluída com sucesso!")
+                logger.info("\n" + "="*80)
+                logger.info("✅ SINCRONIZAÇÃO COMPLETA CONCLUÍDA COM SUCESSO!")
+                logger.info("="*80)
                 
             except Exception as e:
                 logger.error(f"❌ Erro na sincronização em background: {e}")
