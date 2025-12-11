@@ -293,12 +293,14 @@ def parse_description(description):
 def upsert_project(project_data):
     """
     Insere ou atualiza um projeto, tratando dados estruturados e legados (via descriÃ§Ã£o).
+    Retorna True se bem-sucedido, False caso contrário.
     """
     session = Session()
     try:
         project_id = project_data.get('id')
         if not project_id:
-            return
+            logger.warning("Tentativa de inserir projeto sem ID - ignorado")
+            return False
 
         desc_data = parse_description(project_data.get("description", ""))
 
@@ -467,9 +469,12 @@ def upsert_project(project_data):
 
         session.execute(on_conflict_stmt)
         session.commit()
+        return True
     except Exception as e:
         session.rollback()
-        logger.error(f"Erro ao inserir/atualizar projeto: {e}")
+        project_name = project_data.get('name', 'N/A')
+        logger.error(f"Erro ao inserir/atualizar projeto {project_name} (ID: {project_id}): {e}")
+        return False
     finally:
         session.close()
 
@@ -525,9 +530,18 @@ def upsert_lista_de_tarefas(lista_data, projeto_id):
     session = Session()
     try:
         lista_id = lista_data.get('id')
+        fase_id = lista_data.get('milestone', {}).get('id')
+        
+        # Verificar se fase existe (se fase_id não é None)
+        if fase_id:
+            fase_existe = session.query(Fase).filter(Fase.id == fase_id).first()
+            if not fase_existe:
+                logger.warning(f"Lista '{lista_data.get('name')}' referencia fase inexistente (ID: {fase_id}). Ignorando esta lista.")
+                return
+        
         stmt = insert(ListaDeTarefas).values(
             id=lista_id,
-            fase_id=lista_data.get('milestone', {}).get('id'),
+            fase_id=fase_id,  # Pode ser None
             projeto_id=projeto_id,
             nome=lista_data.get('name'),
             percentual_conclusao=lista_data.get('completion_percent')
@@ -535,7 +549,7 @@ def upsert_lista_de_tarefas(lista_data, projeto_id):
         on_conflict_stmt = stmt.on_conflict_do_update(
             index_elements=[ListaDeTarefas.id],
             set_=dict(
-                fase_id=lista_data.get('milestone', {}).get('id'),
+                fase_id=fase_id,
                 projeto_id=projeto_id,
                 nome=lista_data.get('name'),
                 percentual_conclusao=lista_data.get('completion_percent')
@@ -547,17 +561,27 @@ def upsert_lista_de_tarefas(lista_data, projeto_id):
         session.rollback()
         logger.error(f"Erro ao inserir/atualizar lista de tarefas: {e}")
     finally:
-        session.close()
+        try:
+            session.close()
+        except:
+            pass
 
 def upsert_tarefa(tarefa_data, lista_de_tarefas_id, fase_id, projeto_id):
     """Insere ou atualiza uma tarefa no banco de dados."""
     session = Session()
     try:
         tarefa_id = tarefa_data.get('id')
+        
+        # Verificar se a lista de tarefas existe
+        lista_existe = session.query(ListaDeTarefas).filter(ListaDeTarefas.id == lista_de_tarefas_id).first()
+        if not lista_existe:
+            logger.warning(f"Tarefa '{tarefa_data.get('name')}' referencia lista inexistente (ID: {lista_de_tarefas_id}). Ignorando esta tarefa.")
+            return
+        
         stmt = insert(Tarefa).values(
             id=tarefa_id,
             lista_de_tarefas_id=lista_de_tarefas_id,
-            fase_id=fase_id,
+            fase_id=fase_id,  # Pode ser None
             projeto_id=projeto_id,
             nome=tarefa_data.get('name'),
             concluida=True if tarefa_data.get('completed') else False
@@ -578,7 +602,10 @@ def upsert_tarefa(tarefa_data, lista_de_tarefas_id, fase_id, projeto_id):
         session.rollback()
         logger.error(f"Erro ao inserir/atualizar tarefa: {e}")
     finally:
-        session.close()
+        try:
+            session.close()
+        except:
+            pass
 
 def upsert_comentario(comentario_data, projeto_id):
     """
