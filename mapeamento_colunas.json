@@ -39,7 +39,7 @@
       {
         "type": "taskComment",
         "taskName": "Solicitar dados ao RIS/HIS para integração de worklist",
-        "template": "Bom dia @{Roger Machado}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Integração. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
+        "template": "Bom dia @{Giovani Sousa}, tudo bem? Apenas para informar que foi realizada a reunião de onboarding.\n\nSendo assim, podemos dar inicio as atividades de Integração. Vamos iniciar os grupos.\n\nOs detalhes do projeto se encontram na descrição do mesmo. Att",
         "optional": true
       }
     ],
