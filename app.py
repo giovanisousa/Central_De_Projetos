@@ -9,6 +9,8 @@ from datetime import date, datetime, timedelta
 import logging # Import logging
 import warnings
 
+
+
 # Suprime warning do googleapiclient sobre file_cache (é apenas informativo, não afeta funcionalidade)
 warnings.filterwarnings('ignore', message='file_cache is only supported with oauth2client<4.0.0')
 
@@ -130,12 +132,14 @@ try:
 except Exception as e:
     logger.error(f"[SYNC] Erro ao verificar banco de dados: {e}")
 
-if __name__ == '__main__':
-    # Permite OAuth em HTTP quando rodar localmente via python app.py
+if os.environ.get('FLASK_ENV') != 'production':
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+if __name__ == '__main__':
+       
+    # 2. Use a porta do Render ou 5000 como fallback
+    port = int(os.environ.get("PORT", 5000))
     
-    if app.config.get('FLASK_ENV', 'production') == 'development':
-        debug_mode = True
-    else:
-        debug_mode = False
-    app.run(debug=debug_mode, port=5000, use_reloader=False)
+    # 3. Importante: host="0.0.0.0" é obrigatório no Render
+    # O debug deve ser False em produção por segurança
+    app.run(host="0.0.0.0", port=port, debug=False)
