@@ -6,12 +6,11 @@ import time
 import traceback
 import urllib.parse
 from datetime import date, datetime, timedelta
-import logging # Import logging
+import logging 
 import warnings
+from sqlalchemy import text # Import necessário para a rota keep-alive
 
-
-
-# Suprime warning do googleapiclient sobre file_cache (é apenas informativo, não afeta funcionalidade)
+# Suprime warning do googleapiclient
 warnings.filterwarnings('ignore', message='file_cache is only supported with oauth2client<4.0.0')
 
 # Carrega variáveis do .env automaticamente
@@ -19,15 +18,17 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    pass  # Se não estiver instalado, ignora (Railway já injeta variáveis)
+    pass  
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.utils import secure_filename
+
 try:
     from flask_session import Session
 except Exception:
     Session = None
 
-# --- BIBLIOTECAS DE API (INSTALE COM 'pip install ...') ---
+# --- BIBLIOTECAS DE API ---
 import requests
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -41,31 +42,47 @@ import io
 import re
 
 # --- INICIALIZAÇÃO E CONFIGURAÇÃO DO FLASK ---
-
 from config import Config, DONOS_PROJETO, BASE_DIR
 import utils
 
-
 app = Flask(__name__)
-
 app.config.from_object(Config)
 
-# Garante que Flask reconheça HTTPS atrás de proxy (Railway, Heroku, etc)
+# Garante que Flask reconheça HTTPS atrás de proxy (Render, Railway, etc)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configurar logging para toda a aplicação
+# Configurar logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-logger = logging.getLogger(__name__) # Logger para app.py
+logger = logging.getLogger(__name__)
 
-# Inicializa caches/TTL usados pelos endpoints
+# Configurações de Cache
 app.config.setdefault('_DIAS_FASE_CACHE', {})
 app.config.setdefault('_CACHE_TTL_SECONDS', 90)
 
+# --- NOVA ROTA: KEEP-ALIVE (EVITA SUSPEND DO NEON E STANDBY DO RENDER) ---
+@app.route('/keep-alive')
+def keep_alive():
+    """
+    Rota utilizada pelo UptimeRobot para evitar que o Render entre em standby
+    e que o Neon DB entre em modo SUSPENDED.
+    """
+    try:
+        from database import Session
+        db_session = Session()
+        # Executa consulta ultra leve para acordar o banco de dados
+        db_session.execute(text('SELECT 1'))
+        db_session.close()
+        return "Sistemas Online: Render + Neon DB Ativos", 200
+    except Exception as e:
+        logger.error(f"[KEEP-ALIVE] Erro ao acordar banco de dados: {e}")
+        return f"Erro na conexão com o banco: {e}", 500
+
+# --- REGISTRO DE BLUEPRINTS ---
 from routes.main import main_bp
 app.register_blueprint(main_bp)
 
@@ -74,47 +91,31 @@ app.register_blueprint(api_bp, url_prefix='/api')
 
 # Sessão do lado do servidor
 if Session:
-    if app.config['SESSION_TYPE'] == 'filesystem':
+    if app.config.get('SESSION_TYPE') == 'filesystem':
         try:
             os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
         except Exception as e:
             logger.error(f"Erro ao criar diretório de sessão: {e}")
+    Session(app)
 
-    # Sessão do lado do servidor
-    if Session:
-        if app.config['SESSION_TYPE'] == 'filesystem':
-            try:
-                os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
-            except Exception as e:
-                logger.error(f"Erro ao criar diretório de sessão: {e}")
-        Session(app)
+try:
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+except Exception as e:
+    logger.error(f"Erro ao criar diretório de upload: {e}")
 
-    try:
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    except Exception as e:
-        logger.error(f"Erro ao criar diretório de upload: {e}")
-
-# Configurar cache para arquivos estáticos (imagens, CSS, JS)
+# Configurar cache para arquivos estáticos
 @app.after_request
 def add_header(response):
-    """
-    Adiciona headers de cache para arquivos estáticos para melhorar performance.
-    Imagens de fundo e assets carregam instantaneamente após primeira visita.
-    """
     if 'static' in request.path:
-        # Cache por 1 ano para assets estáticos (imagens, fonts, etc)
         if any(ext in request.path for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf']):
-            response.cache_control.max_age = 31536000  # 1 ano
+            response.cache_control.max_age = 31536000  
             response.cache_control.public = True
-        # Cache por 1 semana para CSS e JS
         elif any(ext in request.path for ext in ['.css', '.js']):
-            response.cache_control.max_age = 604800  # 1 semana
+            response.cache_control.max_age = 604800  
             response.cache_control.public = True
     return response
 
-# Verificação do banco de dados no startup (SEM sincronização automática)
-# Para evitar timeout no deploy (Render, Railway, etc), a sincronização deve ser feita
-# APÓS o deploy via endpoint /api/trigger-sync ou manualmente
+# Verificação do banco de dados no startup
 try:
     from database import Session, Project
     db_session = Session()
@@ -123,23 +124,19 @@ try:
     logger.info(f"[SYNC] Projetos no banco: {projetos_count}")
     
     if projetos_count == 0:
-        logger.warning("[SYNC] ⚠️  Banco de dados vazio! Execute sincronização após deploy via:")
-        logger.warning("[SYNC]     POST /api/trigger-sync (com token de autorização)")
-        logger.warning("[SYNC]     ou execute: python sync_complete.py")
+        logger.warning("[SYNC] ⚠️ Banco de dados vazio! Execute sincronização após deploy.")
     else:
         logger.info(f"[SYNC] ✅ Banco de dados OK com {projetos_count} projetos.")
         
 except Exception as e:
     logger.error(f"[SYNC] Erro ao verificar banco de dados: {e}")
 
+# Configuração de OAuth para produção/desenvolvimento
 if os.environ.get('FLASK_ENV') != 'production':
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+# --- INICIALIZAÇÃO ---
 if __name__ == '__main__':
-       
-    # 2. Use a porta do Render ou 5000 como fallback
+    # Configuração de porta e host para o Render (quando rodado localmente)
     port = int(os.environ.get("PORT", 5000))
-    
-    # 3. Importante: host="0.0.0.0" é obrigatório no Render
-    # O debug deve ser False em produção por segurança
     app.run(host="0.0.0.0", port=port, debug=False)
