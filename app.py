@@ -68,19 +68,34 @@ app.config.setdefault('_CACHE_TTL_SECONDS', 90)
 @app.route('/keep-alive')
 def keep_alive():
     """
-    Rota utilizada pelo UptimeRobot para evitar que o Render entre em standby
-    e que o Neon DB entre em modo SUSPENDED.
+    Mantém o Render acordado 24/7, mas só acorda o Neon no horário comercial.
     """
-    try:
-        from database import Session
-        db_session = Session()
-        # Executa consulta ultra leve para acordar o banco de dados
-        db_session.execute(text('SELECT 1'))
-        db_session.close()
-        return "Sistemas Online: Render + Neon DB Ativos", 200
-    except Exception as e:
-        logger.error(f"[KEEP-ALIVE] Erro ao acordar banco de dados: {e}")
-        return f"Erro na conexão com o banco: {e}", 500
+    from datetime import datetime, timedelta, timezone
+    
+    # Define o fuso horário de Brasília (UTC-3)
+    tz_brasilia = timezone(timedelta(hours=-3))
+    agora = datetime.now(tz_brasilia)
+    
+    dia_semana = agora.isoweekday() # 1 = Segunda, 7 = Domingo
+    hora = agora.hour
+
+    # Define horário comercial: Segunda a Sexta, das 08h às 18h
+    is_horario_comercial = (1 <= dia_semana <= 5) and (8 <= hora < 18)
+
+    if is_horario_comercial:
+        try:
+            from database import Session
+            db_session = Session()
+            db_session.execute(text('SELECT 1'))
+            db_session.close()
+            return "Modo Comercial: Render + Neon Ativos", 200
+        except Exception as e:
+            logger.error(f"[KEEP-ALIVE] Erro ao acordar banco: {e}")
+            return f"Erro no banco: {e}", 500
+    else:
+        # Fora do horário comercial, apenas responde 200 para o Render não dormir
+        # Mas NÃO faz consulta SQL, permitindo que o Neon fique SUSPENDED
+        return "Modo Descanso: Render Ativo (Neon Suspenso)", 200
 
 # --- REGISTRO DE BLUEPRINTS ---
 from routes.main import main_bp
