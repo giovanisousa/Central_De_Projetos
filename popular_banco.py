@@ -35,13 +35,13 @@ from datetime import datetime
 try:
     from dotenv import load_dotenv
     load_dotenv()
-    print("✅ Arquivo .env carregado")
+    print("[OK] Arquivo .env carregado")
 except ImportError:
-    print("⚠️  python-dotenv não instalado. Usando variáveis de ambiente do sistema")
+    print("[AVISO] python-dotenv nao instalado. Usando variaveis de ambiente do sistema")
 
 # Verificar variáveis essenciais
 required_vars = [
-    'DATABASE_URL',
+    'SQLALCHEMY_DATABASE_URI',  # IMPORTANTE: Esta é a variável que o código usa!
     'ZOHO_CLIENT_ID', 
     'ZOHO_CLIENT_SECRET',
     'ZOHO_REFRESH_TOKEN'
@@ -49,10 +49,10 @@ required_vars = [
 
 missing_vars = [var for var in required_vars if not os.environ.get(var)]
 if missing_vars:
-    print("\n❌ ERRO: Variáveis de ambiente faltando:")
+    print("\n[ERRO] Variaveis de ambiente faltando:")
     for var in missing_vars:
         print(f"   - {var}")
-    print("\nConfigure o arquivo .env com todas as variáveis necessárias!")
+    print("\nConfigure o arquivo .env com todas as variaveis necessarias!")
     sys.exit(1)
 
 print("\n" + "="*80)
@@ -63,40 +63,40 @@ print("="*80 + "\n")
 # Verificar conexão com banco
 try:
     from database import Session, Project, Fase
-    print("✅ Módulo database importado")
+    print("[OK] Modulo database importado")
     
     session = Session()
     projetos_antes = session.query(Project).count()
     fases_antes = session.query(Fase).count()
     session.close()
     
-    print(f"📊 Estado atual do banco:")
+    print(f"[STATUS] Estado atual do banco:")
     print(f"   - Projetos: {projetos_antes}")
     print(f"   - Fases: {fases_antes}")
     
 except Exception as e:
-    print(f"\n❌ ERRO ao conectar no banco: {e}")
-    print("\nVerifique se DATABASE_URL está correto no .env")
+    print(f"\n[ERRO] ao conectar no banco: {e}")
+    print("\nVerifique se DATABASE_URL esta correto no .env")
     sys.exit(1)
 
 # Importar funções de sincronização
 try:
     from sync_zoho import synchronize_projects, sync_all_phases_for_existing_projects
-    print("✅ Módulos de sincronização importados\n")
+    print("[OK] Modulos de sincronizacao importados\n")
 except Exception as e:
-    print(f"\n❌ ERRO ao importar sync_zoho: {e}")
+    print(f"\n[ERRO] ao importar sync_zoho: {e}")
     sys.exit(1)
 
 # ETAPA 1: Sincronizar projetos do Zoho
 print("\n" + "="*80)
-print("📥 ETAPA 1/2: SINCRONIZANDO PROJETOS DO ZOHO")
+print("[ETAPA 1/2] SINCRONIZANDO PROJETOS DO ZOHO")
 print("="*80)
 
 try:
     synchronize_projects()
-    print("\n✅ Projetos sincronizados com sucesso!")
+    print("\n[OK] Projetos sincronizados com sucesso!")
 except Exception as e:
-    print(f"\n❌ ERRO na sincronização de projetos: {e}")
+    print(f"\n[ERRO] na sincronizacao de projetos: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -108,23 +108,23 @@ try:
     session.close()
     projetos_novos = projetos_depois - projetos_antes
     
-    print(f"\n📊 Projetos inseridos: {projetos_novos}")
+    print(f"\n[STATUS] Projetos inseridos: {projetos_novos}")
     print(f"   Total no banco: {projetos_depois}")
 except Exception as e:
-    print(f"⚠️  Não foi possível contar projetos: {e}")
+    print(f"[AVISO] Nao foi possivel contar projetos: {e}")
 
 # ETAPA 2: Sincronizar fases de todos os projetos
 print("\n" + "="*80)
-print("📊 ETAPA 2/2: SINCRONIZANDO FASES DE TODOS OS PROJETOS")
+print("[ETAPA 2/2] SINCRONIZANDO FASES DE TODOS OS PROJETOS")
 print("="*80)
-print("⏱️  Esta etapa pode levar 10-15 minutos...")
-print("⚠️  Zoho API Rate Limit: 100 req/2min - usando delay de 2s entre projetos\n")
+print("[INFO] Esta etapa pode levar 10-15 minutos...")
+print("[AVISO] Zoho API Rate Limit: 100 req/2min - usando delay de 2s entre projetos\n")
 
 try:
     sync_all_phases_for_existing_projects()
-    print("\n✅ Fases sincronizadas com sucesso!")
+    print("\n[OK] Fases sincronizadas com sucesso!")
 except Exception as e:
-    print(f"\n❌ ERRO na sincronização de fases: {e}")
+    print(f"\n[ERRO] na sincronizacao de fases: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -140,21 +140,21 @@ try:
     media_fases = fases_final / projetos_final if projetos_final > 0 else 0
     
     print("\n" + "="*80)
-    print("✅ SINCRONIZAÇÃO COMPLETA CONCLUÍDA!")
+    print("[SUCESSO] SINCRONIZACAO COMPLETA CONCLUIDA!")
     print("="*80)
-    print(f"\n📊 Estatísticas finais:")
+    print(f"\n[STATUS] Estatisticas finais:")
     print(f"   - Projetos no banco: {projetos_final} (novos: {projetos_novos})")
     print(f"   - Fases no banco: {fases_final} (novas: {fases_novas})")
-    print(f"   - Média de fases por projeto: {media_fases:.1f}")
-    print(f"\n🎉 Banco Neon populado com sucesso!")
-    print(f"⏱️  Fim: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"   - Media de fases por projeto: {media_fases:.1f}")
+    print(f"\n[OK] Banco Neon populado com sucesso!")
+    print(f"[INFO] Fim: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*80 + "\n")
     
 except Exception as e:
-    print(f"\n⚠️  Erro ao gerar estatísticas finais: {e}")
+    print(f"\n[AVISO] Erro ao gerar estatisticas finais: {e}")
 
-print("✅ Script finalizado com sucesso!")
-print("\nPróximos passos:")
+print("[OK] Script finalizado com sucesso!")
+print("\nProximos passos:")
 print("1. Verifique os dados no banco Neon")
-print("2. Faça deploy no Render")
-print("3. Sincronizações futuras serão via GitHub Actions\n")
+print("2. Faca deploy no Render")
+print("3. Sincronizacoes futuras serao via GitHub Actions\n")

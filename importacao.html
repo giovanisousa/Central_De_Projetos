@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download de Imagens - YouFocus</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            resize: vertical;
+            transition: border 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .option-group {
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 10px;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-stop {
+            background: #dc3545;
+        }
+        
+        .btn-stop:hover {
+            box-shadow: 0 10px 20px rgba(220, 53, 69, 0.4);
+        }
+        
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .status {
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .log {
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        
+        .log-item {
+            padding: 3px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        
+        .alert {
+            padding: 15px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #155724;
+            font-size: 13px;
+        }
+        
+        .alert strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Download de Imagens - YouFocus</h1>
+        <p class="subtitle">Todas as imagens serão baixadas em um único arquivo ZIP</p>
+        
+        <div class="alert">
+            <strong>✅ Solução Definitiva!</strong>
+            Agora todas as suas 155 fotos serão baixadas de uma só vez em um arquivo ZIP compactado. Depois é só extrair!
+        </div>
+        
+        <div class="input-group">
+            <label for="urls">📋 URLs das Imagens (uma por linha):</label>
+            <textarea id="urls" placeholder="Cole aqui as URLs, uma por linha...
+
+Exemplo:
+https://cdn-selpics-b2.youfocus.com.br/1763053391-69160f4f11b8c443333324.jpg
+https://cdn-selpics-b2.youfocus.com.br/1763053392-69160f4f11b8c443333325.jpg"></textarea>
+        </div>
+        
+        <div class="option-group">
+            <label for="prefix">📁 Prefixo dos arquivos:</label>
+            <input type="text" id="prefix" value="thomas_" placeholder="thomas_">
+        </div>
+        
+        <button id="downloadBtn" onclick="iniciarDownload()">⬇️ Baixar Todas as Imagens em ZIP</button>
+        <button id="stopBtn" onclick="pararDownload()" class="btn-stop" style="display:none;">⏹️ Cancelar</button>
+        
+        <div id="progressContainer" class="progress-container">
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill">0%</div>
+            </div>
+            <div id="status" class="status">Preparando...</div>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let shouldStop = false;
+
+        async function iniciarDownload() {
+            const urlsText = document.getElementById('urls').value.trim();
+            const prefix = document.getElementById('prefix').value || 'foto_';
+            
+            if (!urlsText) {
+                alert('❌ Por favor, cole as URLs das imagens!');
+                return;
+            }
+            
+            // Separar URLs e limpar linhas vazias
+            const urls = urlsText.split('\n')
+                .map(url => url.trim())
+                .filter(url => url.length > 0 && url.startsWith('http'));
+            
+            if (urls.length === 0) {
+                alert('❌ Nenhuma URL válida encontrada!');
+                return;
+            }
+            
+            shouldStop = false;
+            
+            document.getElementById('downloadBtn').disabled = true;
+            document.getElementById('downloadBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'block';
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('log').innerHTML = '';
+            
+            addLog(`🚀 Preparando download de ${urls.length} imagens...`, 'info');
+            addLog(`📦 Criando arquivo ZIP...`, 'info');
+            
+            const zip = new JSZip();
+            let successCount = 0;
+            let errorCount = 0;
+            let totalSize = 0;
+            
+            for (let i = 0; i < urls.length && !shouldStop; i++) {
+                const url = urls[i];
+                const progress = ((i + 1) / urls.length * 100).toFixed(1);
+                
+                // Atualizar barra de progresso
+                document.getElementById('progressFill').style.width = progress + '%';
+                document.getElementById('progressFill').textContent = progress + '%';
+                document.getElementById('status').textContent = `Baixando ${i + 1} de ${urls.length}...`;
+                
+                try {
+                    // Extrair extensão da URL
+                    const urlParts = url.split('.');
+                    const extension = urlParts[urlParts.length - 1].split('?')[0] || 'jpg';
+                    const filename = `${prefix}${String(i + 1).padStart(4, '0')}.${extension}`;
+                    
+                    // Baixar a imagem
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    
+                    const blob = await response.blob();
+                    
+                    // Adicionar ao ZIP
+                    zip.file(filename, blob);
+                    
+                    totalSize += blob.size;
+                    successCount++;
+                    addLog(`✅ ${i + 1}/${urls.length}: ${filename} (${(blob.size / 1024).toFixed(1)} KB)`, 'success');
+                    
+                } catch (error) {
+                    errorCount++;
+                    addLog(`❌ Erro no arquivo ${i + 1}: ${error.message}`, 'error');
+                }
+            }
+            
+            if (shouldStop) {
+                addLog(`⏹️ Download cancelado pelo usuário.`, 'info');
+                document.getElementById('status').textContent = `Cancelado`;
+                document.getElementById('downloadBtn').disabled = false;
+                document.getElementById('downloadBtn').style.display = 'block';
+                document.getElementById('stopBtn').style.display = 'none';
+                return;
+            }
+            
+            // Gerar arquivo ZIP
+            if (successCount > 0) {
+                addLog(`📦 Compactando ${successCount} imagens...`, 'info');
+                document.getElementById('status').textContent = `Gerando arquivo ZIP...`;
+                
+                try {
+                    const zipBlob = await zip.generateAsync({
+                        type: 'blob',
+                        compression: 'DEFLATE',
+                        compressionOptions: { level: 6 }
+                    }, (metadata) => {
+                        const percent = metadata.percent.toFixed(1);
+                        document.getElementById('status').textContent = `Compactando: ${percent}%`;
+                    });
+                    
+                    // Download do ZIP
+                    const zipUrl = window.URL.createObjectURL(zipBlob);
+                    const a = document.createElement('a');
+                    a.href = zipUrl;
+                    a.download = `${prefix}fotos_youfocus.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(zipUrl);
+                    
+                    addLog(`✅ Arquivo ZIP criado com sucesso!`, 'success');
+                    addLog(`📊 Total: ${successCount} imagens (${(totalSize / 1024 / 1024).toFixed(2)} MB)`, 'info');
+                    document.getElementById('status').textContent = `Concluído: ${successCount} imagens no arquivo ZIP`;
+                    
+                    alert(`✅ Download concluído!\n\n${successCount} imagens salvas em:\n${prefix}fotos_youfocus.zip\n\nExtraia o arquivo ZIP para ver todas as fotos!`);
+                    
+                } catch (error) {
+                    addLog(`❌ Erro ao gerar ZIP: ${error.message}`, 'error');
+                    alert('❌ Erro ao criar arquivo ZIP. Tente novamente.');
+                }
+            }
+            
+            // Finalizar
+            document.getElementById('downloadBtn').disabled = false;
+            document.getElementById('downloadBtn').style.display = 'block';
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+        
+        function pararDownload() {
+            shouldStop = true;
+            addLog('⏸️ Cancelando...', 'info');
+        }
+        
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            item.textContent = message;
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html>
