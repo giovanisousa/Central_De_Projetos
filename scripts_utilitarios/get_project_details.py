@@ -1,3 +1,12 @@
+import sys
+import os
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+os.chdir(ROOT_DIR)
+
 from utils import obter_access_token, _zp_headers
 import requests
 import json
@@ -9,7 +18,7 @@ def get_project_details():
         headers = _zp_headers(token)
         
         # Obter detalhes completos do projeto usando o PORTAL_ID da config
-        project_url = f'https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/2376502000005544019'
+        project_url = f'https://projectsapi.zoho.com/api/v3/portal/{ZOHO_PORTAL_ID}/projects/2376502000007984003'
         resp = requests.get(project_url, headers=headers)
         data = resp.json()
         
