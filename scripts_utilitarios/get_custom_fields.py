@@ -10,9 +10,9 @@ def get_custom_fields():
         
         # Tentar diferentes endpoints para campos customizados
         endpoints = [
-            f'/projects/2376502000005544019/customfields',  # campos do projeto
+            f'/projects/2376502000007984003/customfields',  # campos do projeto
             f'/customfields/project',  # todos os campos customizados de projetos
-            f'/projects/2376502000005544019',  # detalhes do projeto com ?custom_fields=true
+            f'/projects/2376502000007984003',  # detalhes do projeto com ?custom_fields=true
         ]
         
         for endpoint in endpoints:

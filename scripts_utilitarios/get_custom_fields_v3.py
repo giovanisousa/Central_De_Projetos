@@ -7,7 +7,7 @@ def get_custom_fields_v3():
     try:
         token = obter_access_token()
         headers = _zp_headers(token)
-        project_id = "2376502000005544019"
+        project_id = "2376502000007984003"
         
         # Tentar diferentes endpoints da API v3
         endpoints = [

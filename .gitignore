@@ -1,4 +1,6 @@
 __pycache__/
+*.pyc
+.flask_session/
 zoho_cache.db
 app_antigo
 .env

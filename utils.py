@@ -823,30 +823,89 @@ def criar_estrutura_no_drive(drive_service, dados):
                 subpasta_metadata = {'name': nome_subpasta, 'mimeType': 'application/vnd.google-apps.folder', 'parents': [id_pasta_cliente]}
                 subpasta = drive_service.files().create(body=subpasta_metadata, fields='id').execute()
                 subpastas[nome_subpasta] = subpasta.get('id')
-        print("INFO: Fazendo upload dos arquivos para o Google Drive...")
+        print("INFO: Enviando arquivos para o Google Drive...")
         media_deip = MediaFileUpload(dados['caminho_deip'], mimetype='application/pdf')
         deip_metadata = {'name': os.path.basename(dados['caminho_deip_original']), 'parents': [subpastas['Implantação']]} 
         drive_service.files().create(body=deip_metadata, media_body=media_deip, fields='id').execute()
         nome_cliente = dados['nome_cliente']
-        templates_para_upload = {
-            "Protocolo de Implantação.docx": {'pasta': 'Implantação', 'nome_final': f"Protocolo de Implantação - {nome_cliente}.docx"},
-            "Documento DPI.docx": {'pasta': 'Implantação', 'nome_final': f"Documento DPI - {nome_cliente}.docx"},
-            "Definição_Cronograma_Homologação.docx": {'pasta': 'Implantação', 'nome_final': f"Definição_Cronograma_Homologação - {nome_cliente}.docx"},
-        }
+        templates_para_copiar = [
+            {
+                'aliases': [
+                    "DC - 6.0.4 - DOCUMENTO PÓS IMPLANTAÇÃO - VERSÃO 4 - 12.12.2023",
+                    "Documento DPI.docx",
+                ],
+                'pasta': 'Implantação',
+            },
+            {
+                'aliases': [
+                    "PROTOCOLO DE IMPLANTAÇÃO Animati PACS",
+                    "Protocolo de Implantação.docx",
+                ],
+                'pasta': 'Implantação',
+            },
+        ]
         if dados['importacao'] == 's':
-            templates_para_upload["Formulário de Importação.docx"] = {'pasta': 'Importação', 'nome_final': f"Formulário de Importação - {nome_cliente}.docx"}
-        for template_original, info in templates_para_upload.items():
-            caminho_template = os.path.join(TEMPLATE_DOCS_PATH, template_original)
-            if os.path.exists(caminho_template):
-                try:
-                    metadata = {'name': info['nome_final'], 'parents': [subpastas[info['pasta']]]}
-                    media = MediaFileUpload(caminho_template, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-                    created = drive_service.files().create(body=metadata, media_body=media, fields='id, name, parents').execute()
-                    print(f"INFO: Template upado: {template_original} -> {info['pasta']} ({created.get('id')})")
-                except HttpError as e:
-                    print(f"AVISO: Falha ao upar template '{template_original}': {e}")
-            else:
-                print(f"AVISO: Arquivo de template não encontrado: {caminho_template}")
+            templates_para_copiar.append(
+                {
+                    'aliases': [
+                        "FORMULARIO DE IMPORTAÇÃO - PADRÃO.docx",
+                        "Formulário de Importação.docx",
+                    ],
+                    'pasta': 'Importação',
+                }
+            )
+
+        print(f"INFO: Copiando templates da pasta de origem no Drive ({ID_PASTA_TEMPLATES_DRIVE})...")
+        # Lista uma vez os templates de origem para resolver variações de nomenclatura
+        arquivos_origem = drive_service.files().list(
+            q=f"'{ID_PASTA_TEMPLATES_DRIVE}' in parents and trashed = false",
+            fields='files(id, name, mimeType)',
+            pageSize=200
+        ).execute().get('files', [])
+
+        def _norm_nome(nome: str) -> str:
+            try:
+                import unicodedata
+                txt = (nome or '').strip().lower()
+                txt = unicodedata.normalize('NFD', txt)
+                txt = ''.join(ch for ch in txt if unicodedata.category(ch) != 'Mn')
+                txt = ' '.join(txt.split())
+                return txt
+            except Exception:
+                return (nome or '').strip().lower()
+
+        origem_por_nome = {_norm_nome(item.get('name')): item for item in arquivos_origem}
+
+        for item in templates_para_copiar:
+            try:
+                arquivo_origem = None
+                for alias in item.get('aliases', []):
+                    arquivo_origem = origem_por_nome.get(_norm_nome(alias))
+                    if arquivo_origem:
+                        break
+
+                if not arquivo_origem:
+                    print(f"AVISO: Template não encontrado na pasta origem do Drive. Aliases tentados: {item.get('aliases', [])}")
+                    continue
+
+                nome_origem = arquivo_origem.get('name') or 'Template'
+                template_id = arquivo_origem['id']
+
+                if '.' in nome_origem:
+                    base, ext = nome_origem.rsplit('.', 1)
+                    nome_final = f"{base} - {nome_cliente}.{ext}"
+                else:
+                    nome_final = f"{nome_origem} - {nome_cliente}"
+
+                metadata = {'name': nome_final, 'parents': [subpastas[item['pasta']]]}
+                created = drive_service.files().copy(
+                    fileId=template_id,
+                    body=metadata,
+                    fields='id, name, parents'
+                ).execute()
+                print(f"INFO: Template copiado: {nome_origem} -> {item['pasta']} ({created.get('id')})")
+            except HttpError as e:
+                print(f"AVISO: Falha ao copiar template para pasta '{item.get('pasta')}': {e}")
         return link_pasta_cliente
     except (HttpError, FileNotFoundError) as error:
         raise Exception(f"Erro no Google Drive: {error}")
@@ -920,7 +979,15 @@ def atualizar_planilha_secundaria(sheets_service, dados):
         range_coluna_ref = f"'{sheet_name}'!{letra_coluna_ref}:{letra_coluna_ref}"
         proxima_linha_vazia = len(sheets_service.spreadsheets().values().get(spreadsheetId=sheet_id, range=range_coluna_ref).execute().get('values', [])) + 1
         novo_num_sequencial = proxima_linha_vazia - 1
-        sistema = 'NR/AP' if dados['produto'] == 'netRIS e AnimatiPACS' else ('NR' if dados['produto'] == 'netRIS' else 'AP')
+        produto = (dados.get('produto') or '').strip()
+        if produto in ('netRIS e AnimatiPACS', 'AnimatiPACS/netRIS', 'AnimatiPACS / netRIS', 'netRIS/AnimatiPACS', 'netRIS / AnimatiPACS'):
+            sistema = 'NR/AP'
+        elif produto == 'netRIS':
+            sistema = 'NR'
+        elif produto == 'AnimatiPACS':
+            sistema = 'AP'
+        else:
+            sistema = produto
         mapeamento = {
             COLUNA_SEQUENCIAL_SECUNDARIA: novo_num_sequencial,
             "Recebido": dados['start_date'].replace('-', '/'),
@@ -1055,22 +1122,10 @@ def construir_descricao(dados):
     return " ".join(descricao_html.split())
 
 def escolher_template_zoho(dados):
-    produto, importacao, integracao = dados['produto'], dados['importacao'] == 's', dados['integracao_status'] == 's'
-    print(f"INFO: Selecionando modelo para: {produto}, Importação={importacao}, Integração={integracao}")
-    if produto == 'netRIS':
-        if importacao and integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e COM integração)")
-        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e SEM integração)")
-        return MODELOS_ZOHO.get("Implantação RIS (SEM importação e SEM integração)")
-    if produto == 'AnimatiPACS':
-        if importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS ( IMPORTAÇÃO + INTEGRAÇÃO) - UNIFICADO FINAL")
-        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação PACS (COM importação e SEM integração) - UNIFICADO FINAL")
-        if not importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS (COM integração e SEM importação) - Unificado FINAL")
-        return MODELOS_ZOHO.get("Implantação PACS (SEM importação e SEM integração) - UNIFICADO FINAL")
-    if produto in ('netRIS e AnimatiPACS', 'AnimatiPACS/netRIS'):
-        if importacao: return MODELOS_ZOHO.get("Implantação RIS + PACS (COM importação) - UNIFICADO Final")
-        return MODELOS_ZOHO.get("Implantação RIS + PACS (SEM importação ) - UNIFICADO FINAL")
-    print("AVISO: Nenhum modelo Zoho para este cenário.")
-    return None
+    print(
+        f"INFO: Utilizando modelo Zoho padrão para criação de projeto: {ZOHO_TEMPLATE_ID_PADRAO}"
+    )
+    return ZOHO_TEMPLATE_ID_PADRAO
 
 def criar_projeto_no_zoho(access_token, dados, template_id):
     print(f"INFO: Criando projeto Zoho para '{dados['nome_cliente']}'...")
@@ -1118,13 +1173,28 @@ def criar_projeto_no_zoho(access_token, dados, template_id):
             except Exception:
                 continue
 
-    # Campos customizados do projeto
+    # Mapeia servidor para o texto esperado no campo customizado de seleção
+    servidor = str(dados.get('servidor') or '').strip()
+    if servidor == 'Local':
+        servidor_custom = 'Local'
+    elif servidor == 'Cloud Animati':
+        servidor_custom = 'Cloud Animati'
+    elif servidor in ('Cloud Terceiros', 'Cloud Terceiro'):
+        servidor_custom = 'Cloud Terceiro'
+    else:
+        servidor_custom = str(servidor or '')
+
     custom_fields = {
         "havera_integracao": bool(dados.get('integracao_status') == 's'),
         "solucoes_contratadas": solucoes_contratadas,
         "link_do_google": dados.get('link_google') or dados.get('link_google_drive') or dados.get('link'),
         "importacoes": importacoes_list,
         "havera_importacao": "Sim" if dados.get('importacao') == 's' else "Não",
+        "servidor": servidor_custom,
+        "2376502000007980045": {
+            "data": servidor_custom,
+            "is_editable": True,
+        },
     }
     if data_virada_fmt:
         custom_fields["data_de_virada"] = data_virada_fmt
