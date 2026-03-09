@@ -217,22 +217,8 @@ def construir_descricao(dados):
 
 
 def escolher_template_zoho(dados):
-    produto = dados['produto']
-    importacao = dados['importacao'] == 's'
-    integracao = dados['integracao_status'] == 's'
-    if produto == 'netRIS':
-        if importacao and integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e COM integração)")
-        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação RIS (COM importação e SEM integração)")
-        return MODELOS_ZOHO.get("Implantação RIS (SEM importação e SEM integração)")
-    if produto == 'AnimatiPACS':
-        if importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS ( IMPORTAÇÃO + INTEGRAÇÃO) - UNIFICADO FINAL")
-        if importacao and not integracao: return MODELOS_ZOHO.get("Implantação PACS (COM importação e SEM integração) - UNIFICADO FINAL")
-        if not importacao and integracao: return MODELOS_ZOHO.get("Implantação PACS (COM integração e SEM importação) - Unificado FINAL")
-        return MODELOS_ZOHO.get("Implantação PACS (SEM importação e SEM integração) - UNIFICADO FINAL")
-    if produto in ('netRIS e AnimatiPACS', 'AnimatiPACS/netRIS'):
-        if importacao: return MODELOS_ZOHO.get("Implantação RIS + PACS (COM importação) - UNIFICADO Final")
-        return MODELOS_ZOHO.get("Implantação RIS + PACS (SEM importação ) - UNIFICADO FINAL")
-    return None
+    # Força uso do template padrão, independente das ferramentas contratadas
+    return ZOHO_TEMPLATE_ID_PADRAO
 
 
 def montar_payload(dados):
