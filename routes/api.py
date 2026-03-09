@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, session, current_app
 import utils
 import re
+import threading
 from config import (
     DONOS_PROJETO,
     ZOHO_PORTAL_ID,
@@ -3878,7 +3879,168 @@ def health_check():
             'erro': str(e)
         }), 500
 
+# ============================================================================
+#  ENDPOINT EXCLUSIVO PARA O APEX (COM EXECUÇÃO EM BACKGROUND)
+# ============================================================================
+@api_bp.route('/apex/comando', methods=['POST'])
+def api_apex_comando():
+    try:
+        # 1. VALIDAÇÃO DE SEGURANÇA
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"sucesso": False, "erro": "Token de acesso não fornecido."}), 401
+        
+        token = auth_header.replace('Bearer ', '')
+        apex_token = os.environ.get('APEX_SECRET_KEY', 'apex_stark_2026') 
+        if token != apex_token:
+            return jsonify({"sucesso": False, "erro": "Acesso negado. Token inválido."}), 403
+
+        # 2. LEITURA DO COMANDO
+        data = request.get_json()
+        acao = data.get('acao')
+        projeto_nome = data.get('projeto_nome')
+
+        if not acao or not projeto_nome:
+            return jsonify({"sucesso": False, "erro": "Parâmetros 'acao' e 'projeto_nome' obrigatórios."}), 400
+
+        # 3. TRADUÇÃO DE NOME PARA ID
+        import database
+        from database import Project
+        db_session = database.Session()
+        try:
+            projeto_row = db_session.query(Project).filter(Project.nome.ilike(f"%{projeto_nome}%")).first()
+            if not projeto_row:
+                return jsonify({"sucesso": False, "erro": f"Não encontrei o projeto '{projeto_nome}'."}), 404
+            projeto_id = str(projeto_row.id)
+            nome_oficial = projeto_row.nome
+            coluna_origem = projeto_row.status_atual
+            detalhes_zoho = json.loads(projeto_row.full_data_json) if projeto_row.full_data_json else {}
+        finally:
+            db_session.close()
+
+        access_token = utils.obter_access_token()
+
+        # 4. AÇÃO: MOVER CARD (AGORA EM BACKGROUND)
+        if acao == "mover_card":
+            destino = data.get('destino')
+            colmap = utils.carregar_mapeamento_colunas()
+            info_dest = colmap.get(destino)
+            
+            if not info_dest:
+                return jsonify({"sucesso": False, "erro": f"A coluna '{destino}' não existe."}), 400
+
+            # --- A MÁGICA DO BACKGROUND COMEÇA AQUI ---
+            def processo_pesado_mover_card():
+                logger.info(f"[APEX-BG] Iniciando movimentação pesada do projeto {nome_oficial} para {destino}...")
+                mensagens = []
+                
+                # Atualiza Banco Local
+                from datetime import date
+                data_atual = date.today().strftime('%Y-%m-%d')
+                conn = database.get_db_connection()
+                from sqlalchemy import text
+                try:
+                    conn.execute(text("UPDATE projects SET data_mudanca_status = :data, status_atual = :status WHERE id = :id"), 
+                                {'data': data_atual, 'status': destino, 'id': projeto_id})
+                    conn.commit()
+                except Exception as e:
+                    logger.error(f"[APEX-BG] Erro DB: {e}")
+                finally:
+                    conn.close()
+
+                # Atualiza Zoho (pode demorar)
+                try:
+                    _atualizar_zoho(projeto_id, destino, info_dest, access_token, detalhes_zoho, mensagens, coluna_origem)
+                except Exception as e:
+                    logger.error(f"[APEX-BG] Erro Zoho: {e}")
+
+                # Atualiza Planilha Google (pode demorar)
+                try:
+                    _atualizar_planilha(projeto_id, destino, info_dest, "", detalhes_zoho, mensagens, projeto_row, coluna_origem)
+                except Exception as e:
+                    logger.error(f"[APEX-BG] Erro Planilha: {e}")
+                    
+                logger.info(f"[APEX-BG] Movimentação de {nome_oficial} concluída!")
+
+            # Dispara a Thread (O servidor inicia o trabalho pesado, mas não fica esperando)
+            thread = threading.Thread(target=processo_pesado_mover_card)
+            thread.daemon = True # Permite que o servidor encerre se necessário
+            thread.start()
+            # ------------------------------------------
+
+            # O servidor responde ao Apex em 0.5 segundos!
+            return jsonify({
+                "sucesso": True, 
+                "mensagem": f"Protocolo iniciado, senhor. O projeto {nome_oficial} está sendo movido para {destino} em background."
+            })
+
+        # 5. AÇÃO: COMENTAR
+        elif acao == "comentar":
+            comentario = data.get('comentario')
+            from sync_comentarios import adicionar_comentario_projeto_zoho, sincronizar_comentarios_projeto
+            
+            # Como comentar é rápido, podemos deixar síncrono ou também colocar em background.
+            texto_formatado = f"🎙️ **[Apex AI]**\n{comentario}"
+            res_comentario = adicionar_comentario_projeto_zoho(projeto_id, texto_formatado)
+            
+            if res_comentario:
+                sincronizar_comentarios_projeto(projeto_id)
+                return jsonify({"sucesso": True, "mensagem": f"Anotação salva no projeto {nome_oficial}."})
+            else:
+                return jsonify({"sucesso": False, "erro": "Falha ao registrar comentário no Zoho."}), 500
+
+    except Exception as e:
+        logger.error(f"[APEX] Erro interno: {e}")
+        return jsonify({"sucesso": False, "erro": f"Erro interno: {str(e)}"}), 500
 
 
+# ============================================================================
+#  ENDPOINT EXCLUSIVO PARA O APEX (CONSULTA DE DADOS OFICIAIS)
+# ============================================================================
+@api_bp.route('/apex/projetos', methods=['GET'])
+def api_apex_projetos():
+    """
+    Entrega a lista completa e atualizada de projetos para o "Cérebro" do Apex.
+    """
+    try:
+        # 1. VALIDAÇÃO DE SEGURANÇA (Mesma fechadura do comando)
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"sucesso": False, "erro": "Token de acesso não fornecido."}), 401
+        
+        token = auth_header.replace('Bearer ', '')
+        apex_token = os.environ.get('APEX_SECRET_KEY', 'apex_stark_2026') 
+        if token != apex_token:
+            return jsonify({"sucesso": False, "erro": "Acesso negado. Token inválido."}), 403
 
+        # 2. BUSCA NO BANCO DE DADOS LOCAL (Cache do Zorin)
+        import database
+        from database import Project
+        import json
+        
+        db_session = database.Session()
+        lista_projetos = []
+        
+        try:
+            projetos_db = db_session.query(Project).all()
+            for p in projetos_db:
+                # O seu banco já tem o JSON original do Zoho salvo! Vamos aproveitá-lo.
+                if p.full_data_json:
+                    try:
+                        dados = json.loads(p.full_data_json)
+                        # Sobrescrevemos o nome, ID e status com os dados oficiais do seu Kanban
+                        dados['name'] = p.nome
+                        dados['id'] = p.id
+                        dados['status'] = p.status_atual
+                        lista_projetos.append(dados)
+                    except Exception as json_err:
+                        logger.warning(f"[APEX-API] Erro ao ler JSON do projeto {p.id}: {json_err}")
+                        
+            return jsonify({"sucesso": True, "projetos": lista_projetos})
+            
+        finally:
+            db_session.close()
 
+    except Exception as e:
+        logger.error(f"[APEX-API] Falha ao listar projetos para o Apex: {e}")
+        return jsonify({"sucesso": False, "erro": str(e)}), 500
