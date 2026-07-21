@@ -951,7 +951,7 @@ def atualizar_planilha_principal(sheets_service, dados, url_pasta_drive):
             "GP": primeiro_nome_gp,
             "Produtos": produtos_display,
             "Projetos": "Cliente Novo",
-            "Status Principal": "Aguardando Onboarding",
+            "Status (principal)": "Aguardando Onboarding",
             "Rec. DEIP": data_selecionada_formatada,
             "Integração": integracao_texto,
             "Importação": "Contratado" if dados['importacao'] == 's' else "Não Contratado"
