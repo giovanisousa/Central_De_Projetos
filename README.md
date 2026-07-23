@@ -157,4 +157,3 @@ Ver lista completa em [ISSUES_CONHECIDOS.md](ISSUES_CONHECIDOS.md)
 ---
 
 **Central de Projetos** - Automação de Onboarding e Gestão de Projetos  
-Desenvolvido com ❤️ pela equipe Animati
